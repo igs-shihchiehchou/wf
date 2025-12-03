@@ -67,7 +67,11 @@ class AudioCard {
             <input type="checkbox" class="crop-enabled"> 裁切
           </label>
           <div class="control-row crop-controls" style="display: none;">
-            <span class="control-value crop-range">00:00 - 00:00</span>
+            <label style="font-size: var(--text-sm);">開始:</label>
+            <input type="number" class="crop-start" min="0" step="0.1" value="0">
+            <label style="font-size: var(--text-sm);">結束:</label>
+            <input type="number" class="crop-end" min="0" step="0.1" value="0">
+            <span class="control-value">秒</span>
           </div>
         </div>
 
@@ -116,7 +120,7 @@ class AudioCard {
     return card;
   }
 
-  initializeWaveSurfer() {
+  async initializeWaveSurfer() {
     this.wavesurfer = WaveSurfer.create({
       container: `#waveform-${this.id}`,
       waveColor: 'hsl(56 38% 57% / 0.6)',
@@ -129,16 +133,27 @@ class AudioCard {
       normalize: true
     });
 
-    // 從 AudioBuffer 載入波形
-    this.wavesurfer.loadDecodedBuffer(this.audioBuffer);
+    // 將 AudioBuffer 轉換為 Blob 並載入
+    const blob = new Blob([audioBufferToWav(this.audioBuffer)], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
 
-    // 更新總時間
-    const totalTimeElement = this.element.querySelector('.total-time');
-    totalTimeElement.textContent = formatTime(this.audioBuffer.duration);
+    try {
+      await this.wavesurfer.load(url);
+
+      // 載入完成後清理 URL
+      URL.revokeObjectURL(url);
+
+      // 更新總時間
+      const totalTimeElement = this.element.querySelector('.total-time');
+      totalTimeElement.textContent = formatTime(this.audioBuffer.duration);
+    } catch (error) {
+      console.error('WaveSurfer 載入失敗:', error);
+      URL.revokeObjectURL(url);
+      throw error;
+    }
 
     // 播放進度更新
-    this.wavesurfer.on('audioprocess', () => {
-      const currentTime = this.wavesurfer.getCurrentTime();
+    this.wavesurfer.on('timeupdate', (currentTime) => {
       const currentTimeElement = this.element.querySelector('.current-time');
       currentTimeElement.textContent = formatTime(currentTime);
     });
@@ -149,16 +164,15 @@ class AudioCard {
       this.updatePlayButton();
     });
 
-    // 啟用區域選擇插件（用於裁切）
-    this.wavesurfer.on('ready', () => {
-      this.wavesurfer.enableDragSelection({
-        color: 'hsl(242 68% 80% / 0.3)'
-      });
+    // 播放/暫停事件
+    this.wavesurfer.on('play', () => {
+      this.isPlaying = true;
+      this.updatePlayButton();
     });
 
-    // 監聽區域選擇
-    this.wavesurfer.on('region-updated', (region) => {
-      this.updateCropRange(region.start, region.end);
+    this.wavesurfer.on('pause', () => {
+      this.isPlaying = false;
+      this.updatePlayButton();
     });
   }
 
@@ -178,9 +192,26 @@ class AudioCard {
     // 裁切啟用
     const cropEnabled = this.element.querySelector('.crop-enabled');
     const cropControls = this.element.querySelector('.crop-controls');
+    const cropStart = this.element.querySelector('.crop-start');
+    const cropEnd = this.element.querySelector('.crop-end');
+
+    // 設定裁切結束時間為音訊總長度
+    cropEnd.value = this.audioBuffer.duration.toFixed(1);
+    cropEnd.max = this.audioBuffer.duration;
+    cropStart.max = this.audioBuffer.duration;
+    this.settings.crop.end = this.audioBuffer.duration;
+
     cropEnabled.addEventListener('change', (e) => {
       this.settings.crop.enabled = e.target.checked;
       cropControls.style.display = e.target.checked ? 'flex' : 'none';
+    });
+
+    cropStart.addEventListener('input', (e) => {
+      this.settings.crop.start = parseFloat(e.target.value);
+    });
+
+    cropEnd.addEventListener('input', (e) => {
+      this.settings.crop.end = parseFloat(e.target.value);
     });
 
     // 音量
@@ -233,25 +264,12 @@ class AudioCard {
   }
 
   togglePlay() {
-    if (this.isPlaying) {
-      this.wavesurfer.pause();
-    } else {
-      this.wavesurfer.play();
-    }
-    this.isPlaying = !this.isPlaying;
-    this.updatePlayButton();
+    this.wavesurfer.playPause();
   }
 
   updatePlayButton() {
     const playBtn = this.element.querySelector('.play-btn');
     playBtn.textContent = this.isPlaying ? '⏸' : '▶';
-  }
-
-  updateCropRange(start, end) {
-    this.settings.crop.start = start;
-    this.settings.crop.end = end;
-    const cropRange = this.element.querySelector('.crop-range');
-    cropRange.textContent = `${formatTime(start)} - ${formatTime(end)}`;
   }
 
   async processAudio() {
