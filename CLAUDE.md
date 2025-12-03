@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A browser-based audio processing web tool built as a pure static website. It enables users to load, edit, and export audio files entirely in the browser without server-side processing. The application uses a card-based workflow where each processing operation creates a new card, allowing multi-layer audio editing.
+A browser-based audio processing web tool built as a pure static website with a **node-based graph UI**. Users can visually connect audio processing nodes to create audio editing pipelines. All processing happens client-side using the Web Audio API.
 
 ## Development Commands
 
@@ -15,9 +15,6 @@ Since this is a static website with no build process, use any HTTP server:
 ```bash
 # Python 3 (recommended)
 python -m http.server 8000
-
-# Python 2
-python -m SimpleHTTPServer 8000
 
 # Node.js
 npx http-server -p 8000
@@ -38,159 +35,149 @@ This project has no build process, package manager, or test framework. All depen
 
 - **Zero Build** - Pure static HTML/CSS/JS, no build tools or npm
 - **CDN Dependencies** - All libraries loaded via CDN (Tone.js, WaveSurfer.js v7, Tailwind CSS)
-- **Card-Based Workflow** - Each audio edit creates a new card, enabling chained multi-layer processing
+- **Node-Based Graph UI** - Visual node editor for connecting audio processing operations
 - **Browser-Only Processing** - All audio processing happens client-side using Web Audio API
 
 ### Module Structure
 
-The codebase follows a class-based modular design with global instances:
+```
+js/
+├── utils.js              # Utility functions (formatTime, generateId, showToast, audioBufferToWav)
+├── audioProcessor.js     # Audio processing engine (singleton: audioProcessor)
+├── canvas.js             # Graph canvas for node rendering and interaction
+├── link.js               # Connection links between nodes
+├── graphEngine.js        # Manages node connections and data flow execution
+├── nodePanel.js          # Left sidebar panel for dragging nodes
+├── app.js                # Main application controller
+└── nodes/
+    ├── BaseNode.js       # Base class for all nodes
+    ├── AudioInputNode.js # Audio file input node
+    └── ProcessNodes.js   # Processing nodes (Volume, Crop, FadeIn, FadeOut, Speed, Pitch)
+```
 
-**js/utils.js** - Utility functions
-- `formatTime()` - Convert seconds to mm:ss format
-- `generateId()` - Unique ID generation for cards
-- `showToast()` - Toast notification system
-- `audioBufferToWav()` - Convert AudioBuffer to WAV format for download
-- `downloadAudioBuffer()` - Trigger browser download
+### Node Types
 
-**js/audioProcessor.js** - Audio processing engine (singleton: `audioProcessor`)
-- `AudioProcessor` class with `audioContext` (Web Audio API)
-- Methods: `loadAudioFromFile()`, `cropAudio()`, `adjustVolume()`, `applyFadeIn()`, `applyFadeOut()`, `changePlaybackRate()`, `processAudio()`
-- All processing returns new AudioBuffer (immutable pattern)
-
-**js/audioCard.js** - Audio card component
-- `AudioCard` class represents one audio editing card
-- Each card has: AudioBuffer, WaveSurfer instance, settings object, UI element
-- Settings structure: `{ crop, volume, fadeIn, fadeOut, playbackRate }`
-- Card lifecycle: construct → add to DOM → `initialize()` (creates WaveSurfer) → user edits → `processAudio()` → new card
-
-**js/app.js** - Main application controller
-- `CardsManager` class (singleton: `cardsManager`) - Manages card array and DOM container
-- `FileUploadHandler` class - Handles file uploads and drag-drop
-- Global keyboard shortcuts (Ctrl+O to upload, Ctrl+Shift+C to clear)
+| Type | Icon | Description |
+|------|------|-------------|
+| `audio-input` | 📁 | Load audio files |
+| `volume` | 🎚️ | Adjust volume (0-200%) |
+| `crop` | ✂️ | Trim audio with visual waveform |
+| `fade-in` | 📈 | Add fade-in effect |
+| `fade-out` | 📉 | Add fade-out effect |
+| `speed` | ⏩ | Adjust playback speed (changes pitch) |
+| `pitch` | 🎵 | Adjust pitch without changing duration (Phase Vocoder) |
 
 ### Data Flow
 
 ```
-File Upload → AudioBuffer → AudioCard (with WaveSurfer)
-                               ↓
-                        User Edits Parameters
-                               ↓
-                   AudioProcessor.processAudio()
-                               ↓
-                 New AudioBuffer → New AudioCard (chained)
+AudioInputNode → [ProcessNode] → [ProcessNode] → ... → Preview/Download
+                     ↓
+              Each node processes AudioBuffer
+              and passes to connected nodes
 ```
 
 ### Key Technical Details
 
-**WaveSurfer Integration:**
-- WaveSurfer must be initialized AFTER the card element is in the DOM
-- Card construction creates the element, `initialize()` creates WaveSurfer
-- AudioBuffer is converted to WAV Blob for WaveSurfer to load
-- Waveform colors use theme CSS variables (hsl(56 38% 57%))
+**Node System:**
+- All nodes extend `BaseNode` class
+- Nodes have input/output ports for connections
+- `process(inputs)` method handles audio processing
+- Preview functionality built into BaseNode
 
-**Audio Processing Pipeline:**
-Operations are applied sequentially in `processAudio()`:
-1. Crop (if enabled)
-2. Volume adjustment
-3. Fade in (if enabled)
-4. Fade out (if enabled)
-5. Playback rate (simple resampling, changes pitch)
+**Audio Processing Pipeline (audioProcessor.js):**
+- `cropAudio()` - Trim audio by time range
+- `adjustVolume()` - Scale audio samples
+- `applyFadeIn()` / `applyFadeOut()` - Linear fade effects
+- `changePlaybackRate()` - Simple resampling (changes pitch)
+- `changePitch()` - Phase Vocoder algorithm (preserves duration)
 
-**Dual-Handle Range Slider for Crop:**
-- Two overlapping `<input type="range">` elements
-- CSS variables `--range-start` and `--range-width` control visual highlight
-- Logic ensures start ≤ end at all times
-- Located in audioCard.js:196-262
-
-**Card Chaining:**
-- `processAudio()` creates new AudioCard with processed buffer
-- New card's filename is `${original} (已處理)`
-- Optional `parentCard` parameter tracks lineage (not currently used for UI)
+**Graph Engine (graphEngine.js):**
+- Manages node creation and deletion
+- Handles port connections
+- Executes data flow with topological sort
+- Provides save/load to localStorage
 
 ## Design System
 
 ### Color Theme
 
-Dark theme based on warm yellow/beige tones defined in `css/theme.css`:
+Dark theme with warm yellow/beige tones defined in `css/theme.css`:
 
 - Primary: `hsl(56 38% 57%)` - Main actions, waveform
 - Secondary: `hsl(242 68% 80%)` - Secondary actions
-- Background hierarchy: `--bg-dark` (page) → `--bg` (content) → `--bg-light` (cards)
-- Text: `--text` (main), `--text-muted` (secondary)
-- Semantic: `--danger`, `--warning`, `--success`, `--info`
+- Node categories distinguished by header color
 
-All colors are defined as CSS variables in `:root`. See `doc/plan.md` for complete design specifications.
+### Node Styling (css/graph.css)
 
-### Spacing System
+- Input nodes: Green header
+- Process nodes: Blue header
+- Output nodes: Purple header
 
-8px baseline grid: `--spacing-1` (4px) through `--spacing-12` (48px)
+## Adding a New Node
 
-## Important Patterns and Conventions
+1. **Create node class** in `js/nodes/ProcessNodes.js`:
+   ```javascript
+   class MyNode extends BaseNode {
+     constructor(id, options = {}) {
+       const defaultData = { myParam: 100 };
+       super(id, 'my-node', 'My Node', '🎯', options, defaultData);
+     }
+     
+     setupPorts() {
+       this.addInputPort('audio', 'audio', 'audio');
+       this.addOutputPort('audio', 'audio', 'audio');
+     }
+     
+     getNodeCategory() { return 'process'; }
+     
+     renderContent() { /* Return HTML for controls */ }
+     
+     bindContentEvents() { /* Bind control events */ }
+     
+     async process(inputs) {
+       const audioBuffer = inputs.audio;
+       if (!audioBuffer) return { audio: null };
+       // Process and return
+       return { audio: processedBuffer };
+     }
+   }
+   window.MyNode = MyNode;
+   ```
 
-### File Loading Must Happen Before Edits
+2. **Register in graphEngine.js**:
+   ```javascript
+   this.nodeTypes = {
+     // ...existing nodes
+     'my-node': MyNode
+   };
+   ```
 
-Always read files before proposing changes. This codebase has no TypeScript or type definitions, so understanding existing patterns requires reading the source.
+3. **Add to nodePanel.js**:
+   ```javascript
+   { type: 'my-node', label: 'My Node', icon: '🎯', description: 'Description' }
+   ```
 
-### WaveSurfer Lifecycle
+4. **Add to context menu** in `graphEngine.js` `showContextMenu()` and `handleContextMenuAction()`
 
-When working with audio cards:
-1. Card element must be created
-2. Element must be added to DOM
-3. Only then call `card.initialize()` to create WaveSurfer
-4. Never create WaveSurfer before DOM insertion
+5. **Add CSS** for node-specific styles in `css/graph.css`
 
-### Settings Object Structure
+## Keyboard Shortcuts
 
-When modifying audio processing features, maintain the settings object structure in AudioCard:
-
-```javascript
-{
-  crop: { enabled: boolean, start: number, end: number },
-  volume: number,  // 0.0-2.0
-  fadeIn: { enabled: boolean, duration: number },
-  fadeOut: { enabled: boolean, duration: number },
-  playbackRate: number  // 0.5-2.0
-}
-```
-
-### Browser Compatibility
-
-Target modern browsers with Web Audio API support (Chrome, Firefox, Safari, Edge). No IE11 support needed.
-
-## Common Tasks
-
-### Adding a New Audio Effect
-
-1. Add effect method to `AudioProcessor` class (audioProcessor.js)
-2. Add settings property to `AudioCard.settings` default structure (audioCard.js:14-31)
-3. Add UI controls in `createCardElement()` (audioCard.js:38-123)
-4. Add event listeners in `attachEventListeners()` (audioCard.js:181-311)
-5. Add effect application in `AudioProcessor.processAudio()` pipeline (audioProcessor.js:175-208)
-
-### Modifying UI Components
-
-All styles are in `css/theme.css`. Use existing CSS variables for colors/spacing to maintain consistency. The codebase uses both Tailwind utility classes (via CDN) and custom CSS.
-
-### Debugging Audio Processing
-
-- Check browser console for errors
-- Use `console.log()` to inspect AudioBuffer properties (sampleRate, numberOfChannels, duration, length)
-- Verify Web Audio API operations complete synchronously (no await needed except for `loadAudioFromFile`)
+- `1-6`: Quick add nodes
+- `Space`: Execute all (when no selection)
+- `Ctrl+S`: Save to localStorage
+- `Ctrl+O`: Load from localStorage
+- `F`: Fit view to content
+- `Home`: Reset view
+- `+/-`: Zoom in/out
+- `Delete`: Remove selected nodes/links
 
 ## Known Limitations
 
-- Playback rate adjustment is simple resampling - WILL change pitch
 - Large files (>50MB) may cause performance issues
 - No undo/redo functionality
 - Export format is WAV only (no MP3 encoding)
-- No project save/load capability
-
-## Documentation
-
-- `README.md` - User-facing documentation (in Traditional Chinese)
-- `doc/plan.md` - Complete development plan with design specifications
-- `doc/task.md` - Task tracking list
-- `doc/theme.md` - Color theme definitions
+- Phase Vocoder pitch shift has some audio artifacts
 
 ## Git Commit Convention
 
@@ -199,8 +186,5 @@ Follow conventional commits:
 - `fix:` - Bug fixes
 - `refactor:` - Code refactoring
 - `style:` - UI/styling changes
-- `perf:` - Performance improvements
-- `test:` - Testing related
-- `docs:` - Documentation updates
 
-Example: `feat: add reverb effect to audio processor`
+Example: `feat: add reverb effect node`
