@@ -66,12 +66,22 @@ class AudioCard {
           <label class="control-label">
             <input type="checkbox" class="crop-enabled"> 裁切
           </label>
-          <div class="control-row crop-controls" style="display: none;">
-            <label style="font-size: var(--text-sm);">開始:</label>
-            <input type="number" class="crop-start" min="0" step="0.1" value="0">
-            <label style="font-size: var(--text-sm);">結束:</label>
-            <input type="number" class="crop-end" min="0" step="0.1" value="0">
-            <span class="control-value">秒</span>
+          <div class="crop-controls" style="display: none;">
+            <div class="control-row" style="margin-bottom: var(--spacing-2);">
+              <label style="font-size: var(--text-sm); min-width: 60px;">開始:</label>
+              <input type="range" class="crop-start-slider" min="0" step="0.1" value="0" style="flex: 1;">
+              <input type="number" class="crop-start-input" min="0" step="0.1" value="0" style="width: 70px; margin-left: var(--spacing-2);">
+              <span style="font-size: var(--text-sm); margin-left: var(--spacing-1);">秒</span>
+            </div>
+            <div class="control-row">
+              <label style="font-size: var(--text-sm); min-width: 60px;">結束:</label>
+              <input type="range" class="crop-end-slider" min="0" step="0.1" value="0" style="flex: 1;">
+              <input type="number" class="crop-end-input" min="0" step="0.1" value="0" style="width: 70px; margin-left: var(--spacing-2);">
+              <span style="font-size: var(--text-sm); margin-left: var(--spacing-1);">秒</span>
+            </div>
+            <div class="control-row">
+              <span class="control-value crop-time-display">00:00 - 00:00</span>
+            </div>
           </div>
         </div>
 
@@ -192,26 +202,65 @@ class AudioCard {
     // 裁切啟用
     const cropEnabled = this.element.querySelector('.crop-enabled');
     const cropControls = this.element.querySelector('.crop-controls');
-    const cropStart = this.element.querySelector('.crop-start');
-    const cropEnd = this.element.querySelector('.crop-end');
+    const cropStartSlider = this.element.querySelector('.crop-start-slider');
+    const cropStartInput = this.element.querySelector('.crop-start-input');
+    const cropEndSlider = this.element.querySelector('.crop-end-slider');
+    const cropEndInput = this.element.querySelector('.crop-end-input');
+    const cropTimeDisplay = this.element.querySelector('.crop-time-display');
 
-    // 設定裁切結束時間為音訊總長度
-    cropEnd.value = this.audioBuffer.duration.toFixed(1);
-    cropEnd.max = this.audioBuffer.duration;
-    cropStart.max = this.audioBuffer.duration;
-    this.settings.crop.end = this.audioBuffer.duration;
+    // 設定裁切範圍為音訊總長度
+    const duration = this.audioBuffer.duration;
+    cropStartSlider.max = duration;
+    cropStartInput.max = duration;
+    cropEndSlider.max = duration;
+    cropEndInput.max = duration;
+    cropEndSlider.value = duration.toFixed(1);
+    cropEndInput.value = duration.toFixed(1);
+    this.settings.crop.end = duration;
+
+    // 更新時間顯示
+    const updateCropTimeDisplay = () => {
+      const start = parseFloat(cropStartSlider.value);
+      const end = parseFloat(cropEndSlider.value);
+      cropTimeDisplay.textContent = `${formatTime(start)} - ${formatTime(end)}`;
+    };
+    updateCropTimeDisplay();
 
     cropEnabled.addEventListener('change', (e) => {
       this.settings.crop.enabled = e.target.checked;
-      cropControls.style.display = e.target.checked ? 'flex' : 'none';
+      cropControls.style.display = e.target.checked ? 'block' : 'none';
     });
 
-    cropStart.addEventListener('input', (e) => {
-      this.settings.crop.start = parseFloat(e.target.value);
+    // 開始時間滑桿
+    cropStartSlider.addEventListener('input', (e) => {
+      const value = parseFloat(e.target.value);
+      cropStartInput.value = value.toFixed(1);
+      this.settings.crop.start = value;
+      updateCropTimeDisplay();
     });
 
-    cropEnd.addEventListener('input', (e) => {
-      this.settings.crop.end = parseFloat(e.target.value);
+    // 開始時間輸入框
+    cropStartInput.addEventListener('input', (e) => {
+      const value = parseFloat(e.target.value) || 0;
+      cropStartSlider.value = value;
+      this.settings.crop.start = value;
+      updateCropTimeDisplay();
+    });
+
+    // 結束時間滑桿
+    cropEndSlider.addEventListener('input', (e) => {
+      const value = parseFloat(e.target.value);
+      cropEndInput.value = value.toFixed(1);
+      this.settings.crop.end = value;
+      updateCropTimeDisplay();
+    });
+
+    // 結束時間輸入框
+    cropEndInput.addEventListener('input', (e) => {
+      const value = parseFloat(e.target.value) || 0;
+      cropEndSlider.value = value;
+      this.settings.crop.end = value;
+      updateCropTimeDisplay();
     });
 
     // 音量
