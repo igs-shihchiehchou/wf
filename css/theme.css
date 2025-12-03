@@ -31,7 +31,7 @@
 
   /* 字體家族 */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI",
-               "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   --font-mono: "SF Mono", "Consolas", "Monaco", monospace;
 
   /* 字體大小 */
@@ -91,11 +91,43 @@ body {
 .header {
   background-color: var(--bg);
   border-bottom: 1px solid var(--border-muted);
-  padding: var(--spacing-4) 0;
+  padding: var(--spacing-3) var(--spacing-4);
+  height: 60px;
+  display: flex;
+  align-items: center;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.mobile-menu-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
 }
 
 .title {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: 600;
   color: var(--text);
   margin: 0;
@@ -239,11 +271,57 @@ body {
 .edit-controls {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-5);
   margin-bottom: var(--spacing-4);
   padding: var(--spacing-4);
   background-color: var(--bg);
   border-radius: 6px;
+}
+
+/* 控制區塊 */
+.control-section {
+  border: 1px solid var(--border-muted);
+  border-radius: 6px;
+  padding: var(--spacing-3);
+  background-color: var(--bg-dark);
+  transition: border-color 0.2s;
+}
+
+.control-section:hover {
+  border-color: var(--border);
+}
+
+/* 區塊標題 */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.section-icon {
+  font-size: var(--text-lg);
+}
+
+.section-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.section-title-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  cursor: pointer;
+}
+
+.section-title-checkbox input[type="checkbox"] {
+  margin: 0;
 }
 
 .control-group {
@@ -254,27 +332,41 @@ body {
 
 .control-label {
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
+  min-width: 60px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.fade-label {
+  cursor: pointer;
+}
+
+.fade-label input[type="checkbox"] {
+  margin: 0;
 }
 
 .control-row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--spacing-3);
 }
 
 .control-value {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-muted);
-  min-width: 60px;
+  min-width: 50px;
+  text-align: right;
 }
 
 /* 卡片底部 */
 .card-footer {
   display: flex;
   justify-content: flex-end;
+  gap: var(--spacing-3);
   padding-top: var(--spacing-3);
   border-top: 1px solid var(--border-muted);
 }
@@ -355,6 +447,22 @@ button {
   color: var(--text);
 }
 
+.btn-reset {
+  background-color: transparent;
+  color: var(--text-muted);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  min-width: auto;
+  border: 1px solid var(--border);
+}
+
+.btn-reset:hover {
+  background-color: var(--highlight);
+  color: var(--text);
+  border-color: var(--border);
+}
+
 /* ===========================
    輸入控制元件
    =========================== */
@@ -367,6 +475,12 @@ input[type="range"] {
   border-radius: 3px;
   outline: none;
   -webkit-appearance: none;
+  transition: opacity 0.2s;
+}
+
+input[type="range"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -384,6 +498,11 @@ input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.1);
 }
 
+input[type="range"]:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+  background: var(--border);
+}
+
 input[type="range"]::-moz-range-thumb {
   width: 16px;
   height: 16px;
@@ -396,6 +515,11 @@ input[type="range"]::-moz-range-thumb {
 
 input[type="range"]::-moz-range-thumb:hover {
   transform: scale(1.1);
+}
+
+input[type="range"]:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+  background: var(--border);
 }
 
 /* Dual Range Slider (兩個滑桿重疊) */
@@ -460,6 +584,49 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
+/* 精確裁切控制 */
+.crop-fine-tune {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--border-muted);
+}
+
+.fine-tune-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.fine-tune-group label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  min-width: 40px;
+}
+
+.fine-tune-group input[type="number"] {
+  width: 80px;
+}
+
+.btn-fine {
+  background-color: var(--bg-light);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  transition: all 0.2s;
+}
+
+.btn-fine:hover {
+  background-color: var(--highlight);
+  color: var(--text);
+  border-color: var(--primary);
+}
+
 /* Number Input */
 input[type="number"] {
   background-color: var(--bg-dark);
@@ -504,8 +671,11 @@ input[type="number"]:focus {
   }
 
   .control-row {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .control-label {
+    width: 100%;
   }
 
   .card-actions {
@@ -516,6 +686,36 @@ input[type="number"]:focus {
   .btn-secondary,
   .btn-danger {
     width: 100%;
+  }
+
+  .card-footer {
+    flex-direction: column;
+  }
+
+  .card-footer button {
+    width: 100%;
+  }
+
+  /* 精確控制在手機版的調整 */
+  .fine-tune-group {
+    flex-wrap: wrap;
+  }
+
+  .fine-tune-group label {
+    width: 100%;
+    margin-bottom: var(--spacing-1);
+  }
+
+  .btn-fine {
+    flex: 1;
+    min-width: 0;
+    padding: var(--spacing-2);
+  }
+
+  .fine-tune-group input[type="number"] {
+    width: 100%;
+    order: -1;
+    margin-bottom: var(--spacing-2);
   }
 }
 
@@ -529,9 +729,12 @@ input[type="number"]:focus {
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -539,6 +742,33 @@ input[type="number"]:focus {
 
 .pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: var(--spacing-2);
+  vertical-align: middle;
+}
+
+.processing {
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 /* 提示訊息 */

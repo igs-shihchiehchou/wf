@@ -140,6 +140,126 @@ class AudioProcessor {
   }
 
   /**
+   * 調整音高（保持時長不變）
+   * 使用 Phase Vocoder 算法：先時間拉伸，再重新採樣
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @param {number} semitones - 半音數（-12 到 +12）
+   */
+  changePitch(audioBuffer, semitones) {
+    if (semitones === 0) return audioBuffer;
+
+    // 音高變換的比率：每個半音是 2^(1/12)
+    const pitchRatio = Math.pow(2, semitones / 12);
+
+    // Phase Vocoder 方法：
+    // 1. 先進行時間拉伸（改變時長但不改變音高）
+    // 2. 再重新採樣（改變音高和時長）
+    // 結果：音高改變，但時長恢復原本
+
+    // 步驟 1: 時間拉伸 - 拉伸到 pitchRatio 倍長度
+    const stretchedBuffer = this.timeStretchOLA(audioBuffer, pitchRatio);
+
+    // 步驟 2: 重新採樣 - 壓縮回原始長度（同時提高音高）
+    const finalBuffer = this.resample(stretchedBuffer, pitchRatio);
+
+    return finalBuffer;
+  }
+
+  /**
+   * 時間拉伸（OLA - Overlap-Add 算法）
+   * 改變時長但盡量保持音高
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @param {number} stretchRatio - 拉伸比率（>1 延長，<1 縮短）
+   */
+  timeStretchOLA(audioBuffer, stretchRatio) {
+    const sampleRate = audioBuffer.sampleRate;
+    const numChannels = audioBuffer.numberOfChannels;
+    const inputLength = audioBuffer.length;
+    const outputLength = Math.round(inputLength * stretchRatio);
+
+    if (outputLength <= 0) return audioBuffer;
+
+    const newBuffer = this.audioContext.createBuffer(numChannels, outputLength, sampleRate);
+
+    // OLA 參數
+    const windowSize = 2048;
+    const hopIn = Math.round(windowSize / 4);  // 輸入跳躍大小
+    const hopOut = Math.round(hopIn * stretchRatio);  // 輸出跳躍大小
+
+    // Hanning 窗函數
+    const window = new Float32Array(windowSize);
+    for (let i = 0; i < windowSize; i++) {
+      window[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / windowSize));
+    }
+
+    for (let channel = 0; channel < numChannels; channel++) {
+      const inputData = audioBuffer.getChannelData(channel);
+      const outputData = newBuffer.getChannelData(channel);
+
+      // 初始化輸出為 0
+      outputData.fill(0);
+
+      let inputPos = 0;
+      let outputPos = 0;
+
+      while (inputPos < inputLength - windowSize && outputPos < outputLength - windowSize) {
+        // 取出一個窗口的樣本並應用窗函數
+        for (let i = 0; i < windowSize; i++) {
+          if (inputPos + i < inputLength && outputPos + i < outputLength) {
+            outputData[outputPos + i] += inputData[inputPos + i] * window[i];
+          }
+        }
+
+        inputPos += hopIn;
+        outputPos += hopOut;
+      }
+
+      // 正規化（因為重疊相加會使音量增加）
+      const normFactor = hopOut / hopIn;
+      for (let i = 0; i < outputLength; i++) {
+        outputData[i] *= normFactor * 0.6;  // 0.6 是經驗值避免過大
+      }
+    }
+
+    return newBuffer;
+  }
+
+  /**
+   * 重新採樣（改變音高和時長）
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @param {number} ratio - 採樣比率
+   */
+  resample(audioBuffer, ratio) {
+    const inputLength = audioBuffer.length;
+    const outputLength = Math.round(inputLength / ratio);
+
+    if (outputLength <= 0) return audioBuffer;
+
+    const newBuffer = this.audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      outputLength,
+      audioBuffer.sampleRate
+    );
+
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const inputData = audioBuffer.getChannelData(channel);
+      const outputData = newBuffer.getChannelData(channel);
+
+      for (let i = 0; i < outputLength; i++) {
+        const srcIndex = i * ratio;
+        const srcFloor = Math.floor(srcIndex);
+        const srcCeil = Math.min(srcFloor + 1, inputLength - 1);
+        const fraction = srcIndex - srcFloor;
+
+        // 線性插值
+        outputData[i] = inputData[srcFloor] * (1 - fraction) + inputData[srcCeil] * fraction;
+      }
+    }
+
+    return newBuffer;
+  }
+
+  /**
    * 調整播放速度（簡易版本）
    * @param {AudioBuffer} audioBuffer - 原始音訊
    * @param {number} rate - 速度倍率（0.5 - 2.0）
@@ -202,6 +322,11 @@ class AudioProcessor {
     // 速度調整
     if (settings.playbackRate !== undefined && settings.playbackRate !== 1.0) {
       processedBuffer = this.changePlaybackRate(processedBuffer, settings.playbackRate);
+    }
+
+    // 音高調整
+    if (settings.pitch !== undefined && settings.pitch !== 0) {
+      processedBuffer = this.changePitch(processedBuffer, settings.pitch);
     }
 
     return processedBuffer;

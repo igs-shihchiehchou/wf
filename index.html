@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>音效處理工具</title>
+    <title>音效處理工具 - Graph UI</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,47 +14,64 @@
 
     <!-- WaveSurfer.js -->
     <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <!-- WaveSurfer Region plugin -->
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
 
     <!-- 自訂樣式 -->
     <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/graph.css">
 </head>
+
 <body>
     <!-- 頂部標題列 -->
     <header class="header">
-        <div class="container">
-            <h1 class="title">🎵 音效處理工具</h1>
+        <div class="header-content">
+            <div class="header-left">
+                <button class="btn-icon mobile-menu-btn" id="mobileMenuBtn" title="節點面板">☰</button>
+                <h1 class="title">🎵 音效處理工具</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon" id="saveBtn" title="儲存">💾</button>
+                <button class="btn-icon" id="loadBtn" title="載入">📂</button>
+                <button class="btn-icon" id="clearBtn" title="清除全部">🗑️</button>
+            </div>
         </div>
     </header>
 
     <!-- 主要內容區域 -->
-    <main class="main-content">
-        <div class="container">
-            <!-- 檔案上傳區域 -->
-            <section class="upload-section">
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-content">
-                        <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                        </svg>
-                        <p class="upload-text">點擊選擇音訊檔案或拖拉檔案至此</p>
-                        <p class="upload-hint">支援格式: MP3, WAV, OGG, M4A</p>
-                        <input type="file" id="fileInput" accept="audio/*" hidden>
-                        <button class="btn-primary" id="selectFileBtn">📁 選擇檔案</button>
-                    </div>
-                </div>
-            </section>
+    <main class="graph-container">
+        <!-- 左側節點面板 -->
+        <aside class="node-panel" id="nodePanel">
+            <!-- 由 NodePanel 動態渲染 -->
+        </aside>
 
-            <!-- 音訊卡片容器 -->
-            <section class="cards-container" id="cardsContainer">
-                <!-- 動態產生的音訊卡片將插入此處 -->
-            </section>
-        </div>
+        <!-- 畫布區域 -->
+        <section class="canvas-area" id="canvasArea">
+            <!-- 由 GraphCanvas 動態渲染 -->
+
+            <!-- 畫布控制列 -->
+            <div class="canvas-controls">
+                <button class="canvas-control-btn" id="zoomOutBtn" title="縮小">−</button>
+                <span class="canvas-zoom-level">100%</span>
+                <button class="canvas-control-btn" id="zoomInBtn" title="放大">+</button>
+                <button class="canvas-control-btn" id="fitViewBtn" title="適應內容">⊞</button>
+                <button class="canvas-control-btn" id="resetViewBtn" title="重置視圖">↺</button>
+            </div>
+        </section>
     </main>
 
     <!-- 自訂 JavaScript -->
     <script src="js/utils.js"></script>
     <script src="js/audioProcessor.js"></script>
-    <script src="js/audioCard.js"></script>
+    <script src="js/link.js"></script>
+    <script src="js/canvas.js"></script>
+    <script src="js/nodes/BaseNode.js"></script>
+    <script src="js/nodes/AudioInputNode.js"></script>
+    <script src="js/nodes/ProcessNodes.js"></script>
+    <script src="js/nodes/OutputNodes.js"></script>
+    <script src="js/graphEngine.js"></script>
+    <script src="js/nodePanel.js"></script>
     <script src="js/app.js"></script>
 </body>
+
 </html>
