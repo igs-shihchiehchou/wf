@@ -26,3 +26,4 @@ build/
 # 環境變數
 .env
 .env.local
+.claude/settings.local.json
