@@ -398,6 +398,60 @@ input[type="range"]::-moz-range-thumb:hover {
   transform: scale(1.1);
 }
 
+/* Dual Range Slider (兩個滑桿重疊) */
+.dual-range-slider {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  flex: 1;
+}
+
+.dual-range-slider input[type="range"] {
+  position: absolute;
+  width: 100%;
+  pointer-events: none;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.dual-range-slider input[type="range"]::-webkit-slider-thumb {
+  pointer-events: all;
+  z-index: 2;
+}
+
+.dual-range-slider input[type="range"]::-moz-range-thumb {
+  pointer-events: all;
+  z-index: 2;
+}
+
+/* 背景軌道 */
+.dual-range-slider::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  top: 0;
+  left: 0;
+}
+
+/* 選取範圍高亮 */
+.dual-range-slider::after {
+  content: '';
+  position: absolute;
+  height: 6px;
+  background: var(--primary);
+  border-radius: 3px;
+  top: 0;
+  left: var(--range-start, 0%);
+  width: var(--range-width, 100%);
+  pointer-events: none;
+  opacity: 0.6;
+  transition: left 0.1s, width 0.1s;
+}
+
 /* Checkbox */
 input[type="checkbox"] {
   width: 18px;
