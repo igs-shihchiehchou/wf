@@ -1,0 +1,535 @@
+/* ===========================
+   CSS 變數定義
+   =========================== */
+
+:root {
+  /* 背景色階 */
+  --bg-dark: hsl(56 41% 1%);
+  --bg: hsl(57 26% 4%);
+  --bg-light: hsl(57 14% 8%);
+
+  /* 文字色階 */
+  --text: hsl(58 40% 92%);
+  --text-muted: hsl(58 9% 67%);
+
+  /* 互動元素 */
+  --highlight: hsl(57 7% 37%);
+
+  /* 邊框 */
+  --border: hsl(57 10% 26%);
+  --border-muted: hsl(57 15% 16%);
+
+  /* 主題色 */
+  --primary: hsl(56 38% 57%);
+  --secondary: hsl(242 68% 80%);
+
+  /* 語義色彩 */
+  --danger: hsl(9 26% 64%);
+  --warning: hsl(52 19% 57%);
+  --success: hsl(146 17% 59%);
+  --info: hsl(217 28% 65%);
+
+  /* 字體家族 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: "SF Mono", "Consolas", "Monaco", monospace;
+
+  /* 字體大小 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  /* 行高 */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  /* 間距系統 */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+}
+
+/* ===========================
+   基礎樣式
+   =========================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--text);
+  background-color: var(--bg-dark);
+  min-height: 100vh;
+}
+
+/* ===========================
+   佈局
+   =========================== */
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-6);
+}
+
+.header {
+  background-color: var(--bg);
+  border-bottom: 1px solid var(--border-muted);
+  padding: var(--spacing-4) 0;
+}
+
+.title {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.main-content {
+  padding: var(--spacing-8) 0;
+}
+
+/* ===========================
+   上傳區域
+   =========================== */
+
+.upload-section {
+  margin-bottom: var(--spacing-8);
+}
+
+.upload-area {
+  background-color: var(--bg-light);
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: var(--spacing-8);
+  text-align: center;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.upload-area:hover {
+  border-color: var(--primary);
+  background-color: hsl(57 14% 10%);
+}
+
+.upload-area.dragging {
+  border-color: var(--primary);
+  background-color: hsl(57 14% 12%);
+}
+
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.upload-icon {
+  width: 64px;
+  height: 64px;
+  color: var(--text-muted);
+}
+
+.upload-text {
+  font-size: var(--text-lg);
+  color: var(--text);
+  margin: 0;
+}
+
+.upload-hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ===========================
+   卡片容器
+   =========================== */
+
+.cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+/* ===========================
+   音訊卡片
+   =========================== */
+
+.audio-card {
+  background-color: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--spacing-4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease-in-out;
+}
+
+.audio-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* 卡片標題列 */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.card-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.card-actions {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+/* 播放控制 */
+.playback-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-3);
+  background-color: var(--bg);
+  border-radius: 6px;
+}
+
+.time-display {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* 波形容器 */
+.waveform-container {
+  margin-bottom: var(--spacing-4);
+  background-color: var(--bg);
+  border-radius: 6px;
+  padding: var(--spacing-3);
+}
+
+/* 編輯控制 */
+.edit-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-4);
+  background-color: var(--bg);
+  border-radius: 6px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.control-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.control-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  min-width: 60px;
+}
+
+/* 卡片底部 */
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--border-muted);
+}
+
+/* ===========================
+   按鈕樣式
+   =========================== */
+
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: var(--bg-dark);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: var(--text-base);
+}
+
+.btn-primary:hover {
+  background-color: hsl(56 38% 65%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--secondary);
+  border: 1px solid var(--secondary);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-radius: 6px;
+  font-size: var(--text-sm);
+}
+
+.btn-secondary:hover {
+  background-color: var(--highlight);
+}
+
+.btn-danger {
+  background-color: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: 6px;
+  font-size: var(--text-sm);
+}
+
+.btn-danger:hover {
+  background-color: var(--danger);
+  color: var(--text);
+}
+
+.btn-icon {
+  background-color: transparent;
+  color: var(--text-muted);
+  padding: var(--spacing-2);
+  border-radius: 4px;
+  font-size: var(--text-lg);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:hover {
+  background-color: var(--highlight);
+  color: var(--text);
+}
+
+/* ===========================
+   輸入控制元件
+   =========================== */
+
+/* Range Slider */
+input[type="range"] {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.2s;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+/* Checkbox */
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* Number Input */
+input[type="number"] {
+  background-color: var(--bg-dark);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  width: 80px;
+}
+
+input[type="number"]:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* ===========================
+   響應式設計
+   =========================== */
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0 var(--spacing-4);
+  }
+
+  .title {
+    font-size: var(--text-xl);
+  }
+
+  .upload-area {
+    padding: var(--spacing-6);
+  }
+
+  .upload-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .upload-text {
+    font-size: var(--text-base);
+  }
+
+  .control-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-secondary,
+  .btn-danger {
+    width: 100%;
+  }
+}
+
+/* ===========================
+   載入與狀態
+   =========================== */
+
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 提示訊息 */
+.toast {
+  position: fixed;
+  bottom: var(--spacing-6);
+  right: var(--spacing-6);
+  background-color: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--spacing-4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  max-width: 300px;
+}
+
+.toast.success {
+  border-left: 4px solid var(--success);
+}
+
+.toast.error {
+  border-left: 4px solid var(--danger);
+}
+
+.toast.info {
+  border-left: 4px solid var(--info);
+}
+
+/* ===========================
+   無障礙設計
+   =========================== */
+
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
