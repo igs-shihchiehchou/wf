@@ -12,6 +12,8 @@ class CardsManager {
   addCard(card) {
     this.cards.push(card);
     this.container.appendChild(card.getElement());
+    // 在 DOM 中初始化 WaveSurfer
+    card.initialize();
   }
 
   removeCard(cardId) {

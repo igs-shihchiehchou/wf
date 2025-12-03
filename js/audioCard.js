@@ -31,8 +31,8 @@ class AudioCard {
     };
 
     this.element = this.createCardElement();
-    this.initializeWaveSurfer();
     this.attachEventListeners();
+    // WaveSurfer 將在卡片加入 DOM 後初始化
   }
 
   createCardElement() {
@@ -298,7 +298,9 @@ class AudioCard {
 
   delete() {
     if (confirm('確定要刪除此卡片？')) {
-      this.wavesurfer.destroy();
+      if (this.wavesurfer) {
+        this.wavesurfer.destroy();
+      }
       this.element.remove();
       cardsManager.removeCard(this.id);
       showToast('已刪除', 'info');
@@ -307,5 +309,10 @@ class AudioCard {
 
   getElement() {
     return this.element;
+  }
+
+  // 在卡片加入 DOM 後呼叫此方法初始化 WaveSurfer
+  initialize() {
+    this.initializeWaveSurfer();
   }
 }
