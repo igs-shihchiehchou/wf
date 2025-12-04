@@ -56,10 +56,10 @@ class AudioAnalyzer {
       onProgress(60, '頻譜分析完成');
 
       // 步驟 3: 音高分析 (60-100%)
-      onProgress(60, '分析音高變化...');
+      onProgress(60, '分析音高(Pitch)變化...');
       result.pitch = await this.analyzePitch(audioBuffer, (progress) => {
         // 子步驟進度：60% + (進度 * 40%)
-        onProgress(60 + progress * 0.4, '分析音高...');
+        onProgress(60 + progress * 0.4, '分析音高(Pitch)...');
       });
       onProgress(100, '分析完成');
 

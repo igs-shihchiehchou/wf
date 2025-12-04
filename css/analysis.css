@@ -142,6 +142,17 @@
   padding: 0 var(--spacing-3);
 }
 
+/* 當 .analysis-section 有 collapsed 類別時，隱藏內容 */
+.analysis-section.collapsed .analysis-section-content {
+  max-height: 0;
+  opacity: 0;
+  padding: 0 var(--spacing-3);
+}
+
+.analysis-section.collapsed .analysis-section-toggle {
+  transform: rotate(-90deg);
+}
+
 /* ===========================
    信息行 (.analysis-info-row)
    =========================== */

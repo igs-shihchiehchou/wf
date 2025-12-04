@@ -1148,6 +1148,102 @@
     color: var(--text);
 }
 
+/* 音高調整節點 - 智慧轉調區塊 */
+.transpose-control {
+    margin-top: var(--spacing-3);
+    padding-top: var(--spacing-3);
+    border-top: 1px solid var(--border-muted);
+}
+
+.transpose-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-2);
+}
+
+.transpose-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-2);
+}
+
+.transpose-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.detected-key-value {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.target-key-select {
+    flex: 1;
+    max-width: 120px;
+    padding: var(--spacing-1) var(--spacing-2);
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: var(--text-sm);
+    cursor: pointer;
+}
+
+.target-key-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.target-key-select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.transpose-semitones {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--secondary);
+    font-weight: 600;
+}
+
+.transpose-apply-btn {
+    width: 100%;
+    padding: var(--spacing-2);
+    background-color: var(--secondary);
+    border: 1px solid var(--secondary);
+    border-radius: 4px;
+    color: var(--bg-dark);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.transpose-apply-btn:hover:not(:disabled) {
+    background-color: hsl(180 35% 55%);
+    border-color: hsl(180 35% 55%);
+}
+
+.transpose-apply-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 音高調整節點需要更寬以容納轉調功能 */
+.graph-node.node-pitch {
+    min-width: 240px;
+}
+
+/* 智慧音高調整節點 */
+.graph-node.node-smart-pitch {
+    min-width: 280px;
+}
+
 /* 輸出節點 - 紫色調（保留以備擴展）*/
 .graph-node.node-player .node-header,
 .graph-node.node-download .node-header,

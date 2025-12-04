@@ -863,7 +863,7 @@ class SpeedNode extends BaseNode {
 }
 
 /**
- * 音高調整節點
+ * 音高調整節點（基本版）
  */
 
 class PitchNode extends BaseNode {
@@ -960,6 +960,726 @@ class PitchNode extends BaseNode {
     }
 }
 
+/**
+ * 智慧音高調整節點（含音高偵測、轉調、分析功能）
+ */
+
+class SmartPitchNode extends BaseNode {
+    // 音名常數（不含八度）
+    static NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    constructor(id, options = {}) {
+        const defaultData = {
+            pitch: options.pitch || 0,  // 半音數，範圍 -12 到 +12
+            detectedKey: null,          // 偵測到的音高 { noteName, midiNote, confidence }
+            targetKey: null             // 目標調性（音名，不含八度，如 'C', 'D#'）
+        };
+        super(id, 'smart-pitch', '智慧音高調整', '🎼', options, defaultData);
+
+        this.inputAudioBuffer = null;
+        this.isAnalyzing = false;
+        this.analysisResult = null;
+        this.progressBar = null;
+        this.spectrogramRenderer = null;
+    }
+
+    setupPorts() {
+        this.addInputPort('audio', 'audio', 'audio');
+        this.addOutputPort('audio', 'audio', 'audio');
+    }
+
+    getNodeCategory() {
+        return 'process';
+    }
+
+    renderContent() {
+        const pitch = this.data.pitch || 0;
+        const pitchDisplay = pitch >= 0 ? `+${pitch}` : `${pitch}`;
+        const detectedKey = this.data.detectedKey;
+        const targetKey = this.data.targetKey;
+
+        // 生成目標調性選項
+        const keyOptions = SmartPitchNode.NOTE_NAMES.map(note => {
+            const selected = targetKey === note ? 'selected' : '';
+            return `<option value="${note}" ${selected}>${note}</option>`;
+        }).join('');
+
+        return `
+      <div class="node-control transpose-control">
+        <label class="node-control-label">🎹 智慧轉調</label>
+        <div class="transpose-info">
+          <div class="transpose-row">
+            <span class="transpose-label">偵測音高:</span>
+            <span class="detected-key-value">${detectedKey ? `${detectedKey.noteName} (${Math.round(detectedKey.confidence * 100)}%)` : '等待分析...'}</span>
+          </div>
+          <div class="transpose-row">
+            <span class="transpose-label">目標調性:</span>
+            <select class="target-key-select" ${!detectedKey ? 'disabled' : ''}>
+              <option value="">-- 選擇調性 --</option>
+              ${keyOptions}
+            </select>
+          </div>
+          <div class="transpose-row transpose-result" style="display: ${targetKey && detectedKey ? 'flex' : 'none'}">
+            <span class="transpose-label">轉調半音:</span>
+            <span class="transpose-semitones">${this.calculateTransposeSemitones()}</span>
+          </div>
+        </div>
+        <button class="transpose-apply-btn" ${!targetKey || !detectedKey ? 'disabled' : ''}>套用轉調</button>
+      </div>
+      
+      <div class="analysis-progress" id="analysis-progress-${this.id}" style="display: none;"></div>
+      <div class="analysis-panel" id="analysis-panel-${this.id}" style="display: none;"></div>
+    `;
+    }
+
+    /**
+     * 計算從偵測音高到目標調性需要的半音數
+     * @returns {string} 半音數顯示字串
+     */
+    calculateTransposeSemitones() {
+        if (!this.data.detectedKey || !this.data.targetKey) {
+            return '--';
+        }
+
+        const detectedNoteName = this.data.detectedKey.noteName;
+        // 從音名中提取不含八度的部分（如 'A4' -> 'A', 'C#3' -> 'C#'）
+        const detectedNote = detectedNoteName.replace(/\d+$/, '');
+        const targetNote = this.data.targetKey;
+
+        const detectedIndex = SmartPitchNode.NOTE_NAMES.indexOf(detectedNote);
+        const targetIndex = SmartPitchNode.NOTE_NAMES.indexOf(targetNote);
+
+        if (detectedIndex === -1 || targetIndex === -1) {
+            return '--';
+        }
+
+        // 計算最短路徑的半音數（可能是正或負）
+        let semitones = targetIndex - detectedIndex;
+
+        // 選擇最短路徑（-6 到 +6 之間）
+        if (semitones > 6) {
+            semitones -= 12;
+        } else if (semitones < -6) {
+            semitones += 12;
+        }
+
+        const display = semitones >= 0 ? `+${semitones}` : `${semitones}`;
+        return display;
+    }
+
+    bindContentEvents() {
+        const targetKeySelect = this.element.querySelector('.target-key-select');
+        const applyBtn = this.element.querySelector('.transpose-apply-btn');
+
+        // 目標調性選擇
+        if (targetKeySelect) {
+            targetKeySelect.addEventListener('change', (e) => {
+                this.data.targetKey = e.target.value || null;
+                this.updateTransposeUI();
+            });
+        }
+
+        // 套用轉調按鈕
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
+                this.applyTranspose();
+            });
+        }
+    }
+
+    /**
+     * 更新轉調 UI 顯示
+     */
+    updateTransposeUI() {
+        const transposeResult = this.element.querySelector('.transpose-result');
+        const transposeSemitones = this.element.querySelector('.transpose-semitones');
+        const applyBtn = this.element.querySelector('.transpose-apply-btn');
+
+        if (transposeResult) {
+            transposeResult.style.display = (this.data.targetKey && this.data.detectedKey) ? 'flex' : 'none';
+        }
+
+        if (transposeSemitones) {
+            transposeSemitones.textContent = this.calculateTransposeSemitones();
+        }
+
+        if (applyBtn) {
+            applyBtn.disabled = !this.data.targetKey || !this.data.detectedKey;
+        }
+    }
+
+    /**
+     * 套用轉調設定
+     */
+    applyTranspose() {
+        if (!this.data.detectedKey || !this.data.targetKey) {
+            return;
+        }
+
+        const semitones = this.calculateTransposeSemitonesValue();
+        if (semitones === null) return;
+
+        // 更新 pitch 值
+        this.data.pitch = semitones;
+
+        // 自動更新預覽
+        this.schedulePreviewUpdate();
+
+        if (this.onDataChange) {
+            this.onDataChange('pitch', this.data.pitch);
+        }
+    }
+
+    /**
+     * 計算轉調半音數值
+     * @returns {number|null} 半音數，或 null 如果無法計算
+     */
+    calculateTransposeSemitonesValue() {
+        if (!this.data.detectedKey || !this.data.targetKey) {
+            return null;
+        }
+
+        const detectedNoteName = this.data.detectedKey.noteName;
+        const detectedNote = detectedNoteName.replace(/\d+$/, '');
+        const targetNote = this.data.targetKey;
+
+        const detectedIndex = SmartPitchNode.NOTE_NAMES.indexOf(detectedNote);
+        const targetIndex = SmartPitchNode.NOTE_NAMES.indexOf(targetNote);
+
+        if (detectedIndex === -1 || targetIndex === -1) {
+            return null;
+        }
+
+        let semitones = targetIndex - detectedIndex;
+
+        // 選擇最短路徑（-6 到 +6 之間）
+        if (semitones > 6) {
+            semitones -= 12;
+        } else if (semitones < -6) {
+            semitones += 12;
+        }
+
+        return semitones;
+    }
+
+    /**
+     * 當輸入音訊變更時，自動分析
+     */
+    async updateInputAudio(audioBuffer) {
+        if (!audioBuffer) {
+            this.inputAudioBuffer = null;
+            this.data.detectedKey = null;
+            this.analysisResult = null;
+            this.updateDetectedKeyUI();
+            this.hideAnalysisPanel();
+            return;
+        }
+
+        this.inputAudioBuffer = audioBuffer;
+
+        // 開始完整分析
+        await this.analyzeAudio(audioBuffer);
+    }
+
+    /**
+     * 完整分析音訊（含音高偵測與頻譜分析）
+     */
+    async analyzeAudio(audioBuffer) {
+        if (this.isAnalyzing) return;
+
+        this.isAnalyzing = true;
+        this.updateDetectedKeyUI('分析中...');
+        this.showProgressBar();
+
+        try {
+            // 使用 audioAnalyzer 進行完整分析
+            const result = await window.audioAnalyzer.analyze(audioBuffer, (progress) => {
+                this.updateProgress(progress);
+            });
+
+            this.analysisResult = result;
+
+            // 更新偵測到的音高
+            if (result.pitch && result.pitch.dominantPitch && result.pitch.dominantPitch.noteName) {
+                this.data.detectedKey = {
+                    noteName: result.pitch.dominantPitch.noteName,
+                    midiNote: result.pitch.dominantPitch.midiNote,
+                    confidence: result.pitch.dominantPitch.confidence,
+                    frequency: result.pitch.dominantPitch.frequency
+                };
+            } else {
+                this.data.detectedKey = null;
+            }
+
+            // 顯示分析結果面板
+            this.showAnalysisResult(result);
+        } catch (error) {
+            console.error('音訊分析失敗:', error);
+            this.data.detectedKey = null;
+            this.analysisResult = null;
+        }
+
+        this.isAnalyzing = false;
+        this.hideProgressBar();
+        this.updateDetectedKeyUI();
+    }
+
+    /**
+     * 顯示進度條
+     */
+    showProgressBar() {
+        const container = this.element.querySelector(`#analysis-progress-${this.id}`);
+        if (!container) return;
+
+        container.style.display = 'block';
+
+        // 移除舊的進度條（如果存在）
+        if (this.progressBar) {
+            this.progressBar.remove();
+            this.progressBar = null;
+        }
+
+        // 建立新的進度條
+        this.progressBar = new ProgressBar(container);
+        this.progressBar.update(0, '分析音訊中...');
+    }
+
+    /**
+     * 隱藏進度條
+     */
+    hideProgressBar() {
+        const container = this.element.querySelector(`#analysis-progress-${this.id}`);
+        if (container) {
+            container.style.display = 'none';
+        }
+
+        if (this.progressBar) {
+            this.progressBar.remove();
+            this.progressBar = null;
+        }
+    }
+
+    /**
+     * 更新進度
+     */
+    updateProgress(progress) {
+        if (this.progressBar) {
+            this.progressBar.update(progress);
+        }
+    }
+
+    /**
+     * 顯示分析結果面板
+     */
+    showAnalysisResult(result) {
+        const panel = this.element.querySelector(`#analysis-panel-${this.id}`);
+        if (!panel) return;
+
+        panel.style.display = 'block';
+        panel.innerHTML = this.buildAnalysisPanelHTML(result);
+        this.bindAnalysisPanelEvents();
+    }
+
+    /**
+     * 隱藏分析面板
+     */
+    hideAnalysisPanel() {
+        const panel = this.element.querySelector(`#analysis-panel-${this.id}`);
+        if (panel) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+        }
+    }
+
+    /**
+     * 建構分析面板 HTML
+     */
+    buildAnalysisPanelHTML(result) {
+        const basic = result.basic || {};
+        const frequency = result.frequency || {};
+        const pitch = result.pitch || {};
+
+        // 基本資訊區塊
+        const basicCollapsed = this.getSectionCollapseState('basic') ? 'collapsed' : '';
+        const basicHTML = `
+            <div class="analysis-section ${basicCollapsed}" data-section="basic">
+                <div class="analysis-section-header">
+                    <span class="analysis-section-icon">📊</span>
+                    <span class="analysis-section-title">基本資訊</span>
+                    <span class="analysis-section-toggle">▼</span>
+                </div>
+                <div class="analysis-section-content">
+                    <div class="analysis-info-grid">
+                        <div class="analysis-info-item">
+                            <span class="info-label">時長</span>
+                            <span class="info-value">${basic.duration ? basic.duration.toFixed(2) + 's' : '-'}</span>
+                        </div>
+                        <div class="analysis-info-item">
+                            <span class="info-label">取樣率</span>
+                            <span class="info-value">${basic.sampleRate ? basic.sampleRate + ' Hz' : '-'}</span>
+                        </div>
+                        <div class="analysis-info-item">
+                            <span class="info-label">聲道數</span>
+                            <span class="info-value">${basic.channels || '-'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 頻率分析區塊
+        const freqCollapsed = this.getSectionCollapseState('frequency') ? 'collapsed' : '';
+        // frequency.spectrum 包含 {low, mid, high} 低中高頻能量比例
+        const spectrum = frequency.spectrum || {};
+        const freqBands = [
+            { label: '低頻', value: spectrum.low || 0, class: 'low' },
+            { label: '中頻', value: spectrum.mid || 0, class: 'mid' },
+            { label: '高頻', value: spectrum.high || 0, class: 'high' }
+        ];
+
+        // 使用水平條形圖
+        const freqBarsHTML = freqBands.map(band => {
+            const width = Math.round(band.value * 100);
+            const percentage = (band.value * 100).toFixed(1);
+            return `
+                <div class="frequency-bar-item">
+                    <span class="frequency-bar-label">${band.label}</span>
+                    <div class="frequency-bar">
+                        <div class="frequency-bar-fill ${band.class}" style="width: ${width}%">
+                            <span class="frequency-bar-percentage">${percentage}%</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // 顯示主頻率和頻譜重心
+        const dominantFreq = frequency.dominantFrequency ? frequency.dominantFrequency.toFixed(0) + ' Hz' : '-';
+        const spectralCentroid = frequency.spectralCentroid ? frequency.spectralCentroid.toFixed(0) + ' Hz' : '-';
+
+        const freqHTML = `
+            <div class="analysis-section ${freqCollapsed}" data-section="frequency">
+                <div class="analysis-section-header">
+                    <span class="analysis-section-icon">📈</span>
+                    <span class="analysis-section-title">頻譜分析</span>
+                    <span class="analysis-section-toggle">▼</span>
+                </div>
+                <div class="analysis-section-content">
+                    <div class="frequency-bars">
+                        ${freqBarsHTML}
+                    </div>
+                    <div class="frequency-stats">
+                        <div class="frequency-stat-item">
+                            <span class="frequency-stat-label">主頻率</span>
+                            <span class="frequency-stat-value">${dominantFreq}</span>
+                        </div>
+                        <div class="frequency-stat-item">
+                            <span class="frequency-stat-label">頻譜重心</span>
+                            <span class="frequency-stat-value">${spectralCentroid}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 音高/頻譜圖區塊
+        const pitchCollapsed = this.getSectionCollapseState('pitch') ? 'collapsed' : '';
+        const dominantPitch = pitch.dominantPitch || {};
+        const pitchHTML = `
+            <div class="analysis-section ${pitchCollapsed}" data-section="pitch">
+                <div class="analysis-section-header">
+                    <span class="analysis-section-icon">🎵</span>
+                    <span class="analysis-section-title">音高 / 頻譜圖</span>
+                    <span class="analysis-section-toggle">▼</span>
+                </div>
+                <div class="analysis-section-content">
+                    <div class="pitch-info">
+                        <div class="dominant-pitch">
+                            <span class="pitch-note">${dominantPitch.noteName || '-'}</span>
+                            <span class="pitch-freq">${dominantPitch.frequency ? dominantPitch.frequency.toFixed(1) + ' Hz' : ''}</span>
+                            ${dominantPitch.confidence ? `<span class="pitch-confidence">${Math.round(dominantPitch.confidence * 100)}%</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="spectrogram-container" id="spectrogram-container-${this.id}">
+                        <canvas id="spectrogram-canvas-${this.id}" class="spectrogram-canvas"></canvas>
+                        <div class="spectrogram-hover-info" id="spectrogram-hover-${this.id}"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        return basicHTML + freqHTML + pitchHTML;
+    }
+
+    /**
+     * 綁定分析面板事件
+     */
+    bindAnalysisPanelEvents() {
+        // 區塊展開/收合
+        const sections = this.element.querySelectorAll('.analysis-section');
+        sections.forEach(section => {
+            const header = section.querySelector('.analysis-section-header');
+            if (header) {
+                header.addEventListener('click', () => {
+                    section.classList.toggle('collapsed');
+                    const sectionName = section.dataset.section;
+                    this.saveSectionCollapseState(sectionName, section.classList.contains('collapsed'));
+
+                    // 如果是音高區塊展開，渲染頻譜圖
+                    if (sectionName === 'pitch' && !section.classList.contains('collapsed')) {
+                        this.renderSpectrogramIfNeeded();
+                    }
+                });
+            }
+        });
+
+        // 初始渲染頻譜圖（如果音高區塊已展開）
+        const pitchSection = this.element.querySelector('.analysis-section[data-section="pitch"]');
+        if (pitchSection && !pitchSection.classList.contains('collapsed')) {
+            this.renderSpectrogramIfNeeded();
+        }
+    }
+
+    /**
+     * 渲染頻譜圖（如果需要）
+     */
+    renderSpectrogramIfNeeded() {
+        // 頻譜圖在 pitch.spectrogram 中
+        if (!this.analysisResult || !this.analysisResult.pitch || !this.analysisResult.pitch.spectrogram) return;
+
+        const canvas = this.element.querySelector(`#spectrogram-canvas-${this.id}`);
+        const container = this.element.querySelector(`#spectrogram-container-${this.id}`);
+        const hoverInfo = this.element.querySelector(`#spectrogram-hover-${this.id}`);
+
+        if (!canvas || !container) return;
+
+        // 設定 canvas 尺寸
+        const rect = container.getBoundingClientRect();
+        const canvasWidth = rect.width || 280;
+        const canvasHeight = 100;
+
+        // 建立或更新 SpectrogramRenderer
+        if (!this.spectrogramRenderer) {
+            this.spectrogramRenderer = new SpectrogramRenderer(canvas);
+        }
+
+        // 渲染頻譜圖 - 傳入整個 spectrogramData 物件和選項
+        const specData = this.analysisResult.pitch.spectrogram;
+        this.spectrogramRenderer.render(specData, {
+            canvasWidth: canvasWidth,
+            canvasHeight: canvasHeight
+        });
+
+        // 綁定滑鼠懸停事件
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // 計算時間和頻率索引
+            const timeIndex = Math.floor((x / rect.width) * specData.width);
+            const freqIndex = Math.floor(((rect.height - y) / rect.height) * specData.height);
+
+            if (timeIndex >= 0 && timeIndex < specData.width &&
+                freqIndex >= 0 && freqIndex < specData.height) {
+                const time = timeIndex * specData.timeStep;
+                const freq = (freqIndex / specData.height) * specData.frequencyRange[1];
+                const magnitude = specData.data[timeIndex]?.[freqIndex] || 0;
+
+                if (hoverInfo) {
+                    hoverInfo.style.display = 'block';
+                    hoverInfo.style.left = (x + 10) + 'px';
+                    hoverInfo.style.top = (y - 30) + 'px';
+                    hoverInfo.innerHTML = `
+                        <div>時間: ${time.toFixed(2)}s</div>
+                        <div>頻率: ${freq.toFixed(0)} Hz</div>
+                        <div>強度: ${magnitude.toFixed(1)} dB</div>
+                    `;
+                }
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            if (hoverInfo) {
+                hoverInfo.style.display = 'none';
+            }
+        });
+
+        // 點擊開啟大圖
+        canvas.addEventListener('click', () => {
+            this.openSpectrogramModal();
+        });
+        canvas.style.cursor = 'pointer';
+    }
+
+    /**
+     * 開啟頻譜圖大圖 Modal
+     */
+    openSpectrogramModal() {
+        if (!this.analysisResult || !this.analysisResult.pitch || !this.analysisResult.pitch.spectrogram) return;
+
+        // 建立 Modal
+        const overlay = document.createElement('div');
+        overlay.className = 'spectrogram-modal-overlay';
+
+        const modal = document.createElement('div');
+        modal.className = 'spectrogram-modal';
+        modal.innerHTML = `
+            <div class="spectrogram-modal-header">
+                <span class="spectrogram-modal-title">頻譜圖</span>
+                <button class="spectrogram-modal-close">&times;</button>
+            </div>
+            <div class="spectrogram-modal-content">
+                <canvas id="spectrogram-modal-canvas" class="spectrogram-modal-canvas"></canvas>
+                <div class="spectrogram-modal-hover-info" id="spectrogram-modal-hover"></div>
+            </div>
+        `;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // 設定大圖 canvas
+        const canvas = modal.querySelector('#spectrogram-modal-canvas');
+        const hoverInfo = modal.querySelector('#spectrogram-modal-hover');
+
+        // 設定較大的尺寸
+        const canvasWidth = Math.min(window.innerWidth - 100, 800);
+        const canvasHeight = 300;
+
+        // 渲染
+        const renderer = new SpectrogramRenderer(canvas);
+        const specData = this.analysisResult.pitch.spectrogram;
+        renderer.render(specData, {
+            canvasWidth: canvasWidth,
+            canvasHeight: canvasHeight
+        });
+
+        // 懸停事件
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // 計算時間和頻率索引
+            const timeIndex = Math.floor((x / rect.width) * specData.width);
+            const freqIndex = Math.floor(((rect.height - y) / rect.height) * specData.height);
+
+            if (timeIndex >= 0 && timeIndex < specData.width &&
+                freqIndex >= 0 && freqIndex < specData.height) {
+                const time = timeIndex * specData.timeStep;
+                const freq = (freqIndex / specData.height) * specData.frequencyRange[1];
+                const magnitude = specData.data[timeIndex]?.[freqIndex] || 0;
+
+                hoverInfo.style.display = 'block';
+                hoverInfo.style.left = (x + 10) + 'px';
+                hoverInfo.style.top = (y - 30) + 'px';
+                hoverInfo.innerHTML = `
+                    <div>時間: ${time.toFixed(2)}s</div>
+                    <div>頻率: ${freq.toFixed(0)} Hz</div>
+                    <div>強度: ${magnitude.toFixed(1)}</div>
+                `;
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            hoverInfo.style.display = 'none';
+        });
+
+        // 關閉事件
+        const closeBtn = modal.querySelector('.spectrogram-modal-close');
+        closeBtn.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+            }
+        });
+
+        // ESC 關閉
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                document.body.removeChild(overlay);
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+    }
+
+    /**
+     * 取得區塊收合狀態
+     */
+    getSectionCollapseState(sectionName) {
+        const key = `smartPitchNode_section_${sectionName}_collapsed`;
+        const stored = localStorage.getItem(key);
+        // 預設為收合狀態（true），除非使用者明確展開過（stored === 'false'）
+        if (stored === null) {
+            return true; // 預設收合
+        }
+        return stored === 'true';
+    }
+
+    /**
+     * 儲存區塊收合狀態
+     */
+    saveSectionCollapseState(sectionName, collapsed) {
+        const key = `smartPitchNode_section_${sectionName}_collapsed`;
+        localStorage.setItem(key, collapsed ? 'true' : 'false');
+    }
+
+    /**
+     * 更新偵測音高 UI
+     */
+    updateDetectedKeyUI(customText = null) {
+        const detectedKeyValue = this.element.querySelector('.detected-key-value');
+        const targetKeySelect = this.element.querySelector('.target-key-select');
+
+        if (detectedKeyValue) {
+            if (customText) {
+                detectedKeyValue.textContent = customText;
+            } else if (this.data.detectedKey) {
+                detectedKeyValue.textContent = `${this.data.detectedKey.noteName} (${Math.round(this.data.detectedKey.confidence * 100)}%)`;
+            } else {
+                detectedKeyValue.textContent = '無法判定';
+            }
+        }
+
+        if (targetKeySelect) {
+            targetKeySelect.disabled = !this.data.detectedKey;
+        }
+
+        this.updateTransposeUI();
+    }
+
+    /**
+     * 清理資源
+     */
+    destroy() {
+        if (this.spectrogramRenderer) {
+            this.spectrogramRenderer = null;
+        }
+        if (this.progressBar) {
+            this.progressBar = null;
+        }
+        super.destroy();
+    }
+
+    async process(inputs) {
+        const audioBuffer = inputs.audio;
+        if (!audioBuffer) return { audio: null };
+
+        // 如果 pitch 為 0，直接返回原音訊
+        if (this.data.pitch === 0) {
+            return { audio: audioBuffer };
+        }
+
+        // 直接呼叫 changePitch 而非透過 processAudio
+        const processed = audioProcessor.changePitch(audioBuffer, this.data.pitch);
+        return { audio: processed };
+    }
+}
+
 // 匯出
 window.VolumeNode = VolumeNode;
 window.CropNode = CropNode;
@@ -967,3 +1687,4 @@ window.FadeInNode = FadeInNode;
 window.FadeOutNode = FadeOutNode;
 window.SpeedNode = SpeedNode;
 window.PitchNode = PitchNode;
+window.SmartPitchNode = SmartPitchNode;
