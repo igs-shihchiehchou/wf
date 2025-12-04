@@ -106,9 +106,23 @@ class AudioAnalyzer {
       const cacheKey = this.cachePrefix + hash;
 
       // 準備緩存數據
+      // 注意：排除 spectrogram 數據，因為 Float32Array 無法正確序列化為 JSON
+      // 且頻譜圖數據很大，會佔用大量 localStorage 空間
+      const resultToCache = {
+        basic: result.basic,
+        frequency: result.frequency,
+        pitch: result.pitch ? {
+          pitchCurve: result.pitch.pitchCurve,
+          averagePitch: result.pitch.averagePitch,
+          pitchRange: result.pitch.pitchRange,
+          isPitched: result.pitch.isPitched
+          // 排除 spectrogram
+        } : null
+      };
+
       const cacheData = {
         timestamp: Date.now(),
-        result: result
+        result: resultToCache
       };
 
       // 存入 localStorage
@@ -258,8 +272,18 @@ class AudioAnalyzer {
 
       const cachedResult = this.getCachedAnalysis(hash);
       if (cachedResult) {
-        // 使用緩存結果，快速完成
-        onProgress(100, '已載入緩存結果');
+        // 使用緩存結果，但需要重新生成頻譜圖（因為未被緩存）
+        onProgress(80, '已載入緩存結果');
+
+        // 重新生成頻譜圖
+        if (cachedResult.pitch && !cachedResult.pitch.spectrogram) {
+          onProgress(80, '生成頻譜圖...');
+          cachedResult.pitch.spectrogram = await this.generateSpectrogram(audioBuffer, (progress) => {
+            onProgress(80 + progress * 20, '生成頻譜圖...');
+          });
+        }
+
+        onProgress(100, '分析完成');
         return cachedResult;
       }
     }
