@@ -591,7 +591,8 @@ class AudioInputNode extends BaseNode {
         // 如果有多個檔案，可以在此擴展輸出所有檔案
         return {
             audio: this.audioBuffer,
-            audioFiles: this.audioFiles.map(f => f.audioBuffer)
+            audioFiles: this.audioFiles.map(f => f.audioBuffer),
+            filenames: this.audioFiles.map(f => f.filename)
         };
     }
 

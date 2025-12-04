@@ -54,6 +54,31 @@ class VolumeNode extends BaseNode {
 
     async process(inputs) {
         const audioBuffer = inputs.audio;
+        const audioFiles = inputs.audioFiles;
+
+        // 處理多檔案
+        if (audioFiles && audioFiles.length > 0) {
+            const processedFiles = [];
+            for (const buffer of audioFiles) {
+                if (buffer) {
+                    const settings = {
+                        volume: this.data.volume / 100,
+                        crop: { enabled: false },
+                        fadeIn: { enabled: false },
+                        fadeOut: { enabled: false },
+                        playbackRate: 1.0
+                    };
+                    processedFiles.push(audioProcessor.processAudio(buffer, settings));
+                }
+            }
+            return {
+                audio: processedFiles[0] || null,
+                audioFiles: processedFiles,
+                filenames: inputs.filenames
+            };
+        }
+
+        // 單檔案處理（向下相容）
         if (!audioBuffer) return { audio: null };
 
         // 使用 audioProcessor 調整音量
@@ -332,6 +357,37 @@ class CropNode extends BaseNode {
 
     async process(inputs) {
         const audioBuffer = inputs.audio;
+        const audioFiles = inputs.audioFiles;
+
+        // 處理多檔案
+        if (audioFiles && audioFiles.length > 0) {
+            const processedFiles = [];
+            for (const buffer of audioFiles) {
+                if (buffer) {
+                    // 更新結束時間為音訊長度（如果超過）
+                    const end = Math.min(this.data.end, buffer.duration);
+                    const settings = {
+                        volume: 1.0,
+                        crop: {
+                            enabled: true,
+                            start: this.data.start,
+                            end: end
+                        },
+                        fadeIn: { enabled: false },
+                        fadeOut: { enabled: false },
+                        playbackRate: 1.0
+                    };
+                    processedFiles.push(audioProcessor.processAudio(buffer, settings));
+                }
+            }
+            return {
+                audio: processedFiles[0] || null,
+                audioFiles: processedFiles,
+                filenames: inputs.filenames
+            };
+        }
+
+        // 單檔案處理（向下相容）
         if (!audioBuffer) return { audio: null };
 
         // 更新結束時間為音訊長度（如果超過）
@@ -555,6 +611,34 @@ class FadeInNode extends BaseNode {
 
     async process(inputs) {
         const audioBuffer = inputs.audio;
+        const audioFiles = inputs.audioFiles;
+
+        // 處理多檔案
+        if (audioFiles && audioFiles.length > 0) {
+            const processedFiles = [];
+            for (const buffer of audioFiles) {
+                if (buffer) {
+                    const settings = {
+                        volume: 1.0,
+                        crop: { enabled: false },
+                        fadeIn: {
+                            enabled: true,
+                            duration: this.data.duration
+                        },
+                        fadeOut: { enabled: false },
+                        playbackRate: 1.0
+                    };
+                    processedFiles.push(audioProcessor.processAudio(buffer, settings));
+                }
+            }
+            return {
+                audio: processedFiles[0] || null,
+                audioFiles: processedFiles,
+                filenames: inputs.filenames
+            };
+        }
+
+        // 單檔案處理（向下相容）
         if (!audioBuffer) return { audio: null };
 
         const settings = {
@@ -773,6 +857,34 @@ class FadeOutNode extends BaseNode {
 
     async process(inputs) {
         const audioBuffer = inputs.audio;
+        const audioFiles = inputs.audioFiles;
+
+        // 處理多檔案
+        if (audioFiles && audioFiles.length > 0) {
+            const processedFiles = [];
+            for (const buffer of audioFiles) {
+                if (buffer) {
+                    const settings = {
+                        volume: 1.0,
+                        crop: { enabled: false },
+                        fadeIn: { enabled: false },
+                        fadeOut: {
+                            enabled: true,
+                            duration: this.data.duration
+                        },
+                        playbackRate: 1.0
+                    };
+                    processedFiles.push(audioProcessor.processAudio(buffer, settings));
+                }
+            }
+            return {
+                audio: processedFiles[0] || null,
+                audioFiles: processedFiles,
+                filenames: inputs.filenames
+            };
+        }
+
+        // 單檔案處理（向下相容）
         if (!audioBuffer) return { audio: null };
 
         const settings = {
@@ -847,6 +959,31 @@ class SpeedNode extends BaseNode {
 
     async process(inputs) {
         const audioBuffer = inputs.audio;
+        const audioFiles = inputs.audioFiles;
+
+        // 處理多檔案
+        if (audioFiles && audioFiles.length > 0) {
+            const processedFiles = [];
+            for (const buffer of audioFiles) {
+                if (buffer) {
+                    const settings = {
+                        volume: 1.0,
+                        crop: { enabled: false },
+                        fadeIn: { enabled: false },
+                        fadeOut: { enabled: false },
+                        playbackRate: this.data.speed / 100
+                    };
+                    processedFiles.push(audioProcessor.processAudio(buffer, settings));
+                }
+            }
+            return {
+                audio: processedFiles[0] || null,
+                audioFiles: processedFiles,
+                filenames: inputs.filenames
+            };
+        }
+
+        // 單檔案處理（向下相容）
         if (!audioBuffer) return { audio: null };
 
         const settings = {
@@ -947,6 +1084,29 @@ class PitchNode extends BaseNode {
 
     async process(inputs) {
         const audioBuffer = inputs.audio;
+        const audioFiles = inputs.audioFiles;
+
+        // 處理多檔案
+        if (audioFiles && audioFiles.length > 0) {
+            const processedFiles = [];
+            for (const buffer of audioFiles) {
+                if (buffer) {
+                    // 如果 pitch 為 0，直接返回原音訊
+                    if (this.data.pitch === 0) {
+                        processedFiles.push(buffer);
+                    } else {
+                        processedFiles.push(audioProcessor.changePitch(buffer, this.data.pitch));
+                    }
+                }
+            }
+            return {
+                audio: processedFiles[0] || null,
+                audioFiles: processedFiles,
+                filenames: inputs.filenames
+            };
+        }
+
+        // 單檔案處理（向下相容）
         if (!audioBuffer) return { audio: null };
 
         // 如果 pitch 為 0，直接返回原音訊
@@ -1667,6 +1827,29 @@ class SmartPitchNode extends BaseNode {
 
     async process(inputs) {
         const audioBuffer = inputs.audio;
+        const audioFiles = inputs.audioFiles;
+
+        // 處理多檔案
+        if (audioFiles && audioFiles.length > 0) {
+            const processedFiles = [];
+            for (const buffer of audioFiles) {
+                if (buffer) {
+                    // 如果 pitch 為 0，直接返回原音訊
+                    if (this.data.pitch === 0) {
+                        processedFiles.push(buffer);
+                    } else {
+                        processedFiles.push(audioProcessor.changePitch(buffer, this.data.pitch));
+                    }
+                }
+            }
+            return {
+                audio: processedFiles[0] || null,
+                audioFiles: processedFiles,
+                filenames: inputs.filenames
+            };
+        }
+
+        // 單檔案處理（向下相容）
         if (!audioBuffer) return { audio: null };
 
         // 如果 pitch 為 0，直接返回原音訊
