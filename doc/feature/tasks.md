@@ -15,11 +15,11 @@ This document breaks down the audio analysis feature into manageable tasks with 
 - ✅ **Phase 2: Frequency Spectrum Analysis** (3/3 tasks completed)
 - ✅ **Phase 3: YIN Pitch Detection Algorithm** (3/3 tasks completed)
 - ✅ **Phase 4: Spectrogram Visualization** (3/3 tasks completed)
-- ⏳ Phase 5: UI Integration with AudioInputNode (0/3 tasks completed)
+- 🔄 Phase 5: UI Integration with AudioInputNode (1/3 tasks completed)
 - ⏳ Phase 6: Performance Optimization & Polish (0/4 tasks completed)
 - ⏳ Phase 7: Testing & Documentation (0/3 tasks completed)
 
-**Overall Progress:** 13/23 tasks (57%)
+**Overall Progress:** 14/23 tasks (61%)
 
 ---
 
@@ -986,27 +986,147 @@ feat: add spectrogram canvas interactivity with mouse hover tooltips
 
 ### Phase 5: UI Integration with AudioInputNode
 
-#### Task 5.1: Integrate Analysis into AudioInputNode
+#### Task 5.1: Integrate Analysis into AudioInputNode ✅ COMPLETED
 **Complexity:** Medium
 **Priority:** High
 **Dependencies:** Tasks 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.2, 3.3, 4.1
 **Estimated Effort:** 2-2.5 hours
+**Status:** ✅ Completed
 
 **Description:**
 Modify AudioInputNode to trigger automatic analysis after loading audio file and display progress bar during analysis.
 
 **Acceptance Criteria:**
-- [ ] Add `analyzeAudio()` method to AudioInputNode
-- [ ] Call analysis after audio buffer is loaded in `loadFile()`
-- [ ] Create and display ProgressBar component in node content
-- [ ] Pass progress callback to audioAnalyzer.analyze()
-- [ ] Store analysis result in `this.analysisResult`
-- [ ] Remove progress bar when analysis completes
-- [ ] Handle analysis errors gracefully (show warning toast but continue)
-- [ ] Ensure analysis doesn't block waveform initialization
+- [x] Add `analyzeAudio()` method to AudioInputNode
+- [x] Call analysis after audio buffer is loaded in `loadFile()`
+- [x] Create and display ProgressBar component in node content
+- [x] Pass progress callback to audioAnalyzer.analyze()
+- [x] Store analysis result in `this.analysisResult`
+- [x] Remove progress bar when analysis completes
+- [x] Handle analysis errors gracefully (show warning toast but continue)
+- [x] Ensure analysis doesn't block waveform initialization
 
-**Files to Modify:**
-- `/mnt/e/projects/audio_workspace/audio_webtool/js/nodes/AudioInputNode.js`
+**Files Modified:**
+- ✅ `/mnt/e/projects/audio_workspace/audio_webtool/js/nodes/AudioInputNode.js` (lines 18-20, 177-182, 289-375)
+
+**Implementation Details:**
+
+**Constructor Updates** (lines 18-20):
+- Added `this.analysisResult = null` - Stores the complete analysis result from audioAnalyzer
+- Added `this.progressBar = null` - Stores reference to progress bar component
+
+**analyzeAudio() Method** (lines 289-375):
+A comprehensive async method that orchestrates the entire analysis process:
+
+1. **Dependency Validation** (lines 306-322):
+   - Checks if `window.audioAnalyzer` is available
+   - Checks if `window.ProgressBar` component is available
+   - Validates audioBuffer is valid
+   - Graceful fallback if dependencies missing
+
+2. **Progress Bar Creation** (lines 324-333):
+   - Finds node content area element
+   - Creates new ProgressBar component in that container
+   - Component will display analysis progress in real-time
+
+3. **Analysis Execution** (lines 335-345):
+   - Calls `audioAnalyzer.analyze(audioBuffer, onProgress)`
+   - Passes progress callback that updates the progress bar
+   - Progress callback receives: `progress` (0-100) and `message` (status text)
+   - Updates progress bar in real-time with `progressBar.update(progress, message)`
+
+4. **Cleanup on Success** (lines 347-351):
+   - Removes progress bar from DOM
+   - Clears progressBar reference
+   - Analysis result already stored in `this.analysisResult`
+
+5. **Error Handling** (lines 359-374):
+   - Catches any errors during analysis
+   - Logs error details to console for debugging
+   - Removes progress bar if it exists (cleanup)
+   - Shows warning toast to user: "音訊分析失敗: {error message}"
+   - **Does NOT rethrow error** - allows process to continue
+
+**Integration in loadFile()** (lines 177-182):
+- Called AFTER waveform initialization completes
+- Uses non-blocking pattern: `this.analyzeAudio(...).catch(...)`
+- Allows UI and waveform to display immediately
+- Analysis happens in background without blocking
+- Catches any promise rejection but only logs warning
+
+**Key Design Decisions:**
+
+1. **Non-blocking Execution:**
+   - Analysis doesn't wait for completion
+   - UI updates immediately
+   - Waveform displays while analysis runs in background
+
+2. **Graceful Degradation:**
+   - Missing dependencies don't crash the app
+   - Analysis failures don't prevent audio playback
+   - All errors logged but not rethrown
+
+3. **Progress Feedback:**
+   - Real-time progress bar shows analysis status
+   - User sees which step is running (basic info, frequency, pitch)
+   - Progress percentage updates as analysis proceeds
+
+4. **Clean Resource Management:**
+   - Progress bar automatically removed when done
+   - References cleared to prevent memory leaks
+   - Proper error cleanup ensures no dangling UI
+
+**Usage Flow:**
+
+1. User loads audio file via file input
+2. `loadFile()` is called
+3. Audio buffer is decoded
+4. Waveform initialization starts
+5. `analyzeAudio()` is called (non-blocking)
+6. Progress bar appears in node content
+7. Analysis runs in background (0-100% complete)
+8. Progress bar updated in real-time
+9. Analysis complete, progress bar removed
+10. Result stored in `this.analysisResult` for Task 5.2
+
+**Error Scenarios Handled:**
+
+- audioAnalyzer not loaded: Logs warning, returns early
+- ProgressBar not loaded: Logs warning, returns early
+- Invalid audioBuffer: Logs warning, returns early
+- No content area element: Logs warning, returns early
+- Analysis throws error: Logs error, shows warning toast, cleans up
+- Progress callback error: Wrapped in progress bar update, safe
+
+**Testing Considerations:**
+
+- Verify progress bar appears during analysis
+- Verify waveform displays while analysis runs
+- Verify progress bar disappears when analysis completes
+- Verify analysis result stored correctly
+- Verify error handling doesn't crash app
+- Verify performance with large files
+
+**Git Commit:**
+```
+feat: integrate audio analysis into AudioInputNode
+
+- Add analyzeAudio() method that orchestrates analysis process
+- Create and display ProgressBar component during analysis
+- Pass progress callback to audioAnalyzer.analyze()
+- Store analysis result in this.analysisResult for use by Task 5.2
+- Integrate into loadFile() with non-blocking pattern
+- Handle analysis errors gracefully with warning toast
+- Ensure analysis doesn't block waveform initialization
+- Comprehensive error handling and dependency validation
+```
+
+**Notes:**
+- Ready for Task 5.2 (Create Analysis Results Panel UI)
+- Analysis results stored in `this.analysisResult` property
+- Progress bar component created from window.ProgressBar
+- Non-blocking design ensures UI responsiveness
+- Production-ready with comprehensive error handling
 
 ---
 
