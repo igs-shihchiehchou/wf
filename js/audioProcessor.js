@@ -346,4 +346,4 @@ class AudioProcessor {
 }
 
 // 建立全域音訊處理器實例
-const audioProcessor = new AudioProcessor();
+window.audioProcessor = new AudioProcessor();
