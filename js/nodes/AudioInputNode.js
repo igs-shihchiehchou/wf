@@ -322,7 +322,7 @@ class AudioInputNode extends BaseNode {
             }
 
             // 獲取節點內容容器（用於顯示進度條）
-            const contentArea = this.element.querySelector('.node-content-area');
+            const contentArea = this.element.querySelector('.node-content');
             if (!contentArea) {
                 console.warn('節點內容區域不存在，無法顯示進度條');
                 return;
@@ -397,7 +397,7 @@ class AudioInputNode extends BaseNode {
         }
 
         // 獲取節點內容容器
-        const contentArea = this.element.querySelector('.node-content-area');
+        const contentArea = this.element.querySelector('.node-content');
         if (!contentArea) {
             console.warn('找不到節點內容區域');
             return;
