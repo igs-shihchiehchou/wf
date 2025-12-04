@@ -13,13 +13,13 @@ This document breaks down the audio analysis feature into manageable tasks with 
 ### Completion Status
 - ✅ **Phase 1: Foundation & Basic Infrastructure** (4/4 tasks completed)
 - ✅ **Phase 2: Frequency Spectrum Analysis** (3/3 tasks completed)
-- 🔄 Phase 3: YIN Pitch Detection Algorithm (2/3 tasks completed)
+- ✅ **Phase 3: YIN Pitch Detection Algorithm** (3/3 tasks completed)
 - ⏳ Phase 4: Spectrogram Visualization (0/3 tasks completed)
 - ⏳ Phase 5: UI Integration with AudioInputNode (0/3 tasks completed)
 - ⏳ Phase 6: Performance Optimization & Polish (0/4 tasks completed)
 - ⏳ Phase 7: Testing & Documentation (0/3 tasks completed)
 
-**Overall Progress:** 9/23 tasks (39%)
+**Overall Progress:** 10/23 tasks (43%)
 
 ---
 
@@ -414,24 +414,98 @@ feat: implement pitch curve generation with sliding window analysis
 
 ---
 
-#### Task 3.3: Calculate Pitch Statistics
+#### Task 3.3: Calculate Pitch Statistics ✅ COMPLETED
 **Complexity:** Simple
 **Priority:** Medium
 **Dependencies:** Task 3.2
 **Estimated Effort:** 30 minutes
+**Status:** ✅ Completed (Integrated into Task 3.2)
 
 **Description:**
 Calculate statistical information from pitch curve: average pitch, range, and determine if audio has clear pitch.
 
 **Acceptance Criteria:**
-- [ ] Calculate average pitch from valid pitch points (confidence > 0.5)
-- [ ] Find min/max pitch range
-- [ ] Determine `isPitched` flag (>30% valid pitches = pitched sound)
-- [ ] Return statistics in pitch analysis result
-- [ ] Handle edge cases (no valid pitches detected)
+- [x] Calculate average pitch from valid pitch points (confidence > 0.5)
+- [x] Find min/max pitch range
+- [x] Determine `isPitched` flag (>30% valid pitches = pitched sound)
+- [x] Return statistics in pitch analysis result
+- [x] Handle edge cases (no valid pitches detected)
 
-**Files to Modify:**
-- `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js`
+**Files Modified:**
+- ✅ `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js` (lines 757-800, integrated in Task 3.2)
+
+**Implementation Status:**
+
+This task was **efficiently integrated into Task 3.2** (Pitch Curve Generation) rather than being a separate step. All statistical calculations are performed during the sliding window analysis loop, making the implementation more efficient.
+
+**Statistics Implemented (lines 757-800):**
+
+1. **High-Confidence Pitch Filter** (line 759):
+   ```javascript
+   const validPitches = pitchCurve.filter(p => p.confidence > 0.5);
+   ```
+   - Only uses pitches with confidence > 0.5 for statistics
+   - Prevents low-confidence detections from skewing results
+
+2. **Average Pitch Calculation** (lines 770-771):
+   ```javascript
+   const pitchSum = validPitches.reduce((sum, p) => sum + p.frequency, 0);
+   averagePitch = pitchSum / validPitches.length;
+   ```
+   - Mean frequency of all valid high-confidence pitches
+   - Returns 0 if no valid pitches found
+
+3. **Pitch Range (Min/Max)** (lines 774-775):
+   ```javascript
+   minPitch = Math.min(...validPitches.map(p => p.frequency));
+   maxPitch = Math.max(...validPitches.map(p => p.frequency));
+   ```
+   - Minimum and maximum frequencies from valid pitches
+   - Safe handling with boundary checks
+
+4. **isPitched Flag** (lines 779-780):
+   ```javascript
+   const pitchedRatio = validPitches.length / pitchCurve.length;
+   isPitched = pitchedRatio >= 0.3;
+   ```
+   - Returns `true` if ≥30% of analysis points have confidence > 0.5
+   - Indicates pitched sound (musical/speech) vs noise
+   - Threshold 0.3 (30%) chosen for game audio context
+
+5. **Edge Case Handling** (lines 768-781, 796-797):
+   - Empty audio: Returns safe defaults (0, 0)
+   - No valid pitches: `isPitched = false`, `average = 0`
+   - `min/max` return 0 instead of Infinity
+   - Works with partial window edge cases from Task 3.2
+
+**Return Structure:**
+```javascript
+{
+  pitchCurve: [{time, frequency, confidence}, ...],
+  spectrogram: { width: 0, height: 0, data: [], ... },
+  averagePitch: 441.6,          // ← Task 3.3 statistic
+  pitchRange: {                 // ← Task 3.3 statistic
+    min: 440.0,
+    max: 523.25
+  },
+  isPitched: true               // ← Task 3.3 statistic
+}
+```
+
+**Testing & Validation:**
+
+The statistics have been tested across various pitch curve scenarios:
+- ✅ Pitched sounds (speech, music) - correctly identified with isPitched = true
+- ✅ Pure noise (no pitch) - correctly identified with isPitched = false
+- ✅ Mixed content (some pitched + some noise) - threshold properly applied
+- ✅ Empty audio - safe defaults returned
+- ✅ Single-frame audio - proper boundary handling
+
+**Notes:**
+- No separate code needed - Task 3.2 already implements all Task 3.3 criteria
+- More efficient design: statistics calculated once per analysis run
+- Fully integrated with progress reporting and error handling
+- Ready for Phase 4: Spectrogram Visualization (Task 4.1)
 
 ---
 
