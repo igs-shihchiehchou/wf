@@ -14,6 +14,10 @@ class AudioInputNode extends BaseNode {
         this.audioBuffer = null;
         this.filename = defaultData.filename;
         this.wavesurfer = null;
+
+        // 音訊分析結果存儲
+        this.analysisResult = null;
+        this.progressBar = null;
     }
 
     setupPorts() {
@@ -170,6 +174,13 @@ class AudioInputNode extends BaseNode {
 
             showToast(`已載入: ${this.filename}`, 'success');
 
+            // 非阻塞式音訊分析 - 在後台開始分析，不等待完成
+            // 這樣可以讓 UI 和波形立即顯示，同時進行分析
+            this.analyzeAudio(this.audioBuffer).catch(error => {
+                console.warn('音訊分析非阻塞調用失敗:', error);
+                // 分析失敗不應該影響整體流程，所以只記錄警告
+            });
+
         } catch (error) {
             this.setProcessing(false);
             showToast(`載入失敗: ${error.message}`, 'error');
@@ -272,6 +283,94 @@ class AudioInputNode extends BaseNode {
         } catch (error) {
             showToast(`下載失敗: ${error.message}`, 'error');
             console.error('下載失敗:', error);
+        }
+    }
+
+    /**
+     * 分析音訊檔案的各項特性
+     *
+     * 該方法執行以下操作：
+     * 1. 檢查音訊分析器是否可用
+     * 2. 在節點內容中創建進度條組件
+     * 3. 調用 audioAnalyzer.analyze() 進行分析，並通過回調報告進度
+     * 4. 在進度條中實時更新分析進度和狀態消息
+     * 5. 分析完成後移除進度條並存儲分析結果
+     * 6. 錯誤時顯示警告吐司，但不阻止整體流程
+     *
+     * @param {AudioBuffer} audioBuffer - 要分析的音訊緩衝區
+     * @returns {Promise<void>}
+     * @private
+     */
+    async analyzeAudio(audioBuffer) {
+        try {
+            // 檢查音訊分析器是否可用
+            if (!window.audioAnalyzer) {
+                console.warn('音訊分析器不可用，跳過分析');
+                return;
+            }
+
+            // 檢查 ProgressBar 組件是否可用
+            if (!window.ProgressBar) {
+                console.warn('ProgressBar 組件不可用，跳過進度顯示');
+                return;
+            }
+
+            // 檢查音訊緩衝區有效性
+            if (!audioBuffer) {
+                console.warn('音訊緩衝區無效，無法進行分析');
+                return;
+            }
+
+            // 獲取節點內容容器（用於顯示進度條）
+            const contentArea = this.element.querySelector('.node-content-area');
+            if (!contentArea) {
+                console.warn('節點內容區域不存在，無法顯示進度條');
+                return;
+            }
+
+            // 創建進度條組件並插入到節點內容區域
+            // 進度條會顯示在波形下方，提供實時的分析進度反饋
+            this.progressBar = new window.ProgressBar(contentArea);
+
+            // 開始分析，並通過進度回調實時更新進度條
+            // onProgress 簽名：(progress: 0-100, message: string) => void
+            this.analysisResult = await window.audioAnalyzer.analyze(
+                audioBuffer,
+                (progress, message) => {
+                    // 更新進度條填充百分比和狀態消息
+                    if (this.progressBar) {
+                        this.progressBar.update(progress, message);
+                    }
+                }
+            );
+
+            // 分析完成：移除進度條
+            if (this.progressBar) {
+                this.progressBar.remove();
+                this.progressBar = null;
+            }
+
+            // 記錄分析完成
+            console.log('音訊分析完成:', this.analysisResult);
+
+            // 顯示分析完成提示（可選，取決於設計需求）
+            // showToast('音訊分析完成', 'success');
+
+        } catch (error) {
+            // 錯誤處理：不阻止整體流程，只顯示警告
+            console.error('音訊分析發生錯誤:', error);
+
+            // 移除進度條（如果還存在）
+            if (this.progressBar) {
+                this.progressBar.remove();
+                this.progressBar = null;
+            }
+
+            // 顯示警告吐司讓用戶知道分析失敗
+            showToast(`音訊分析失敗: ${error.message}`, 'warning');
+
+            // 注意：不重新拋出錯誤，允許整體流程繼續進行
+            // 這確保了分析失敗不會影響音訊文件的加載和波形顯示
         }
     }
 
