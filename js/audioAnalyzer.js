@@ -1091,8 +1091,11 @@ class AudioAnalyzer {
       // 計算需要多少幀來覆蓋整個音訊
       const totalFrames = Math.ceil((channelData.length - FFT_SIZE) / HOP_SIZE) + 1;
 
+      console.log(`[Spectrogram] Audio length: ${channelData.length}, FFT_SIZE: ${FFT_SIZE}, totalFrames: ${totalFrames}`);
+
       // 檢查是否有足夠的音訊樣本進行分析
       if (totalFrames <= 0 || FFT_SIZE > channelData.length) {
+        console.warn(`[Spectrogram] Insufficient audio samples for analysis`);
         onProgress(1);
         return {
           data: [],
@@ -1196,6 +1199,7 @@ class AudioAnalyzer {
       }
 
       // ========== 構建返回結果 ==========
+      console.log(`[Spectrogram] Generated ${data.length} frames, height: ${data.length > 0 ? data[0].length : 0}`);
       return {
         data: data,                           // 2D 強度矩陣 [時間幀][頻率 bin]
         width: data.length,                   // 時間幀數（列數）
@@ -1205,6 +1209,7 @@ class AudioAnalyzer {
       };
     } catch (error) {
       console.error('頻譜圖生成出現錯誤:', error);
+      console.error(error.stack);
       // 返回空頻譜圖而不是拋出錯誤，允許分析繼續進行
       return {
         data: [],
