@@ -583,16 +583,28 @@ class AudioInputNode extends BaseNode {
                     ? `${pitch.averagePitch.toFixed(1)} Hz (${noteName})`
                     : `${pitch.averagePitch.toFixed(1)} Hz`;
             }
-            const pitchRangeText = pitch.pitchRange.min > 0 && pitch.pitchRange.max > 0
-                ? `${pitch.pitchRange.min.toFixed(1)} - ${pitch.pitchRange.max.toFixed(1)} Hz`
-                : '無';
+            
+            // 格式化音高範圍，包含音符名稱
+            let pitchRangeText = '無';
+            if (pitch.pitchRange.min > 0 && pitch.pitchRange.max > 0) {
+                const minNote = frequencyToNoteName(pitch.pitchRange.min);
+                const maxNote = frequencyToNoteName(pitch.pitchRange.max);
+                const minStr = minNote 
+                    ? `${pitch.pitchRange.min.toFixed(1)} Hz (${minNote})`
+                    : `${pitch.pitchRange.min.toFixed(1)} Hz`;
+                const maxStr = maxNote
+                    ? `${pitch.pitchRange.max.toFixed(1)} Hz (${maxNote})`
+                    : `${pitch.pitchRange.max.toFixed(1)} Hz`;
+                pitchRangeText = `${minStr} ~ ${maxStr}`;
+            }
 
             // 檢查頻譜圖數據是否存在
             const hasSpectrogram = pitch.spectrogram && pitch.spectrogram.data && pitch.spectrogram.data.length > 0;
 
-            const isCollapsed = this.getSectionCollapseState('pitch', true);  // 預設收合
-            const icon = isCollapsed ? '▶' : '▼';
-            const display = isCollapsed ? 'none' : 'block';
+            // 音高分析區預設收合（不讀取 localStorage，強制使用預設值）
+            const isCollapsed = true;
+            const icon = '▶';
+            const display = 'none';
             const collapsedClass = isCollapsed ? ' analysis-section-collapsed' : '';
 
             html += `
@@ -617,8 +629,11 @@ class AudioInputNode extends BaseNode {
 
             <!-- 頻譜圖視覺化 -->
             ${hasSpectrogram ? `
-            <div class="spectrogram-container">
-              <div class="spectrogram-title">頻譜圖</div>
+            <div class="spectrogram-container spectrogram-clickable" data-action="open-spectrogram-modal">
+              <div class="spectrogram-header">
+                <span class="spectrogram-title">頻譜圖</span>
+                <span class="spectrogram-expand-hint">🔍 點擊放大</span>
+              </div>
               <canvas class="spectrogram-canvas" id="spectrogram-${this.id}"></canvas>
             </div>
             ` : `
@@ -642,6 +657,16 @@ class AudioInputNode extends BaseNode {
      * @private
      */
     bindAnalysisPanelEvents(panelDiv) {
+        // 綁定頻譜圖點擊放大事件
+        const spectrogramContainer = panelDiv.querySelector('[data-action="open-spectrogram-modal"]');
+        if (spectrogramContainer) {
+            spectrogramContainer.addEventListener('click', (e) => {
+                // 防止事件冒泡到 section header
+                e.stopPropagation();
+                this.openSpectrogramModal();
+            });
+        }
+
         // 找到所有的區段標題
         const headers = panelDiv.querySelectorAll('.analysis-section-header');
 
@@ -665,10 +690,12 @@ class AudioInputNode extends BaseNode {
                     content.style.display = 'block';
                     icon.textContent = '▼';
 
-                    // 如果是音高分析區且尚未渲染頻譜圖，則渲染頻譜圖
-                    if (sectionType === 'pitch') {
-                        this.renderSpectrogramIfNeeded();
-                    }
+                    // 等待下一幀以確保容器已完成佈局後再渲染頻譜圖
+                    requestAnimationFrame(() => {
+                        if (sectionType === 'pitch') {
+                            this.renderSpectrogramIfNeeded();
+                        }
+                    });
                 }
 
                 // 儲存收合狀態到 localStorage
@@ -701,11 +728,6 @@ class AudioInputNode extends BaseNode {
             return;
         }
 
-        // 檢查是否已經渲染過（避免重複渲染）
-        if (canvas.hasAttribute('data-rendered')) {
-            return;
-        }
-
         // 檢查 SpectrogramRenderer 是否可用
         if (!window.SpectrogramRenderer) {
             console.warn('SpectrogramRenderer 不可用，無法渲染頻譜圖');
@@ -715,21 +737,30 @@ class AudioInputNode extends BaseNode {
         try {
             // 獲取容器的實際尺寸
             const container = canvas.parentElement;
-            const containerWidth = container.clientWidth - 4; // 減去 padding
-            const containerHeight = container.clientHeight - 4;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+
+            // SpectrogramRenderer 會添加邊距：
+            // marginLeft=50, marginRight=10, marginTop=20, marginBottom=40
+            // 總邊距：水平 60px，垂直 60px
+            // 因此 canvas 的 canvasWidth/Height 參數需要減去這些邊距
+            const marginHorizontal = 60;  // marginLeft + marginRight
+            const marginVertical = 60;     // marginTop + marginBottom
+            const containerPadding = 16;   // 容器內邊距 (var(--spacing-2) * 2)
+
+            // 計算實際可用於頻譜圖的繪圖區域
+            const canvasWidth = Math.max(containerWidth - containerPadding - marginHorizontal, 150);
+            const canvasHeight = Math.max(containerHeight - containerPadding - marginVertical, 100);
 
             // 創建頻譜圖渲染器並渲染
             const renderer = new window.SpectrogramRenderer(canvas);
             renderer.render(spectrogramData, {
-                canvasWidth: Math.max(containerWidth - 60, 200),  // 減去邊距，最小200
-                canvasHeight: Math.max(containerHeight - 60, 140)  // 減去邊距，最小140
+                canvasWidth: canvasWidth,
+                canvasHeight: canvasHeight
             });
 
             // 添加互動性（滑鼠懸停顯示時間和頻率）
             renderer.addInteractivity();
-
-            // 標記為已渲染
-            canvas.setAttribute('data-rendered', 'true');
 
             // 儲存渲染器引用以便後續清理（如果需要）
             if (!this.spectrogramRenderers) {
@@ -747,6 +778,155 @@ class AudioInputNode extends BaseNode {
         return {
             audio: this.audioBuffer
         };
+    }
+
+    /**
+     * 開啟頻譜圖放大 Modal
+     *
+     * 創建一個全螢幕 Modal 顯示大尺寸的頻譜圖，
+     * 保留完整的 hover 互動功能（顯示時間/頻率/強度）。
+     *
+     * @private
+     */
+    openSpectrogramModal() {
+        // 檢查頻譜圖數據是否存在
+        if (!this.analysisResult || !this.analysisResult.pitch || !this.analysisResult.pitch.spectrogram) {
+            console.warn('無法開啟頻譜圖 Modal：缺少頻譜圖數據');
+            return;
+        }
+
+        const spectrogramData = this.analysisResult.pitch.spectrogram;
+        const pitch = this.analysisResult.pitch;
+
+        // 檢查 SpectrogramRenderer 是否可用
+        if (!window.SpectrogramRenderer) {
+            console.warn('SpectrogramRenderer 不可用');
+            return;
+        }
+
+        // 創建 Modal 背景遮罩
+        const modalOverlay = document.createElement('div');
+        modalOverlay.className = 'spectrogram-modal-overlay';
+
+        // 格式化音高資訊
+        let avgPitchText = '無';
+        if (pitch.averagePitch > 0) {
+            const noteName = typeof frequencyToNoteName === 'function' 
+                ? frequencyToNoteName(pitch.averagePitch) 
+                : null;
+            avgPitchText = noteName
+                ? `${pitch.averagePitch.toFixed(1)} Hz (${noteName})`
+                : `${pitch.averagePitch.toFixed(1)} Hz`;
+        }
+        
+        // 格式化音高範圍，包含音符名稱
+        let pitchRangeText = '無';
+        if (pitch.pitchRange.min > 0 && pitch.pitchRange.max > 0) {
+            const minNote = typeof frequencyToNoteName === 'function'
+                ? frequencyToNoteName(pitch.pitchRange.min)
+                : null;
+            const maxNote = typeof frequencyToNoteName === 'function'
+                ? frequencyToNoteName(pitch.pitchRange.max)
+                : null;
+            const minStr = minNote 
+                ? `${pitch.pitchRange.min.toFixed(1)} Hz (${minNote})`
+                : `${pitch.pitchRange.min.toFixed(1)} Hz`;
+            const maxStr = maxNote
+                ? `${pitch.pitchRange.max.toFixed(1)} Hz (${maxNote})`
+                : `${pitch.pitchRange.max.toFixed(1)} Hz`;
+            pitchRangeText = `${minStr} ~ ${maxStr}`;
+        }
+
+        // Modal 內容
+        modalOverlay.innerHTML = `
+            <div class="spectrogram-modal">
+                <div class="spectrogram-modal-header">
+                    <h3 class="spectrogram-modal-title">📊 頻譜圖 - ${this.filename || '音訊檔案'}</h3>
+                    <button class="spectrogram-modal-close" aria-label="關閉">&times;</button>
+                </div>
+                <div class="spectrogram-modal-body">
+                    <canvas class="spectrogram-modal-canvas" id="spectrogram-modal-canvas"></canvas>
+                </div>
+                <div class="spectrogram-modal-footer">
+                    <div class="spectrogram-modal-info">
+                        <span>平均音高: ${avgPitchText}</span>
+                        <span>音高範圍: ${pitchRangeText}</span>
+                        <span>類型: ${pitch.isPitched ? '音調性聲音' : '噪音類'}</span>
+                    </div>
+                    <div class="spectrogram-modal-hint">💡 將滑鼠移到頻譜圖上查看詳細資訊</div>
+                </div>
+            </div>
+        `;
+
+        // 添加到 body
+        document.body.appendChild(modalOverlay);
+
+        // 獲取 Modal 內的 canvas
+        const modalCanvas = modalOverlay.querySelector('#spectrogram-modal-canvas');
+        const modalBody = modalOverlay.querySelector('.spectrogram-modal-body');
+
+        // 計算 Modal 內的 canvas 尺寸（留出邊距）
+        // 使用 setTimeout 確保 DOM 已完全渲染並有正確的尺寸
+        setTimeout(() => {
+            const bodyRect = modalBody.getBoundingClientRect();
+            
+            // 調試日誌
+            console.log('Modal body rect:', bodyRect.width, 'x', bodyRect.height);
+            
+            // SpectrogramRenderer 的邊距
+            const marginHorizontal = 60;  // marginLeft(50) + marginRight(10)
+            const marginVertical = 60;    // marginTop(20) + marginBottom(40)
+            const padding = 32;           // Modal body 的內邊距 (16px * 2)
+
+            // 計算可用於頻譜圖繪圖區域的尺寸
+            const canvasWidth = Math.max(bodyRect.width - padding - marginHorizontal, 400);
+            const canvasHeight = Math.max(bodyRect.height - padding - marginVertical, 300);
+            
+            console.log('Calculated canvas size:', canvasWidth, 'x', canvasHeight);
+            console.log('Spectrogram data:', spectrogramData);
+
+            // 創建並渲染頻譜圖
+            const modalRenderer = new window.SpectrogramRenderer(modalCanvas);
+            modalRenderer.render(spectrogramData, {
+                canvasWidth: canvasWidth,
+                canvasHeight: canvasHeight
+            });
+
+            // 添加互動功能
+            modalRenderer.addInteractivity();
+
+            // 保存渲染器引用以便清理
+            modalOverlay._spectrogramRenderer = modalRenderer;
+        }, 50);  // 50ms 延遲確保 CSS 動畫開始後 DOM 尺寸正確
+
+        // 關閉 Modal 的事件處理
+        const closeModal = () => {
+            // 清理頻譜圖渲染器的互動功能
+            if (modalOverlay._spectrogramRenderer) {
+                modalOverlay._spectrogramRenderer.removeInteractivity();
+            }
+            modalOverlay.remove();
+        };
+
+        // 點擊關閉按鈕
+        const closeBtn = modalOverlay.querySelector('.spectrogram-modal-close');
+        closeBtn.addEventListener('click', closeModal);
+
+        // 點擊背景遮罩關閉
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                closeModal();
+            }
+        });
+
+        // ESC 鍵關閉
+        const handleEsc = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.removeEventListener('keydown', handleEsc);
+            }
+        };
+        document.addEventListener('keydown', handleEsc);
     }
 
     toJSON() {

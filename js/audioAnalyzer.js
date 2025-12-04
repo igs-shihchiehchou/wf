@@ -1126,16 +1126,21 @@ class SpectrogramRenderer {
     // 配置 canvas 實際大小（考慮邊距）
     const totalWidth = this.canvasWidth + this.marginLeft + this.marginRight;
     const totalHeight = this.canvasHeight + this.marginTop + this.marginBottom;
-    this.canvas.width = totalWidth;
-    this.canvas.height = totalHeight;
-
+    
     // 設置高 DPI 支援（確保清晰渲染）
     const dpiScale = window.devicePixelRatio || 1;
-    if (dpiScale > 1) {
-      this.canvas.width = totalWidth * dpiScale;
-      this.canvas.height = totalHeight * dpiScale;
-      this.ctx.scale(dpiScale, dpiScale);
-    }
+    this.dpiScale = dpiScale;  // 保存供其他方法使用
+    
+    // 設置 canvas 的實際像素大小（物理像素）
+    this.canvas.width = totalWidth * dpiScale;
+    this.canvas.height = totalHeight * dpiScale;
+    
+    // 設置 canvas 的 CSS 顯示大小（邏輯像素）
+    this.canvas.style.width = totalWidth + 'px';
+    this.canvas.style.height = totalHeight + 'px';
+    
+    // 縮放 context 以匹配 DPI
+    this.ctx.scale(dpiScale, dpiScale);
 
     // 清空 canvas（白色背景）
     this.ctx.fillStyle = 'white';
@@ -1169,18 +1174,25 @@ class SpectrogramRenderer {
    * @private
    */
   renderSpectrogramPixels(data, specWidth, specHeight) {
-    // 計算縮放比例（頻譜圖數據到 canvas 像素的映射）
-    const scaleX = this.canvasWidth / specWidth;
-    const scaleY = this.canvasHeight / specHeight;
+    // 獲取 DPI 縮放比例
+    const dpiScale = this.dpiScale || 1;
+    
+    // 計算實際的像素尺寸（物理像素）
+    const actualWidth = Math.floor(this.canvasWidth * dpiScale);
+    const actualHeight = Math.floor(this.canvasHeight * dpiScale);
+    
+    // 計算縮放比例（頻譜圖數據到實際像素的映射）
+    const scaleX = actualWidth / specWidth;
+    const scaleY = actualHeight / specHeight;
 
-    // 建立 ImageData 物件（RGBA 格式）
-    const imageData = this.ctx.createImageData(this.canvasWidth, this.canvasHeight);
+    // 建立 ImageData 物件（RGBA 格式）- 使用實際像素大小
+    const imageData = this.ctx.createImageData(actualWidth, actualHeight);
     const pixelData = imageData.data;
 
     // ========== 高效的像素填充 ==========
-    // 遍歷 canvas 的每個像素
-    for (let canvasY = 0; canvasY < this.canvasHeight; canvasY++) {
-      for (let canvasX = 0; canvasX < this.canvasWidth; canvasX++) {
+    // 遍歷 canvas 的每個實際像素
+    for (let canvasY = 0; canvasY < actualHeight; canvasY++) {
+      for (let canvasX = 0; canvasX < actualWidth; canvasX++) {
         // 將 canvas 像素映射回頻譜圖數據坐標
         // 注意：頻譜圖 Y 軸倒轉（0 = 高頻，height = 低頻）
         const specX = Math.floor(canvasX / scaleX);
@@ -1205,7 +1217,7 @@ class SpectrogramRenderer {
           const b = parseInt(match[3]);
 
           // 寫入像素數據（RGBA）
-          const pixelIndex = (canvasY * this.canvasWidth + canvasX) * 4;
+          const pixelIndex = (canvasY * actualWidth + canvasX) * 4;
           pixelData[pixelIndex] = r;        // R
           pixelData[pixelIndex + 1] = g;    // G
           pixelData[pixelIndex + 2] = b;    // B
@@ -1214,8 +1226,9 @@ class SpectrogramRenderer {
       }
     }
 
-    // 將 ImageData 寫回 canvas
-    this.ctx.putImageData(imageData, this.marginLeft, this.marginTop);
+    // 將 ImageData 寫回 canvas（使用實際像素位置）
+    // putImageData 不受 scale 變換影響，需要使用實際像素座標
+    this.ctx.putImageData(imageData, this.marginLeft * dpiScale, this.marginTop * dpiScale);
   }
 
   /**
@@ -1375,7 +1388,7 @@ class SpectrogramRenderer {
    * @public
    */
   addInteractivity() {
-    // 檢查是否已初始化交互功能（防止重複添加事件監聽器）
+    // 檢查是否已初始化交互功能（防止重複添加事件監聯器）
     if (this.isInteractiveEnabled) {
       return;
     }
@@ -1387,12 +1400,8 @@ class SpectrogramRenderer {
       return;
     }
 
-    // 存儲頻譜圖數據引用
-    const spectrogramData = this.spectrogramData;
-    const canvasWidth = this.canvasWidth;
-    const canvasHeight = this.canvasHeight;
-    const marginLeft = this.marginLeft;
-    const marginTop = this.marginTop;
+    // 存儲頻譜圖數據引用（使用 this 引用以獲取最新值）
+    const self = this;
 
     // 創建提示框 DOM 元素
     const tooltip = document.createElement('div');
@@ -1405,7 +1414,7 @@ class SpectrogramRenderer {
       font-family: 'Courier New', monospace;
       font-size: 12px;
       pointer-events: none;
-      z-index: 1000;
+      z-index: 10001;
       white-space: nowrap;
       display: none;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -1418,8 +1427,6 @@ class SpectrogramRenderer {
 
     // 節流計時器（防止過度頻繁的更新）
     let throttleTimer = null;
-    let lastX = -1;
-    let lastY = -1;
 
     /**
      * 滑鼠移動事件處理器
@@ -1433,27 +1440,41 @@ class SpectrogramRenderer {
 
       // 使用節流延遲（每 16ms 更新一次，約 60fps）
       throttleTimer = setTimeout(() => {
-        // 獲取 canvas 在頁面中的位置
-        const rect = this.canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        // 獲取 canvas 在頁面中的位置（CSS 像素）
+        const rect = self.canvas.getBoundingClientRect();
+        
+        // 計算滑鼠在 canvas 內的 CSS 座標
+        const cssX = event.clientX - rect.left;
+        const cssY = event.clientY - rect.top;
+        
+        // 計算 CSS 尺寸到邏輯尺寸的縮放比例
+        // rect.width/height 是 CSS 顯示尺寸
+        // totalWidth/Height 是邏輯尺寸（canvasWidth + margins）
+        const totalWidth = self.canvasWidth + self.marginLeft + self.marginRight;
+        const totalHeight = self.canvasHeight + self.marginTop + self.marginBottom;
+        const scaleX = totalWidth / rect.width;
+        const scaleY = totalHeight / rect.height;
+        
+        // 轉換為邏輯座標
+        const x = cssX * scaleX;
+        const y = cssY * scaleY;
 
         // 檢查游標是否在 spectrogram 繪製區域內
         const isInCanvas = (
-          x >= marginLeft &&
-          x <= marginLeft + canvasWidth &&
-          y >= marginTop &&
-          y <= marginTop + canvasHeight
+          x >= self.marginLeft &&
+          x <= self.marginLeft + self.canvasWidth &&
+          y >= self.marginTop &&
+          y <= self.marginTop + self.canvasHeight
         );
 
         if (isInCanvas) {
           // 更新提示框並顯示
-          this.updateTooltip(x, y, spectrogramData);
+          self.updateTooltip(x, y, self.spectrogramData);
           // 光滑地定位提示框到游標位置附近
-          this.positionTooltip(tooltip, event.clientX, event.clientY, rect);
+          self.positionTooltip(tooltip, event.clientX, event.clientY, rect);
         } else {
           // 游標離開 spectrogram 區域，隱藏提示框
-          this.hideTooltip();
+          self.hideTooltip();
         }
       }, 16);  // 節流間隔 16ms (約 60fps)
     };
@@ -1534,7 +1555,7 @@ class SpectrogramRenderer {
    *
    * 格式化時間、頻率和強度值，並設置提示框的可見性。
    * 時間格式：「時間: X.XXs」
-   * 頻率格式：「頻率: XXXX Hz」 或 「X.X kHz」
+   * 頻率格式：「頻率: XXXX Hz (A4)」 或 「X.X kHz (A4)」
    * 強度格式：「強度: XXX/255」
    *
    * @param {number} time - 時間值（秒）
@@ -1557,6 +1578,15 @@ class SpectrogramRenderer {
     } else {
       frequencyStr = Math.round(frequency) + ' Hz';
     }
+    
+    // 獲取音符名稱（使用全域的 frequencyToNoteName 函數）
+    let noteStr = '';
+    if (typeof frequencyToNoteName === 'function' && frequency >= 20 && frequency <= 20000) {
+      const noteName = frequencyToNoteName(frequency);
+      if (noteName) {
+        noteStr = ` (${noteName})`;
+      }
+    }
 
     // 格式化強度（0-255 範圍）
     const intensityStr = intensity.toString().padStart(3, '0');
@@ -1564,7 +1594,7 @@ class SpectrogramRenderer {
     // 更新提示框內容（使用繁體中文標籤）
     this.tooltip.innerHTML = `
       <div>時間: ${timeStr}s</div>
-      <div>頻率: ${frequencyStr}</div>
+      <div>頻率: ${frequencyStr}${noteStr}</div>
       <div>強度: ${intensityStr}/255</div>
     `;
 

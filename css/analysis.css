@@ -309,7 +309,6 @@
   border-radius: 6px;
   padding: var(--spacing-2);
   overflow: hidden;
-  aspect-ratio: 16 / 9;
   min-height: 180px;
   max-height: 280px;
 }
@@ -319,7 +318,7 @@
   display: block;
   image-rendering: pixelated;
   max-width: 100%;
-  max-height: 100%;
+  height: auto;
 }
 
 .spectrogram-empty {
@@ -583,4 +582,205 @@
 
 .analysis-section-header:not(.collapsible) {
   cursor: default;
+}
+
+/* ===========================
+   頻譜圖點擊放大功能
+   =========================== */
+
+.spectrogram-clickable {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.spectrogram-clickable:hover {
+  box-shadow: 0 0 0 2px var(--primary);
+  transform: scale(1.01);
+}
+
+.spectrogram-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-2);
+}
+
+.spectrogram-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.spectrogram-expand-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.spectrogram-clickable:hover .spectrogram-expand-hint {
+  opacity: 1;
+}
+
+/* ===========================
+   頻譜圖 Modal
+   =========================== */
+
+.spectrogram-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: modalFadeIn 0.2s ease;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.spectrogram-modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 90vw;
+  max-width: 1200px;
+  height: 80vh;
+  max-height: 800px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: modalSlideIn 0.25s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: scale(0.95) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.spectrogram-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.spectrogram-modal-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.spectrogram-modal-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.spectrogram-modal-close:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.spectrogram-modal-body {
+  flex: 1;
+  padding: var(--spacing-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg-dark);
+}
+
+.spectrogram-modal-canvas {
+  border-radius: 6px;
+  background: white;
+}
+
+.spectrogram-modal-footer {
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.spectrogram-modal-info {
+  display: flex;
+  gap: var(--spacing-4);
+  font-size: var(--text-sm);
+  color: var(--text);
+  flex-wrap: wrap;
+}
+
+.spectrogram-modal-info span {
+  white-space: nowrap;
+}
+
+.spectrogram-modal-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Modal 響應式設計 */
+@media (max-width: 768px) {
+  .spectrogram-modal {
+    width: 95vw;
+    height: 85vh;
+    border-radius: 8px;
+  }
+
+  .spectrogram-modal-header {
+    padding: var(--spacing-3);
+  }
+
+  .spectrogram-modal-title {
+    font-size: var(--text-base);
+  }
+
+  .spectrogram-modal-body {
+    padding: var(--spacing-2);
+  }
+
+  .spectrogram-modal-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .spectrogram-modal-info {
+    flex-direction: column;
+    gap: var(--spacing-1);
+  }
 }
