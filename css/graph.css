@@ -1251,3 +1251,179 @@
 .graph-node[data-type=\"output\"] .node-header {
     background-color: hsl(242 30% 18%);
 }
+
+/* ===========================
+   多檔案預覽區域樣式
+   =========================== */
+
+/* 檔案摘要區 */
+.node-file-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    background-color: var(--bg);
+    border-radius: 4px;
+    margin-bottom: var(--spacing-2);
+}
+
+.node-file-count {
+    flex: 1;
+    font-size: var(--text-sm);
+    color: var(--text);
+}
+
+.node-preview-toggle {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    transition: all 0.2s;
+}
+
+.node-preview-toggle:hover {
+    background-color: var(--highlight);
+    border-color: var(--primary);
+    color: var(--text);
+}
+
+/* 下載全部按鈕 */
+.node-download-all-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    transition: all 0.2s;
+}
+
+.node-download-all-btn:hover {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: var(--bg-dark);
+}
+
+/* 檔案預覽區域 */
+.node-files-preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+.node-files-preview.expanded {
+    max-height: 2000px;
+    opacity: 1;
+}
+
+.node-files-preview.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+}
+
+/* 單一檔案項目 */
+.node-file-item {
+    background-color: var(--bg);
+    border: 1px solid var(--border-muted);
+    border-radius: 4px;
+    padding: var(--spacing-2);
+    transition: border-color 0.2s;
+}
+
+.node-file-item:hover {
+    border-color: var(--border);
+}
+
+.node-file-item .node-file-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-1);
+}
+
+.node-file-item .node-file-name {
+    flex: 1;
+    font-size: var(--text-sm);
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.node-file-remove {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    transition: all 0.2s;
+}
+
+.node-file-remove:hover {
+    background-color: var(--danger);
+    color: var(--text);
+}
+
+/* 分頁控制 */
+.node-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2);
+    background-color: var(--bg);
+    border-radius: 4px;
+    margin-top: var(--spacing-2);
+}
+
+.node-page-btn {
+    padding: var(--spacing-1) var(--spacing-2);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.node-page-btn:hover:not(:disabled) {
+    background-color: var(--highlight);
+    border-color: var(--primary);
+}
+
+.node-page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.node-page-info {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+/* 音訊輸入節點需要更寬以容納多檔案 */
+.graph-node.node-audio-input {
+    min-width: 220px;
+}
