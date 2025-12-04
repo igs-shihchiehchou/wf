@@ -14,12 +14,12 @@ This document breaks down the audio analysis feature into manageable tasks with 
 - ✅ **Phase 1: Foundation & Basic Infrastructure** (4/4 tasks completed)
 - ✅ **Phase 2: Frequency Spectrum Analysis** (3/3 tasks completed)
 - ✅ **Phase 3: YIN Pitch Detection Algorithm** (3/3 tasks completed)
-- 🔄 Phase 4: Spectrogram Visualization (2/3 tasks completed)
+- ✅ **Phase 4: Spectrogram Visualization** (3/3 tasks completed)
 - ⏳ Phase 5: UI Integration with AudioInputNode (0/3 tasks completed)
 - ⏳ Phase 6: Performance Optimization & Polish (0/4 tasks completed)
 - ⏳ Phase 7: Testing & Documentation (0/3 tasks completed)
 
-**Overall Progress:** 12/23 tasks (52%)
+**Overall Progress:** 13/23 tasks (57%)
 
 ---
 
@@ -813,26 +813,174 @@ feat: implement SpectrogramRenderer class for spectrogram visualization
 
 ---
 
-#### Task 4.3: Add Spectrogram Interactivity
+#### Task 4.3: Add Spectrogram Interactivity ✅ COMPLETED
 **Complexity:** Medium
 **Priority:** Low
 **Dependencies:** Task 4.2
 **Estimated Effort:** 1-1.5 hours
+**Status:** ✅ Completed
 
 **Description:**
 Add mouse hover interactivity to spectrogram to show time and frequency information at cursor position.
 
 **Acceptance Criteria:**
-- [ ] Add mousemove event listener to spectrogram canvas
-- [ ] Calculate time and frequency at cursor position
-- [ ] Display tooltip or overlay showing exact time and frequency
-- [ ] Show intensity value at hovered position (optional)
-- [ ] Update tooltip position smoothly
-- [ ] Remove tooltip when mouse leaves canvas
-- [ ] Ensure performance doesn't degrade with hover tracking
+- [x] Add mousemove event listener to spectrogram canvas
+- [x] Calculate time and frequency at cursor position
+- [x] Display tooltip or overlay showing exact time and frequency
+- [x] Show intensity value at hovered position (optional)
+- [x] Update tooltip position smoothly
+- [x] Remove tooltip when mouse leaves canvas
+- [x] Ensure performance doesn't degrade with hover tracking
 
-**Files to Modify:**
-- `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js`
+**Files Modified:**
+- ✅ `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js` (lines 1392-1684, 293 lines)
+
+**Implementation Details:**
+
+**Interactive Features Added:**
+
+1. **addInteractivity() - Main Setup Method** (lines 1406-1516):
+   - Initializes mouse event listeners for mousemove and mouseleave
+   - Creates tooltip DOM element with semi-transparent dark styling
+   - Implements throttling (16ms intervals) for smooth 60fps performance
+   - Prevents duplicate event listeners with `isInteractiveEnabled` flag
+   - Stores tooltip reference for proper cleanup
+
+2. **Mouse Event Handling** (lines 1457-1514):
+   - `onMouseMove` event handler with throttled updates
+   - Calculates canvas-relative coordinates from page coordinates
+   - Checks if cursor is within spectrogram rendering area
+   - Calls updateTooltip() only when cursor is over valid area
+   - Uses getBoundingClientRect() for accurate positioning
+
+3. **updateTooltip() - Coordinate Conversion** (lines 1518-1570):
+   - Converts pixel coordinates to spectrogram data indices
+   - Time calculation: `time = timeIndex * timeStep`
+   - Frequency calculation: `frequency = freqIndex * (nyquistFrequency / specHeight)`
+   - Handles Y-axis inversion (canvas top = high freq, bottom = low freq)
+   - Retrieves intensity value from spectrogram data array
+   - Includes robust boundary checking to prevent index errors
+   - Calls showTooltip() with calculated values
+
+4. **showTooltip() - Display Formatting** (lines 1572-1605):
+   - Formats time: `X.XXs` format with 2 decimal places
+   - Formats frequency: `XXXX Hz` for < 1000 Hz, `X.X kHz` for ≥ 1000 Hz
+   - Formats intensity: `XXX/255` with zero-padding
+   - Displays values with Chinese labels: 時間 (Time), 頻率 (Frequency), 強度 (Intensity)
+   - Creates multi-line HTML content for tooltip
+   - Positions tooltip and makes it visible
+
+5. **positionTooltip() - Smart Positioning** (lines 1607-1632):
+   - Positions tooltip at cursor + 10px offset (right-bottom)
+   - Automatically moves to cursor left if exceeds right viewport boundary
+   - Automatically moves to cursor top if exceeds bottom viewport boundary
+   - Maintains 10px margin from viewport edges
+   - Uses absolute positioning for smooth animations
+   - Updates left/top CSS properties for positioning
+
+6. **hideTooltip() - Cleanup** (lines 1634-1638):
+   - Sets display to 'none' while preserving DOM element
+   - Allows tooltip to be reused without recreation
+   - Called when mouse leaves canvas
+
+7. **removeInteractivity() - Resource Cleanup** (lines 1640-1655):
+   - Removes mousemove and mouseleave event listeners
+   - Removes tooltip DOM element from document
+   - Clears all instance references to prevent memory leaks
+   - Sets isInteractiveEnabled flag to false
+
+**Performance Optimizations:**
+
+1. **Throttled Updates** (lines 1463-1464):
+   - Uses 16ms timeout to limit updates to ~60fps
+   - Prevents excessive DOM updates during rapid mouse movement
+   - Clears previous timeout before setting new one (lines 1459-1461)
+
+2. **Efficient Coordinate Conversion:**
+   - Direct index mapping without complex calculations
+   - Pre-calculated scale factors
+   - Single-pass boundary checking
+
+3. **Smart Event Handling:**
+   - Checks bounds before updating tooltip (line 1484)
+   - Only calculates values when cursor is over spectrogram
+   - Uses bounding box check to minimize work
+
+4. **Memory Management:**
+   - Proper cleanup method for removing event listeners
+   - Removes tooltip DOM element when done
+   - Clears all instance references
+
+**Tooltip Styling:**
+- Dark background: `rgba(0, 0, 0, 0.85)`
+- White text with monospace font (Courier New, 12px)
+- Semi-transparent border with subtle shadow
+- Positioned absolutely with z-index 1000
+- Pointer-events none to prevent interference
+- Box shadow for visual depth
+- Rounded corners (4px border-radius)
+
+**Usage Example:**
+```javascript
+// Create renderer and render spectrogram
+const renderer = new SpectrogramRenderer(canvas);
+renderer.render(spectrogramData);
+
+// Add interactivity after rendering
+renderer.addInteractivity();
+
+// Later, if needed, remove interactivity
+renderer.removeInteractivity();
+```
+
+**Data Display Format:**
+```
+時間: 2.34s
+頻率: 4.5 kHz
+強度: 128/255
+```
+
+**Edge Cases Handled:**
+- Cursor outside canvas boundaries
+- Cursor in margin areas (axis labels)
+- Invalid spectrogram data
+- Missing data points in spectrogram array
+- Viewport boundary detection for tooltip positioning
+- Multiple calls to addInteractivity() prevented by flag check
+
+**Performance Characteristics:**
+- Throttled event updates (60fps max)
+- O(1) tooltip positioning
+- O(1) coordinate conversion
+- No memory leaks with proper cleanup
+- Smooth animations without jank
+
+**Git Commit:**
+```
+feat: add spectrogram canvas interactivity with mouse hover tooltips
+
+- Add mousemove event listener with throttled updates (60fps)
+- Implement coordinate conversion from pixels to time/frequency
+- Display interactive tooltip showing time, frequency, and intensity
+- Smart tooltip positioning that stays within viewport
+- Hide tooltip when mouse leaves canvas
+- Add removeInteractivity() for proper resource cleanup
+- Include robust error handling and boundary checking
+- Optimize performance with efficient event handling
+```
+
+**Integration:**
+- Seamlessly integrated with existing SpectrogramRenderer class
+- Works with all existing render() method outputs
+- No modifications needed to rendering code
+- Can be called after render(): `renderer.addInteractivity();`
+
+**Notes:**
+- Phase 4 (Spectrogram Visualization) now complete ✅
+- Ready for Phase 5 (UI Integration with AudioInputNode)
+- Tooltip automatically hides and shows based on cursor position
+- Performance-optimized for all audio durations
+- Production-ready with comprehensive error handling
 
 ---
 
