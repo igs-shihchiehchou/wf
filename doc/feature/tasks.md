@@ -14,12 +14,12 @@ This document breaks down the audio analysis feature into manageable tasks with 
 - ✅ **Phase 1: Foundation & Basic Infrastructure** (4/4 tasks completed)
 - ✅ **Phase 2: Frequency Spectrum Analysis** (3/3 tasks completed)
 - ✅ **Phase 3: YIN Pitch Detection Algorithm** (3/3 tasks completed)
-- ⏳ Phase 4: Spectrogram Visualization (0/3 tasks completed)
+- 🔄 Phase 4: Spectrogram Visualization (1/3 tasks completed)
 - ⏳ Phase 5: UI Integration with AudioInputNode (0/3 tasks completed)
 - ⏳ Phase 6: Performance Optimization & Polish (0/4 tasks completed)
 - ⏳ Phase 7: Testing & Documentation (0/3 tasks completed)
 
-**Overall Progress:** 10/23 tasks (43%)
+**Overall Progress:** 11/23 tasks (48%)
 
 ---
 
@@ -511,30 +511,153 @@ The statistics have been tested across various pitch curve scenarios:
 
 ### Phase 4: Spectrogram Visualization
 
-#### Task 4.1: Generate Spectrogram Data
+#### Task 4.1: Generate Spectrogram Data ✅ COMPLETED
 **Complexity:** Complex
 **Priority:** High
 **Dependencies:** Task 2.1
 **Estimated Effort:** 2-3 hours
+**Status:** ✅ Completed
 
 **Description:**
 Implement spectrogram generation using Short-Time Fourier Transform (STFT) to create time-frequency heat map data.
 
 **Acceptance Criteria:**
-- [ ] Implement `generateSpectrogram()` method in AudioAnalyzer
-- [ ] Use FFT size of 512 samples
-- [ ] Use hop size of 128 samples (25% of FFT size)
-- [ ] Process entire audio buffer in sliding windows
-- [ ] For each window, compute FFT spectrum
-- [ ] Convert magnitude to dB scale (20 * log10)
-- [ ] Normalize to 0-255 intensity values for visualization
-- [ ] Return 2D array structure `[time][frequency]` with intensity values
-- [ ] Include metadata: width, height, timeStep, frequencyRange
-- [ ] Report progress during generation
-- [ ] Use async processing to avoid UI blocking
+- [x] Implement `generateSpectrogram()` method in AudioAnalyzer
+- [x] Use FFT size of 512 samples
+- [x] Use hop size of 128 samples (25% of FFT size)
+- [x] Process entire audio buffer in sliding windows
+- [x] For each window, compute FFT spectrum
+- [x] Convert magnitude to dB scale (20 * log10)
+- [x] Normalize to 0-255 intensity values for visualization
+- [x] Return 2D array structure `[time][frequency]` with intensity values
+- [x] Include metadata: width, height, timeStep, frequencyRange
+- [x] Report progress during generation
+- [x] Use async processing to avoid UI blocking
 
-**Files to Modify:**
-- `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js`
+**Files Modified:**
+- ✅ `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js` (lines 807-1016)
+
+**Implementation Details:**
+
+**STFT Configuration (lines 847-854):**
+- FFT size: 512 samples (good frequency resolution for low frequencies)
+- Hop size: 128 samples (25% of FFT size = 75% overlap)
+- This provides balanced time-frequency resolution for game audio analysis
+
+**Processing Pipeline:**
+
+1. **Parameter Setup** (lines 847-881):
+   - FFT_SIZE = 512
+   - HOP_SIZE = 128
+   - Calculate total frames needed to cover entire audio
+   - Compute frequency resolution: `frequencyPerBin = Nyquist / FFT_SIZE`
+   - Compute time resolution: `timeStep = HOP_SIZE / sampleRate`
+
+2. **Sliding Window STFT** (lines 896-995):
+   - Iterate through audio in 128-sample hops
+   - Extract 512-sample windows from audio buffer
+   - Apply Hann window function to reduce spectral leakage
+   - Compute FFT using OfflineAudioContext with AnalyserNode
+   - Include DFT fallback for offline context compatibility
+
+3. **Hann Window Function** (lines 909-917):
+   - Formula: `0.5 * (1 - cos(2π * i / (N-1)))`
+   - Reduces spectral leakage and improves FFT quality
+   - Applied to each 512-sample frame
+
+4. **dB Scale Conversion** (lines 961-981):
+   - Input: Raw magnitude from FFT (linear scale)
+   - Formula: `20 * log10(magnitude)`
+   - Range: -100 dB (silence) to 0 dB (maximum)
+   - Handles -Infinity values by clamping to -100 dB
+
+5. **Normalization to 0-255** (lines 961-981):
+   - Maps dB range [-100, 0] to intensity range [0, 255]
+   - Formula: `intensity = ((dB - (-100)) / (0 - (-100))) * 255`
+   - -100 dB → 0 (black, silence)
+   - 0 dB → 255 (white, maximum energy)
+   - Results in linear mapping suitable for heat map visualization
+
+6. **2D Array Structure** (lines 874, 984):
+   ```javascript
+   data[timeIndex][frequencyBin] = intensity (0-255)
+   ```
+   - data is array of Float32Array
+   - Each row represents one time frame
+   - Each column represents one frequency bin
+   - Access: data[time][frequency] = intensity value
+
+7. **Metadata Return** (lines 998-1004):
+   ```javascript
+   {
+     data: Float32Array[][],           // 2D intensity matrix
+     width: data.length,               // Number of time frames
+     height: data[0].length,           // Number of frequency bins (256 for FFT_SIZE=512)
+     timeStep: HOP_SIZE / sampleRate,  // ~0.0029s at 44.1kHz
+     frequencyRange: [0, Nyquist]      // [0, sampleRate/2]
+   }
+   ```
+
+8. **Progress Reporting** (lines 987-988):
+   - Progress scale: 0-1 (normalized)
+   - Formula: `progress = (frameIndex + 1) / totalFrames`
+   - Reported after each frame is processed
+
+9. **UI Responsiveness** (lines 992-994):
+   - Uses `async/await` pattern
+   - `setTimeout(0)` every 10 frames
+   - Yields control to browser event loop
+   - Prevents UI freezing during spectrogram generation
+
+**Example (44.1 kHz audio):**
+- Frame 0: samples [0:512], time = 0.0s
+- Frame 1: samples [128:640], time = 0.029s
+- Frame 2: samples [256:768], time = 0.058s
+- Frequency bins: 256 (FFT_SIZE / 2)
+
+**Edge Case Handling** (lines 861-870, 902-904, 1005-1014):
+- Audio shorter than FFT size: Returns empty spectrogram
+- Insufficient samples for window: Breaks loop gracefully
+- FFT/DFT errors: Caught and handled with safe defaults
+- Returns valid metadata even if data generation fails
+
+**DFT Fallback** (lines 939-959):
+- Used if OfflineAudioContext doesn't provide valid data
+- Manual FFT calculation: `X[k] = Σ x[n] * e^(-2πikn/N)`
+- Provides compatibility across different browser implementations
+- Same magnitude output as AnalyserNode
+
+**Integration with analyzePitch():**
+- Called from `analyzePitch()` method
+- Spectrogram data populated during pitch analysis
+- No additional overhead - computed once per analysis
+
+**Performance Characteristics:**
+- Time complexity: O(n * m) where n = audio length, m = FFT size
+- Space complexity: O(frames × FFT_SIZE) for 2D array
+- Async processing maintains UI responsiveness for large files
+- DFT fallback ensures compatibility
+
+**Git Commit:**
+```
+feat: implement generateSpectrogram() method for STFT analysis
+
+- Implement STFT-based spectrogram generation with 512 FFT size and 128 hop size
+- Apply Hann window function to each frame to reduce spectral leakage
+- Convert magnitude to dB scale: 20 * log10(magnitude)
+- Normalize dB values (-100 to 0) to 0-255 intensity scale for visualization
+- Return 2D array structure: data[timeIndex][frequencyBin] = intensity
+- Include metadata: width, height, timeStep, frequencyRange
+- Report progress during generation and use async processing for UI responsiveness
+- Include DFT fallback for offline context compatibility
+- Integrate into analyzePitch() to populate spectrogram data during analysis
+```
+
+**Notes:**
+- Ready for Task 4.2 (Spectrogram Canvas Renderer)
+- Spectrogram data available in pitch analysis results
+- Can be used for visualization, analysis, or further processing
+- Production-ready with comprehensive error handling
 
 ---
 
