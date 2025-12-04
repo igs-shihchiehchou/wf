@@ -30,7 +30,7 @@ class AudioAnalyzer {
    *                                   message: 當前執行的操作描述
    * @returns {Promise<AnalysisResult>} 分析結果物件，包含 { basic, frequency, pitch }
    */
-  async analyze(audioBuffer, onProgress = () => {}) {
+  async analyze(audioBuffer, onProgress = () => { }) {
     if (!audioBuffer) {
       throw new Error('audioBuffer 不能為空');
     }
@@ -214,7 +214,7 @@ class AudioAnalyzer {
    *   rawSpectrum: Float32Array  // 原始 FFT 頻譜資料
    * }
    */
-  async analyzeFrequency(audioBuffer, onProgress = () => {}) {
+  async analyzeFrequency(audioBuffer, onProgress = () => { }) {
     try {
       const FFT_SIZE = 2048;
       const sampleRate = audioBuffer.sampleRate;
@@ -465,6 +465,128 @@ class AudioAnalyzer {
   }
 
   /**
+   * 檢測主要音高（使用眾數法 + 音名量化）
+   *
+   * 將 pitchCurve 中所有高置信度的頻率量化到最近的音名，
+   * 統計出現次數最多的音名作為「偵測音高」。
+   *
+   * 算法步驟：
+   * 1. 過濾出高置信度的音高點（confidence > 0.5）
+   * 2. 將每個頻率量化到最近的半音（MIDI note number）
+   * 3. 統計每個音名出現的次數
+   * 4. 找出出現次數最多的音名（眾數）
+   * 5. 計算該音名在所有有效樣本中的比例作為信心度
+   *
+   * @param {Array<{time: number, frequency: number, confidence: number}>} pitchCurve - 音高曲線
+   * @returns {Object} 偵測結果
+   *   - noteName: string - 音名（如 "A4", "C#3"），無法判定時為 null
+   *   - frequency: number - 該音名的標準頻率 (Hz)
+   *   - confidence: number - 信心度 (0-1)，該音名出現的比例
+   *   - midiNote: number - MIDI 音符編號
+   *
+   * @private
+   */
+  detectDominantPitch(pitchCurve) {
+    // 邊界檢查
+    if (!pitchCurve || pitchCurve.length === 0) {
+      return {
+        noteName: null,
+        frequency: 0,
+        confidence: 0,
+        midiNote: 0
+      };
+    }
+
+    // 步驟 1: 過濾出高置信度的音高點
+    const CONFIDENCE_THRESHOLD = 0.5;
+    const validPitches = pitchCurve.filter(p => p.confidence > CONFIDENCE_THRESHOLD && p.frequency > 0);
+
+    if (validPitches.length === 0) {
+      return {
+        noteName: null,
+        frequency: 0,
+        confidence: 0,
+        midiNote: 0
+      };
+    }
+
+    // 步驟 2 & 3: 將頻率量化到 MIDI note 並統計出現次數
+    // MIDI note 公式: midiNote = 69 + 12 * log2(frequency / 440)
+    const noteCounts = new Map();  // Map<midiNote, count>
+
+    for (const pitch of validPitches) {
+      // 將頻率轉換為 MIDI note number（四捨五入到最近的半音）
+      const midiNote = Math.round(69 + 12 * Math.log2(pitch.frequency / 440));
+
+      // 過濾掉不合理的 MIDI note（人耳可聽範圍約 20Hz-20kHz，對應 MIDI 約 21-127）
+      if (midiNote < 21 || midiNote > 127) {
+        continue;
+      }
+
+      // 統計該 MIDI note 出現的次數
+      const count = noteCounts.get(midiNote) || 0;
+      noteCounts.set(midiNote, count + 1);
+    }
+
+    // 步驟 4: 找出出現次數最多的 MIDI note（眾數）
+    let dominantMidiNote = 0;
+    let maxCount = 0;
+
+    for (const [midiNote, count] of noteCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        dominantMidiNote = midiNote;
+      }
+    }
+
+    // 如果沒有找到有效的 MIDI note
+    if (dominantMidiNote === 0 || maxCount === 0) {
+      return {
+        noteName: null,
+        frequency: 0,
+        confidence: 0,
+        midiNote: 0
+      };
+    }
+
+    // 步驟 5: 計算信心度（該音名在所有有效樣本中的比例）
+    const totalValidSamples = validPitches.length;
+    const confidence = maxCount / totalValidSamples;
+
+    // 將 MIDI note 轉換回標準頻率
+    // 公式: frequency = 440 * 2^((midiNote - 69) / 12)
+    const standardFrequency = 440 * Math.pow(2, (dominantMidiNote - 69) / 12);
+
+    // 將 MIDI note 轉換為音名
+    const noteName = this.midiNoteToName(dominantMidiNote);
+
+    return {
+      noteName: noteName,
+      frequency: standardFrequency,
+      confidence: confidence,
+      midiNote: dominantMidiNote
+    };
+  }
+
+  /**
+   * 將 MIDI note number 轉換為音名
+   *
+   * @param {number} midiNote - MIDI 音符編號（21-127）
+   * @returns {string} 音名（如 "A4", "C#3"）
+   * @private
+   */
+  midiNoteToName(midiNote) {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    // 計算音名和八度
+    // MIDI note 60 = C4 (Middle C)
+    const octave = Math.floor(midiNote / 12) - 1;
+    const noteIndex = midiNote % 12;
+
+    return noteNames[noteIndex] + octave;
+  }
+
+  /**
    * 檢測單一音訊幀的音高（使用 YIN 算法）
    *
    * YIN 算法是一種鯉魚型音高檢測算法，相比自相關方法更精確、更快速。
@@ -666,7 +788,7 @@ class AudioAnalyzer {
    *   isPitched: true
    * }
    */
-  async analyzePitch(audioBuffer, onProgress = () => {}) {
+  async analyzePitch(audioBuffer, onProgress = () => { }) {
     try {
       const sampleRate = audioBuffer.sampleRate;
       const channelData = audioBuffer.getChannelData(0);
@@ -786,6 +908,10 @@ class AudioAnalyzer {
         // 不需要額外的進度更新
       });
 
+      // ========== 偵測主要音高 (眾數法) ==========
+      // 使用量化到音名的眾數法，找出音效的主要音高
+      const dominantPitch = this.detectDominantPitch(pitchCurve);
+
       // 返回分析結果
       return {
         pitchCurve: pitchCurve,          // 完整的音高曲線陣列 [{time, frequency, confidence}, ...]
@@ -795,7 +921,8 @@ class AudioAnalyzer {
           min: minPitch === Infinity ? 0 : minPitch,  // 最低音高 (Hz)
           max: maxPitch === -Infinity ? 0 : maxPitch  // 最高音高 (Hz)
         },
-        isPitched: isPitched             // 是否為有音高的聲音 (true/false)
+        isPitched: isPitched,            // 是否為有音高的聲音 (true/false)
+        dominantPitch: dominantPitch     // 偵測音高 { noteName, frequency, confidence, midiNote }
       };
     } catch (error) {
       console.error('音高分析出現錯誤:', error);
@@ -838,7 +965,7 @@ class AudioAnalyzer {
    *
    * @private
    */
-  async generateSpectrogram(audioBuffer, onProgress = () => {}) {
+  async generateSpectrogram(audioBuffer, onProgress = () => { }) {
     try {
       const sampleRate = audioBuffer.sampleRate;
       const channelData = audioBuffer.getChannelData(0);
@@ -1126,19 +1253,19 @@ class SpectrogramRenderer {
     // 配置 canvas 實際大小（考慮邊距）
     const totalWidth = this.canvasWidth + this.marginLeft + this.marginRight;
     const totalHeight = this.canvasHeight + this.marginTop + this.marginBottom;
-    
+
     // 設置高 DPI 支援（確保清晰渲染）
     const dpiScale = window.devicePixelRatio || 1;
     this.dpiScale = dpiScale;  // 保存供其他方法使用
-    
+
     // 設置 canvas 的實際像素大小（物理像素）
     this.canvas.width = totalWidth * dpiScale;
     this.canvas.height = totalHeight * dpiScale;
-    
+
     // 設置 canvas 的 CSS 顯示大小（邏輯像素）
     this.canvas.style.width = totalWidth + 'px';
     this.canvas.style.height = totalHeight + 'px';
-    
+
     // 縮放 context 以匹配 DPI
     this.ctx.scale(dpiScale, dpiScale);
 
@@ -1176,11 +1303,11 @@ class SpectrogramRenderer {
   renderSpectrogramPixels(data, specWidth, specHeight) {
     // 獲取 DPI 縮放比例
     const dpiScale = this.dpiScale || 1;
-    
+
     // 計算實際的像素尺寸（物理像素）
     const actualWidth = Math.floor(this.canvasWidth * dpiScale);
     const actualHeight = Math.floor(this.canvasHeight * dpiScale);
-    
+
     // 計算縮放比例（頻譜圖數據到實際像素的映射）
     const scaleX = actualWidth / specWidth;
     const scaleY = actualHeight / specHeight;
@@ -1442,11 +1569,11 @@ class SpectrogramRenderer {
       throttleTimer = setTimeout(() => {
         // 獲取 canvas 在頁面中的位置（CSS 像素）
         const rect = self.canvas.getBoundingClientRect();
-        
+
         // 計算滑鼠在 canvas 內的 CSS 座標
         const cssX = event.clientX - rect.left;
         const cssY = event.clientY - rect.top;
-        
+
         // 計算 CSS 尺寸到邏輯尺寸的縮放比例
         // rect.width/height 是 CSS 顯示尺寸
         // totalWidth/Height 是邏輯尺寸（canvasWidth + margins）
@@ -1454,7 +1581,7 @@ class SpectrogramRenderer {
         const totalHeight = self.canvasHeight + self.marginTop + self.marginBottom;
         const scaleX = totalWidth / rect.width;
         const scaleY = totalHeight / rect.height;
-        
+
         // 轉換為邏輯座標
         const x = cssX * scaleX;
         const y = cssY * scaleY;
@@ -1578,7 +1705,7 @@ class SpectrogramRenderer {
     } else {
       frequencyStr = Math.round(frequency) + ' Hz';
     }
-    
+
     // 獲取音符名稱（使用全域的 frequencyToNoteName 函數）
     let noteStr = '';
     if (typeof frequencyToNoteName === 'function' && frequency >= 20 && frequency <= 20000) {

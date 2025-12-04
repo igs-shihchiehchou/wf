@@ -503,7 +503,30 @@ class AudioInputNode extends BaseNode {
       `;
         }
 
-        // === 2. 頻譜分析區 ===
+        // === 2. 偵測音高區（獨立突顯區塊） ===
+        if (pitch && pitch.dominantPitch) {
+            let dominantPitchText = 'N/A';
+            let dominantPitchConfidence = '';
+            if (pitch.dominantPitch.noteName) {
+                dominantPitchText = `${pitch.dominantPitch.noteName} (${pitch.dominantPitch.frequency.toFixed(1)} Hz)`;
+                dominantPitchConfidence = `${(pitch.dominantPitch.confidence * 100).toFixed(0)}%`;
+            }
+
+            const tooltipText = '使用 YIN 演算法偵測音高曲線，再以眾數法統計出現最多次的音名作為主要音高。信心度代表該音名在所有有效樣本中的出現比例。';
+
+            html += `
+        <div class="analysis-dominant-pitch" title="${tooltipText}">
+          <div class="analysis-info-row analysis-info-highlight">
+            <span class="analysis-info-label">🎯 偵測音高:</span>
+            <span class="analysis-info-value">${dominantPitchText}</span>
+            ${dominantPitchConfidence ? `<span class="analysis-info-confidence">(信心度: ${dominantPitchConfidence})</span>` : ''}
+            <span class="analysis-info-hint">ⓘ</span>
+          </div>
+        </div>
+      `;
+        }
+
+        // === 3. 頻譜分析區 ===
         if (frequency) {
             // 頻率範圍解讀（用於遊戲音效分析）
             const dominantFreq = frequency.dominantFrequency;
@@ -573,7 +596,7 @@ class AudioInputNode extends BaseNode {
       `;
         }
 
-        // === 3. 音高分析區 (默認收合) ===
+        // === 4. 音高分析區 (默認收合) ===
         if (pitch) {
             const pitchedText = pitch.isPitched ? '是（有明確音高）' : '否（噪音或無明確音高）';
             let avgPitchText = '無';
@@ -583,13 +606,13 @@ class AudioInputNode extends BaseNode {
                     ? `${pitch.averagePitch.toFixed(1)} Hz (${noteName})`
                     : `${pitch.averagePitch.toFixed(1)} Hz`;
             }
-            
+
             // 格式化音高範圍，包含音符名稱
             let pitchRangeText = '無';
             if (pitch.pitchRange.min > 0 && pitch.pitchRange.max > 0) {
                 const minNote = frequencyToNoteName(pitch.pitchRange.min);
                 const maxNote = frequencyToNoteName(pitch.pitchRange.max);
-                const minStr = minNote 
+                const minStr = minNote
                     ? `${pitch.pitchRange.min.toFixed(1)} Hz (${minNote})`
                     : `${pitch.pitchRange.min.toFixed(1)} Hz`;
                 const maxStr = maxNote
@@ -811,14 +834,14 @@ class AudioInputNode extends BaseNode {
         // 格式化音高資訊
         let avgPitchText = '無';
         if (pitch.averagePitch > 0) {
-            const noteName = typeof frequencyToNoteName === 'function' 
-                ? frequencyToNoteName(pitch.averagePitch) 
+            const noteName = typeof frequencyToNoteName === 'function'
+                ? frequencyToNoteName(pitch.averagePitch)
                 : null;
             avgPitchText = noteName
                 ? `${pitch.averagePitch.toFixed(1)} Hz (${noteName})`
                 : `${pitch.averagePitch.toFixed(1)} Hz`;
         }
-        
+
         // 格式化音高範圍，包含音符名稱
         let pitchRangeText = '無';
         if (pitch.pitchRange.min > 0 && pitch.pitchRange.max > 0) {
@@ -828,7 +851,7 @@ class AudioInputNode extends BaseNode {
             const maxNote = typeof frequencyToNoteName === 'function'
                 ? frequencyToNoteName(pitch.pitchRange.max)
                 : null;
-            const minStr = minNote 
+            const minStr = minNote
                 ? `${pitch.pitchRange.min.toFixed(1)} Hz (${minNote})`
                 : `${pitch.pitchRange.min.toFixed(1)} Hz`;
             const maxStr = maxNote
@@ -869,10 +892,10 @@ class AudioInputNode extends BaseNode {
         // 使用 setTimeout 確保 DOM 已完全渲染並有正確的尺寸
         setTimeout(() => {
             const bodyRect = modalBody.getBoundingClientRect();
-            
+
             // 調試日誌
             console.log('Modal body rect:', bodyRect.width, 'x', bodyRect.height);
-            
+
             // SpectrogramRenderer 的邊距
             const marginHorizontal = 60;  // marginLeft(50) + marginRight(10)
             const marginVertical = 60;    // marginTop(20) + marginBottom(40)
@@ -881,7 +904,7 @@ class AudioInputNode extends BaseNode {
             // 計算可用於頻譜圖繪圖區域的尺寸
             const canvasWidth = Math.max(bodyRect.width - padding - marginHorizontal, 400);
             const canvasHeight = Math.max(bodyRect.height - padding - marginVertical, 300);
-            
+
             console.log('Calculated canvas size:', canvasWidth, 'x', canvasHeight);
             console.log('Spectrogram data:', spectrogramData);
 
