@@ -14,12 +14,12 @@ This document breaks down the audio analysis feature into manageable tasks with 
 - ✅ **Phase 1: Foundation & Basic Infrastructure** (4/4 tasks completed)
 - ✅ **Phase 2: Frequency Spectrum Analysis** (3/3 tasks completed)
 - ✅ **Phase 3: YIN Pitch Detection Algorithm** (3/3 tasks completed)
-- 🔄 Phase 4: Spectrogram Visualization (1/3 tasks completed)
+- 🔄 Phase 4: Spectrogram Visualization (2/3 tasks completed)
 - ⏳ Phase 5: UI Integration with AudioInputNode (0/3 tasks completed)
 - ⏳ Phase 6: Performance Optimization & Polish (0/4 tasks completed)
 - ⏳ Phase 7: Testing & Documentation (0/3 tasks completed)
 
-**Overall Progress:** 11/23 tasks (48%)
+**Overall Progress:** 12/23 tasks (52%)
 
 ---
 
@@ -661,27 +661,155 @@ feat: implement generateSpectrogram() method for STFT analysis
 
 ---
 
-#### Task 4.2: Create Spectrogram Canvas Renderer
+#### Task 4.2: Create Spectrogram Canvas Renderer ✅ COMPLETED
 **Complexity:** Complex
 **Priority:** Medium
 **Dependencies:** Task 4.1
 **Estimated Effort:** 2.5-3 hours
+**Status:** ✅ Completed
 
 **Description:**
 Create a Canvas-based heat map renderer to visualize spectrogram data with proper frequency axis, time axis, and color mapping.
 
 **Acceptance Criteria:**
-- [ ] Create `SpectrogramRenderer` class (can be in audioAnalyzer.js or separate file)
-- [ ] Render spectrogram data to canvas element
-- [ ] Implement heat map color scheme (black -> blue -> green -> yellow -> red)
-- [ ] Draw frequency axis (logarithmic scale preferred) with labels (100Hz, 500Hz, 1kHz, 5kHz, 10kHz, 20kHz)
-- [ ] Draw time axis with labels at regular intervals
-- [ ] Scale canvas to fit within node width (e.g., 300px wide)
-- [ ] Handle canvas creation and sizing
-- [ ] Implement efficient pixel-level rendering for large spectrograms
+- [x] Create `SpectrogramRenderer` class (can be in audioAnalyzer.js or separate file)
+- [x] Render spectrogram data to canvas element
+- [x] Implement heat map color scheme (black -> blue -> green -> yellow -> red)
+- [x] Draw frequency axis (logarithmic scale preferred) with labels (100Hz, 500Hz, 1kHz, 5kHz, 10kHz, 20kHz)
+- [x] Draw time axis with labels at regular intervals
+- [x] Scale canvas to fit within node width (e.g., 300px wide)
+- [x] Handle canvas creation and sizing
+- [x] Implement efficient pixel-level rendering for large spectrograms
 
-**Files to Modify/Create:**
-- `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js` (or create new file for renderer)
+**Files Modified:**
+- ✅ `/mnt/e/projects/audio_workspace/audio_webtool/js/audioAnalyzer.js` (lines 1019-1406, 375+ lines)
+
+**Implementation Details:**
+
+**SpectrogramRenderer Class** (lines 1019-1406):
+
+1. **Constructor** (lines 1031-1054):
+   - Accepts optional canvas element or creates one
+   - Initializes rendering parameters:
+     - Default width: 300px, height: 256px
+     - Margins: left 50px, bottom 40px, top 20px, right 10px
+   - Sets up 2D canvas context
+
+2. **Heat Map Color Mapping** (lines 1056-1102):
+   - `intensityToColor(intensity)` method
+   - Smooth interpolation between 5 key colors:
+     - 0 (black) → [0, 0, 0]
+     - 64 (blue) → [0, 0, 255]
+     - 128 (green) → [0, 255, 0]
+     - 192 (yellow) → [255, 255, 0]
+     - 255 (red) → [255, 0, 0]
+   - Uses linear interpolation between intensity ranges
+   - Returns CSS RGBA string for canvas rendering
+
+3. **Logarithmic Frequency Scale** (lines 1104-1122):
+   - `frequencyToLogPixel(frequency, maxFrequency, width)` method
+   - Formula: `log10(frequency) / log10(maxFrequency) * width`
+   - Makes low frequencies more visible (matches human perception)
+   - Handles edge cases (frequency ≤ 0)
+
+4. **Main Render Method** (lines 1124-1184):
+   - `render(spectrogramData, options)` public method
+   - Input validation for spectrogram data
+   - Canvas sizing with DPI awareness (devicePixelRatio support)
+   - Orchestrates 4-step rendering pipeline:
+     1. Render spectrogram pixel data
+     2. Render axis lines
+     3. Render frequency axis with logarithmic labels
+     4. Render time axis with linear labels
+   - Configurable canvas width/height via options
+
+5. **Efficient Pixel Rendering** (lines 1186-1248):
+   - `renderSpectrogramPixels(data, specWidth, specHeight)` method
+   - Uses ImageData API for efficient batch pixel writing
+   - Single-pass rendering: create ImageData → fill pixels → write to canvas
+   - Maps spectrogram data to canvas pixels with scaling:
+     - scaleX = canvasWidth / specWidth
+     - scaleY = canvasHeight / specHeight
+   - Y-axis inversion (0 = high freq at top, as per standard spectrogram)
+   - Handles boundary checks and missing data gracefully
+
+6. **Axis Rendering** (lines 1250-1274):
+   - `renderAxes()` draws X and Y axis lines
+   - Uses dark gray (#333) with 2px line width
+
+7. **Frequency Axis with Logarithmic Scale** (lines 1276-1320):
+   - `renderFrequencyAxis(maxFrequency)` method
+   - Standard frequency labels: 100Hz, 500Hz, 1kHz, 5kHz, 10kHz, 20kHz
+   - Filters labels beyond Nyquist frequency
+   - Displays labels, tick marks, and axis title "頻率 (Hz)"
+   - Right-aligned text at calculated logarithmic positions
+
+8. **Time Axis Rendering** (lines 1322-1406):
+   - `renderTimeAxis(specWidth, timeStep)` method
+   - Intelligent interval selection based on total duration:
+     - < 0.5s: 0.1s intervals
+     - < 2.5s: 0.5s intervals
+     - < 5s: 1s intervals
+     - < 10s: 2s intervals
+     - ≥ 10s: 5s intervals
+   - Converts frame indices to time values
+   - Displays labels, tick marks, and axis title "時間 (秒)"
+
+**Canvas Features:**
+- High DPI display support with automatic scaling
+- White background for clean visualization
+- Proper margin handling for axis labels
+- Efficient memory usage with single ImageData buffer
+- Canvas size flexibility (configurable width/height)
+
+**Usage Example:**
+```javascript
+// Create renderer
+const renderer = new SpectrogramRenderer(canvasElement);
+
+// Render spectrogram from generateSpectrogram() output
+renderer.render(spectrogramData, {
+  canvasWidth: 300,
+  canvasHeight: 256
+});
+```
+
+**Global Export:**
+- `window.SpectrogramRenderer` for global access
+
+**Key Performance Features:**
+- Single-pass ImageData API usage (vs pixel-by-pixel fillRect)
+- Efficient color interpolation with lookup-free calculation
+- Minimal DOM manipulation
+- No unnecessary canvas redraws
+
+**Edge Cases Handled:**
+- Empty or invalid spectrogram data
+- Canvas dimensions beyond reasonable bounds
+- Frequency labels beyond Nyquist frequency
+- DPI scaling for high-resolution displays
+- Time axis label selection for various audio durations
+
+**Git Commit:**
+```
+feat: implement SpectrogramRenderer class for spectrogram visualization
+
+- Create SpectrogramRenderer class with canvas-based heat map visualization
+- Implement heat map color scheme: black → blue → green → yellow → red
+- Support logarithmic frequency axis with labels: 100Hz, 500Hz, 1kHz, 5kHz, 10kHz, 20kHz
+- Implement intelligent time axis with adaptive interval selection
+- Use ImageData API for efficient pixel-level rendering
+- Support high DPI displays with automatic scaling
+- Handle canvas sizing and margin management
+- Include comprehensive error handling and edge cases
+```
+
+**Notes:**
+- Ready for Task 4.3 (Add Spectrogram Interactivity)
+- Can be integrated into AudioInputNode UI (Task 5.3)
+- Efficient enough for large spectrograms (tested with 10+ minute audio)
+- Production-ready with comprehensive error handling
+- Fully documented with Chinese comments
 
 ---
 
