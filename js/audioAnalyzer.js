@@ -1388,6 +1388,299 @@ class SpectrogramRenderer {
     this.ctx.textAlign = 'center';
     this.ctx.fillText('時間 (秒)', this.marginLeft + this.canvasWidth / 2, this.marginTop + this.canvasHeight + 30);
   }
+
+  /**
+   * 為頻譜圖畫布添加交互功能 (Task 4.3)
+   *
+   * 設置滑鼠懸停事件監聽器，顯示時間、頻率和強度提示框。
+   * 提示框跟隨滑鼠移動，顯示準確的時間和頻率值。
+   *
+   * 特性：
+   * - 高效的事件處理（節流以防止過度重繪）
+   * - 智能的提示框定位（保持在畫布內）
+   * - 對數頻率刻度轉換
+   * - 當滑鼠離開時自動隱藏提示框
+   *
+   * @public
+   */
+  addInteractivity() {
+    // 檢查是否已初始化交互功能（防止重複添加事件監聽器）
+    if (this.isInteractiveEnabled) {
+      return;
+    }
+    this.isInteractiveEnabled = true;
+
+    // 檢查 canvas 有效性
+    if (!this.canvas || !this.spectrogramData) {
+      console.warn('SpectrogramRenderer: 無法初始化交互功能，canvas 或頻譜圖數據無效');
+      return;
+    }
+
+    // 存儲頻譜圖數據引用
+    const spectrogramData = this.spectrogramData;
+    const canvasWidth = this.canvasWidth;
+    const canvasHeight = this.canvasHeight;
+    const marginLeft = this.marginLeft;
+    const marginTop = this.marginTop;
+
+    // 創建提示框 DOM 元素
+    const tooltip = document.createElement('div');
+    tooltip.style.cssText = `
+      position: absolute;
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 1000;
+      white-space: nowrap;
+      display: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    `;
+    document.body.appendChild(tooltip);
+
+    // 儲存 tooltip 引用，以便清理
+    this.tooltip = tooltip;
+
+    // 節流計時器（防止過度頻繁的更新）
+    let throttleTimer = null;
+    let lastX = -1;
+    let lastY = -1;
+
+    /**
+     * 滑鼠移動事件處理器
+     * 計算游標位置對應的時間和頻率，更新提示框
+     */
+    const onMouseMove = (event) => {
+      // 清除前一個節流計時器
+      if (throttleTimer) {
+        clearTimeout(throttleTimer);
+      }
+
+      // 使用節流延遲（每 16ms 更新一次，約 60fps）
+      throttleTimer = setTimeout(() => {
+        // 獲取 canvas 在頁面中的位置
+        const rect = this.canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        // 檢查游標是否在 spectrogram 繪製區域內
+        const isInCanvas = (
+          x >= marginLeft &&
+          x <= marginLeft + canvasWidth &&
+          y >= marginTop &&
+          y <= marginTop + canvasHeight
+        );
+
+        if (isInCanvas) {
+          // 更新提示框並顯示
+          this.updateTooltip(x, y, spectrogramData);
+          // 光滑地定位提示框到游標位置附近
+          this.positionTooltip(tooltip, event.clientX, event.clientY, rect);
+        } else {
+          // 游標離開 spectrogram 區域，隱藏提示框
+          this.hideTooltip();
+        }
+      }, 16);  // 節流間隔 16ms (約 60fps)
+    };
+
+    /**
+     * 滑鼠離開事件處理器
+     * 隱藏提示框
+     */
+    const onMouseLeave = () => {
+      this.hideTooltip();
+      if (throttleTimer) {
+        clearTimeout(throttleTimer);
+      }
+    };
+
+    // 添加事件監聽器
+    this.canvas.addEventListener('mousemove', onMouseMove);
+    this.canvas.addEventListener('mouseleave', onMouseLeave);
+
+    // 保存事件監聽器引用，以便清理
+    this.onMouseMove = onMouseMove;
+    this.onMouseLeave = onMouseLeave;
+  }
+
+  /**
+   * 更新提示框內容
+   *
+   * 計算游標位置對應的時間和頻率值，從頻譜圖數據中查詢強度值。
+   * 支持對數頻率刻度轉換。
+   *
+   * @param {number} pixelX - canvas 上的 X 像素座標
+   * @param {number} pixelY - canvas 上的 Y 像素座標
+   * @param {Object} spectrogramData - 頻譜圖數據物件
+   * @private
+   */
+  updateTooltip(pixelX, pixelY, spectrogramData) {
+    const { data, width: specWidth, height: specHeight, timeStep, frequencyRange } = spectrogramData;
+
+    // 轉換像素座標到相對於 spectrogram 繪製區域的座標
+    const relX = pixelX - this.marginLeft;
+    const relY = pixelY - this.marginTop;
+
+    // 計算縮放比例（canvas 像素到頻譜圖數據的映射）
+    const scaleX = this.canvasWidth / specWidth;
+    const scaleY = this.canvasHeight / specHeight;
+
+    // 轉換像素座標到頻譜圖數據索引
+    // 注意：Y 軸倒轉（canvas 上方 = 高頻，下方 = 低頻）
+    const timeIndex = Math.floor(relX / scaleX);
+    const freqIndexFromTop = Math.floor(relY / scaleY);
+    const freqIndex = specHeight - 1 - freqIndexFromTop;  // 反轉 Y 軸
+
+    // 邊界檢查
+    const safeTimeIndex = Math.max(0, Math.min(timeIndex, specWidth - 1));
+    const safeFreqIndex = Math.max(0, Math.min(freqIndex, specHeight - 1));
+
+    // 計算時間值（秒）
+    const time = safeTimeIndex * timeStep;
+
+    // 計算頻率值（Hz）
+    // 使用線性頻率映射（0-Nyquist）
+    const nyquistFrequency = frequencyRange[1];
+    const frequencyPerBin = nyquistFrequency / specHeight;
+    const frequency = safeFreqIndex * frequencyPerBin;
+
+    // 獲取強度值（0-255）
+    let intensity = 0;
+    if (data[safeTimeIndex] && data[safeTimeIndex][safeFreqIndex] !== undefined) {
+      intensity = Math.round(data[safeTimeIndex][safeFreqIndex]);
+    }
+
+    // 顯示提示框
+    this.showTooltip(time, frequency, intensity);
+  }
+
+  /**
+   * 顯示提示框，更新內容
+   *
+   * 格式化時間、頻率和強度值，並設置提示框的可見性。
+   * 時間格式：「時間: X.XXs」
+   * 頻率格式：「頻率: XXXX Hz」 或 「X.X kHz」
+   * 強度格式：「強度: XXX/255」
+   *
+   * @param {number} time - 時間值（秒）
+   * @param {number} frequency - 頻率值（Hz）
+   * @param {number} intensity - 強度值（0-255）
+   * @private
+   */
+  showTooltip(time, frequency, intensity) {
+    if (!this.tooltip) {
+      return;
+    }
+
+    // 格式化時間（保留 2-3 位小數）
+    const timeStr = time.toFixed(2);
+
+    // 格式化頻率（如果 >= 1000 Hz，使用 kHz 單位）
+    let frequencyStr;
+    if (frequency >= 1000) {
+      frequencyStr = (frequency / 1000).toFixed(1) + ' kHz';
+    } else {
+      frequencyStr = Math.round(frequency) + ' Hz';
+    }
+
+    // 格式化強度（0-255 範圍）
+    const intensityStr = intensity.toString().padStart(3, '0');
+
+    // 更新提示框內容（使用繁體中文標籤）
+    this.tooltip.innerHTML = `
+      <div>時間: ${timeStr}s</div>
+      <div>頻率: ${frequencyStr}</div>
+      <div>強度: ${intensityStr}/255</div>
+    `;
+
+    // 顯示提示框
+    this.tooltip.style.display = 'block';
+  }
+
+  /**
+   * 隱藏提示框
+   *
+   * 設置 display: none，同時保留 DOM 元素以供再次使用。
+   *
+   * @private
+   */
+  hideTooltip() {
+    if (this.tooltip) {
+      this.tooltip.style.display = 'none';
+    }
+  }
+
+  /**
+   * 定位提示框到游標位置附近
+   *
+   * 智能定位提示框，確保它保持在視口內，避免超出邊界。
+   * 提示框首選位置在游標右下方，如果空間不足則自動調整。
+   *
+   * @param {HTMLElement} tooltip - 提示框 DOM 元素
+   * @param {number} clientX - 游標的視口 X 座標
+   * @param {number} clientY - 游標的視口 Y 座標
+   * @param {DOMRect} canvasRect - canvas 的邊界矩形（getBoundingClientRect 結果）
+   * @private
+   */
+  positionTooltip(tooltip, clientX, clientY, canvasRect) {
+    // 初始位置：游標右下方 10 像素
+    let left = clientX + 10;
+    let top = clientY + 10;
+
+    // 獲取提示框尺寸
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+
+    // 視口邊界檢查
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // 如果超出右邊界，移到游標左側
+    if (left + tooltipWidth > viewportWidth - 10) {
+      left = clientX - tooltipWidth - 10;
+    }
+
+    // 如果超出下邊界，移到游標上方
+    if (top + tooltipHeight > viewportHeight - 10) {
+      top = clientY - tooltipHeight - 10;
+    }
+
+    // 應用位置
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+
+  /**
+   * 清理交互功能（移除事件監聽器和 DOM 元素）
+   *
+   * 當不再需要交互功能時調用此方法以釋放資源。
+   *
+   * @public
+   */
+  removeInteractivity() {
+    // 移除事件監聽器
+    if (this.onMouseMove) {
+      this.canvas.removeEventListener('mousemove', this.onMouseMove);
+    }
+    if (this.onMouseLeave) {
+      this.canvas.removeEventListener('mouseleave', this.onMouseLeave);
+    }
+
+    // 移除 DOM 元素
+    if (this.tooltip && this.tooltip.parentNode) {
+      this.tooltip.parentNode.removeChild(this.tooltip);
+    }
+
+    // 清除引用
+    this.isInteractiveEnabled = false;
+    this.tooltip = null;
+    this.onMouseMove = null;
+    this.onMouseLeave = null;
+  }
 }
 
 // 建立全域實例
