@@ -713,11 +713,16 @@ class AudioInputNode extends BaseNode {
         }
 
         try {
+            // 獲取容器的實際尺寸
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth - 4; // 減去 padding
+            const containerHeight = container.clientHeight - 4;
+
             // 創建頻譜圖渲染器並渲染
             const renderer = new window.SpectrogramRenderer(canvas);
             renderer.render(spectrogramData, {
-                canvasWidth: 280,  // 適配節點寬度（留出一些邊距）
-                canvasHeight: 200   // 固定高度
+                canvasWidth: Math.max(containerWidth - 60, 200),  // 減去邊距，最小200
+                canvasHeight: Math.max(containerHeight - 60, 140)  // 減去邊距，最小140
             });
 
             // 添加互動性（滑鼠懸停顯示時間和頻率）
