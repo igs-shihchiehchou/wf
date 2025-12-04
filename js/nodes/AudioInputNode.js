@@ -535,23 +535,23 @@ class AudioInputNode extends BaseNode {
               <div class="frequency-bar">
                 <div class="frequency-bar-label">低頻</div>
                 <div class="frequency-bar-container">
-                  <div class="frequency-bar-fill" style="width: ${(frequency.bands.low * 100).toFixed(1)}%"></div>
+                  <div class="frequency-bar-fill" style="width: ${(frequency.spectrum.low * 100).toFixed(1)}%"></div>
                 </div>
-                <div class="frequency-bar-value">${(frequency.bands.low * 100).toFixed(1)}%</div>
+                <div class="frequency-bar-value">${(frequency.spectrum.low * 100).toFixed(1)}%</div>
               </div>
               <div class="frequency-bar">
                 <div class="frequency-bar-label">中頻</div>
                 <div class="frequency-bar-container">
-                  <div class="frequency-bar-fill" style="width: ${(frequency.bands.mid * 100).toFixed(1)}%"></div>
+                  <div class="frequency-bar-fill" style="width: ${(frequency.spectrum.mid * 100).toFixed(1)}%"></div>
                 </div>
-                <div class="frequency-bar-value">${(frequency.bands.mid * 100).toFixed(1)}%</div>
+                <div class="frequency-bar-value">${(frequency.spectrum.mid * 100).toFixed(1)}%</div>
               </div>
               <div class="frequency-bar">
                 <div class="frequency-bar-label">高頻</div>
                 <div class="frequency-bar-container">
-                  <div class="frequency-bar-fill" style="width: ${(frequency.bands.high * 100).toFixed(1)}%"></div>
+                  <div class="frequency-bar-fill" style="width: ${(frequency.spectrum.high * 100).toFixed(1)}%"></div>
                 </div>
-                <div class="frequency-bar-value">${(frequency.bands.high * 100).toFixed(1)}%</div>
+                <div class="frequency-bar-value">${(frequency.spectrum.high * 100).toFixed(1)}%</div>
               </div>
             </div>
 
