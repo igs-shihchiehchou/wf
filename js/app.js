@@ -6,6 +6,7 @@
 let graphCanvas = null;
 let graphEngine = null;
 let nodePanel = null;
+let clipboard = null; // 剪貼簿，存儲複製的節點資料
 
 /**
  * 應用程式初始化
@@ -61,19 +62,74 @@ function bindToolbarEvents() {
     });
   }
 
-  // 儲存
-  const saveBtn = document.getElementById('saveBtn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
+  // 下拉選單功能
+  setupDropdowns();
+
+  // 快速儲存
+  const quickSaveBtn = document.getElementById('quickSaveBtn');
+  if (quickSaveBtn) {
+    quickSaveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       graphEngine.saveToLocalStorage();
+      closeAllDropdowns();
     });
   }
 
-  // 載入
-  const loadBtn = document.getElementById('loadBtn');
-  if (loadBtn) {
-    loadBtn.addEventListener('click', () => {
+  // 另存新檔
+  const saveAsBtn = document.getElementById('saveAsBtn');
+  if (saveAsBtn) {
+    saveAsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeAllDropdowns();
+      // 彈出輸入框讓用戶輸入檔名
+      const filename = prompt('請輸入工作流名稱:', 'workflow');
+      if (filename) {
+        graphEngine.saveToFile(filename);
+      }
+    });
+  }
+
+  // 儲存選擇的工作流
+  const saveSelectedBtn = document.getElementById('saveSelectedBtn');
+  if (saveSelectedBtn) {
+    saveSelectedBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (saveSelectedBtn.disabled) return;
+      closeAllDropdowns();
+      const filename = prompt('請輸入工作流名稱:', 'workflow-selected');
+      if (filename) {
+        graphEngine.saveSelectedToFile(filename);
+      }
+    });
+  }
+
+  // 快速載入
+  const quickLoadBtn = document.getElementById('quickLoadBtn');
+  if (quickLoadBtn) {
+    quickLoadBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       graphEngine.loadFromLocalStorage();
+      closeAllDropdowns();
+    });
+  }
+
+  // 從檔案載入
+  const loadFileBtn = document.getElementById('loadFileBtn');
+  if (loadFileBtn) {
+    loadFileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeAllDropdowns();
+      graphEngine.loadFromFile();
+    });
+  }
+
+  // 從檔案加入工作流
+  const appendFileBtn = document.getElementById('appendFileBtn');
+  if (appendFileBtn) {
+    appendFileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeAllDropdowns();
+      graphEngine.appendFromFile();
     });
   }
 
@@ -123,6 +179,58 @@ function bindToolbarEvents() {
 }
 
 /**
+ * 設定下拉選單
+ */
+function setupDropdowns() {
+  const dropdowns = document.querySelectorAll('.dropdown');
+  const saveSelectedBtn = document.getElementById('saveSelectedBtn');
+
+  // 更新儲存選擇按鈕的狀態
+  function updateSaveSelectedState() {
+    if (saveSelectedBtn && graphCanvas) {
+      const hasSelection = graphCanvas.selectedNodes.size > 0;
+      saveSelectedBtn.disabled = !hasSelection;
+    }
+  }
+
+  dropdowns.forEach(dropdown => {
+    const toggle = dropdown.querySelector('.dropdown-toggle');
+
+    // 點擊按鈕切換選單
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+
+      // 更新儲存選擇按鈕狀態
+      updateSaveSelectedState();
+
+      // 關閉其他下拉選單
+      dropdowns.forEach(d => {
+        if (d !== dropdown) {
+          d.classList.remove('open');
+        }
+      });
+
+      // 切換當前下拉選單
+      dropdown.classList.toggle('open');
+    });
+  });
+
+  // 點擊其他地方關閉選單
+  document.addEventListener('click', () => {
+    closeAllDropdowns();
+  });
+}
+
+/**
+ * 關閉所有下拉選單
+ */
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown').forEach(d => {
+    d.classList.remove('open');
+  });
+}
+
+/**
  * 綁定鍵盤快捷鍵
  */
 function bindKeyboardShortcuts() {
@@ -133,16 +241,51 @@ function bindKeyboardShortcuts() {
       return;
     }
 
-    // Ctrl/Cmd + S: 儲存
+    // Ctrl/Cmd + Shift + S: 另存新檔
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+      e.preventDefault();
+      const filename = prompt('請輸入工作流名稱:', 'workflow');
+      if (filename) {
+        graphEngine.saveToFile(filename);
+      }
+      return;
+    }
+
+    // Ctrl/Cmd + S: 快速儲存
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       graphEngine.saveToLocalStorage();
+      return;
     }
 
-    // Ctrl/Cmd + O: 載入
+    // Ctrl/Cmd + Shift + O: 從檔案載入
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'O') {
+      e.preventDefault();
+      graphEngine.loadFromFile();
+      return;
+    }
+
+    // Ctrl/Cmd + O: 快速載入
     if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
       e.preventDefault();
       graphEngine.loadFromLocalStorage();
+      return;
+    }
+
+    // Ctrl/Cmd + C: 複製
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      e.preventDefault();
+      clipboard = graphEngine.copySelectedNodes();
+      return;
+    }
+
+    // Ctrl/Cmd + V: 貼上
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      e.preventDefault();
+      if (clipboard) {
+        graphEngine.pasteNodes(clipboard);
+      }
+      return;
     }
 
     // Ctrl/Cmd + E: 執行

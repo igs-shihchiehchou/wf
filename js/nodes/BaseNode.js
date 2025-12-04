@@ -193,7 +193,7 @@ class BaseNode {
             } catch (e) { }
             this.previewWavesurfer = null;
         }
-        
+
         this.previewBuffer = null;
     }
 
@@ -355,7 +355,7 @@ class BaseNode {
         const onMouseDown = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             isResizing = true;
             startX = e.clientX;
             startY = e.clientY;
@@ -364,7 +364,7 @@ class BaseNode {
 
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
-            
+
             this.element.classList.add('resizing');
         };
 
@@ -510,8 +510,9 @@ class BaseNode {
 
     updateContent() {
         const contentEl = this.element.querySelector('.node-content');
-        contentEl.innerHTML = this.renderContent();
+        contentEl.innerHTML = this.renderContent() + this.renderPreview();
         this.bindContentEvents();
+        this.bindPreviewEvents();
     }
 
     bindContentEvents() {

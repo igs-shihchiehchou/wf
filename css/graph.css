@@ -238,21 +238,19 @@
     height: 16px;
     cursor: nwse-resize;
     border-radius: 0 0 8px 0;
-    background: linear-gradient(
-        135deg,
-        transparent 0%,
-        transparent 50%,
-        var(--border-muted) 50%,
-        var(--border-muted) 60%,
-        transparent 60%,
-        transparent 70%,
-        var(--border-muted) 70%,
-        var(--border-muted) 80%,
-        transparent 80%,
-        transparent 90%,
-        var(--border-muted) 90%,
-        var(--border-muted) 100%
-    );
+    background: linear-gradient(135deg,
+            transparent 0%,
+            transparent 50%,
+            var(--border-muted) 50%,
+            var(--border-muted) 60%,
+            transparent 60%,
+            transparent 70%,
+            var(--border-muted) 70%,
+            var(--border-muted) 80%,
+            transparent 80%,
+            transparent 90%,
+            var(--border-muted) 90%,
+            var(--border-muted) 100%);
     opacity: 0.5;
     transition: opacity 0.2s;
 }
@@ -286,7 +284,7 @@
 }
 
 /* Header 中的 input port */
-.node-header-left > .node-port.input {
+.node-header-left>.node-port.input {
     position: absolute;
     left: calc(-1 * var(--spacing-3) - 7px);
     top: 50%;
@@ -311,7 +309,7 @@
 }
 
 /* Header 中的 output port */
-.node-header-actions > .node-port.output {
+.node-header-actions>.node-port.output {
     position: absolute;
     right: calc(-1 * var(--spacing-3) - 7px);
     top: 50%;
