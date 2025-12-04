@@ -466,6 +466,153 @@ class AudioAnalyzer {
   }
 
   /**
+   * 檢測單一音訊幀的音高（使用 YIN 算法）
+   *
+   * YIN 算法是一種鯉魚型音高檢測算法，相比自相關方法更精確、更快速。
+   * 適用於遊戲音效和語音的音高檢測。
+   *
+   * 算法流程（4 個步驟）：
+   * 1. 差異函數（Difference Function）：計算不同時間差（lag）的樣本平方差
+   * 2. CMNDF（Cumulative Mean Normalized Difference Function）：累積平均正規化
+   * 3. 絕對閾值搜尋（Absolute Threshold）：找第一個低於 0.15 的 CMNDF 值
+   * 4. 拋物線插值（Parabolic Interpolation）：精細化 lag 以獲得亞樣本精度
+   *
+   * @param {Float32Array} audioData - 單一音訊幀的樣本陣列
+   * @param {number} sampleRate - 採樣率 (Hz)
+   * @returns {Object} 音高檢測結果 { frequency: number, confidence: number }
+   *                   - frequency: 檢測到的頻率 (Hz)，範圍 80-1000 Hz
+   *                   - confidence: 置信度 (0-1)，越高越可信
+   *
+   * @private
+   */
+  detectPitchYIN(audioData, sampleRate) {
+    // ========== 步驟 0: 初始化和邊界檢查 ==========
+    // 檢查輸入有效性
+    if (!audioData || audioData.length === 0) {
+      return { frequency: 0, confidence: 0 };
+    }
+
+    // YIN 算法的關鍵參數
+    const THRESHOLD = 0.15;           // 絕對閾值：CMNDF 値 < 0.15 表示找到週期
+    const MIN_FREQUENCY = 80;          // 最低頻率 (Hz)
+    const MAX_FREQUENCY = 1000;        // 最高頻率 (Hz)
+    const MAX_LAG = Math.floor(sampleRate / MIN_FREQUENCY);      // 對應最低頻率的最大 lag
+    const MIN_LAG = Math.floor(sampleRate / MAX_FREQUENCY);      // 對應最高頻率的最小 lag
+    const FRAME_LENGTH = audioData.length;
+
+    // 確保 lag 範圍在合理值內
+    if (MIN_LAG < 1 || MAX_LAG > FRAME_LENGTH) {
+      return { frequency: 0, confidence: 0 };
+    }
+
+    // ========== 步驟 1: 計算差異函數（Difference Function）==========
+    // 差異函數定義：d[lag] = Σ(x[i] - x[i+lag])^2，其中 i = 0 到 N-lag-1
+    // 這計算了訊號與其自身延遲版本之間的差異
+    const differenceFunction = new Float32Array(FRAME_LENGTH);
+    let sumSquares = 0;
+
+    // 計算所有樣本的平方和（用於 CMNDF 正規化）
+    for (let i = 0; i < FRAME_LENGTH; i++) {
+      sumSquares += audioData[i] * audioData[i];
+    }
+
+    // 計算各個 lag 的差異函數值
+    for (let lag = 0; lag < FRAME_LENGTH; lag++) {
+      let sum = 0;
+      for (let i = 0; i < FRAME_LENGTH - lag; i++) {
+        const diff = audioData[i] - audioData[i + lag];
+        sum += diff * diff;
+      }
+      differenceFunction[lag] = sum;
+    }
+
+    // ========== 步驟 2: 計算 CMNDF（Cumulative Mean Normalized Difference Function）==========
+    // CMNDF 正規化差異函數，提高 YIN 算法的魯棒性
+    // cmndf[lag] = d[lag] / (mean(d[0:lag]) + epsilon)
+    // 分子：差異函數值；分母：差異函數在 0 到 lag 的平均值
+    const cmndf = new Float32Array(FRAME_LENGTH);
+    cmndf[0] = 1;  // 定義 cmndf[0] = 1（約定）
+
+    let runningMean = differenceFunction[0];
+
+    for (let lag = 1; lag < FRAME_LENGTH; lag++) {
+      runningMean += differenceFunction[lag];
+      // 計算累積平均：mean = sum(d[0:lag+1]) / (lag+1)
+      // 為避免除以零，加上極小值 epsilon = 1e-10
+      cmndf[lag] = lag > 0 ? (differenceFunction[lag] * lag) / (runningMean + 1e-10) : 1;
+    }
+
+    // ========== 步驟 3: 絕對閾值搜尋（Absolute Threshold Search）==========
+    // 找第一個 CMNDF 值低於閾值 (0.15) 的 lag，這通常對應訊號的基本週期
+    let foundLag = 0;
+    let minCmndf = Infinity;
+
+    for (let lag = MIN_LAG; lag <= MAX_LAG; lag++) {
+      if (cmndf[lag] < THRESHOLD) {
+        // 找到第一個低於閾值的 lag
+        foundLag = lag;
+        minCmndf = cmndf[lag];
+        break;
+      }
+      // 同時追蹤最小值，備用（如果沒找到閾值點）
+      if (cmndf[lag] < minCmndf) {
+        minCmndf = cmndf[lag];
+        foundLag = lag;
+      }
+    }
+
+    // ========== 步驟 4: 拋物線插值（Parabolic Interpolation）==========
+    // 如果找到有效的 lag，使用拋物線插值來精細化 lag 值
+    // 以獲得更高的精度（亞樣本精度）
+    let refinedLag = foundLag;
+
+    if (foundLag > 0 && foundLag < FRAME_LENGTH - 1) {
+      // 使用拋物線公式進行細化：
+      // f(x) = a*x^2 + b*x + c，通過三點 (lag-1, y1), (lag, y0), (lag+1, y2)
+      // 最小值在 x = -b/(2a)
+      const y1 = cmndf[foundLag - 1];
+      const y0 = cmndf[foundLag];
+      const y2 = cmndf[foundLag + 1];
+
+      // 拋物線係數
+      const a = (y1 - 2 * y0 + y2) / 2;
+      const b = (y2 - y1) / 2;
+
+      // 如果 a 不為零，計算最小值位置的精確 lag
+      if (Math.abs(a) > 1e-10) {
+        // 最小值位置：lag + (-b / 2a)
+        const lagRefinement = -b / (2 * a);
+        refinedLag = foundLag + lagRefinement;
+      }
+    }
+
+    // ========== 計算最終結果 ==========
+    // 從 lag 轉換為頻率：frequency = sampleRate / lag
+    // lag 單位為樣本，一個週期等於 lag 個樣本
+    const frequency = refinedLag > 0 ? sampleRate / refinedLag : 0;
+
+    // 置信度計算：基於 CMNDF 的最小值
+    // CMNDF 越低，置信度越高（CMNDF 接近 0 表示找到明確的週期）
+    // 使用公式：confidence = 1 - cmndf[refinedLag]
+    const lagIndex = Math.round(refinedLag);
+    const baseConfidence = Math.max(0, 1 - cmndf[lagIndex]);
+
+    // 應用頻率範圍過濾：如果頻率超出 80-1000 Hz 範圍，降低置信度
+    let confidence = baseConfidence;
+    if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
+      confidence *= 0.5;  // 降低信心，但保留信息以便調試
+    }
+
+    // 防止置信度為負或超過 1
+    confidence = Math.max(0, Math.min(1, confidence));
+
+    return {
+      frequency: frequency,
+      confidence: confidence
+    };
+  }
+
+  /**
    * 分析音高特性
    *
    * 使用 YIN 算法進行音高檢測，計算以下資訊：
