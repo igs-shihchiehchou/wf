@@ -528,18 +528,19 @@ class AudioAnalyzer {
 
     // ========== 步驟 2: 計算 CMNDF（Cumulative Mean Normalized Difference Function）==========
     // CMNDF 正規化差異函數，提高 YIN 算法的魯棒性
-    // cmndf[lag] = d[lag] / (mean(d[0:lag]) + epsilon)
-    // 分子：差異函數值；分母：差異函數在 0 到 lag 的平均值
+    // 標準 YIN 公式：d'_cmndf[τ] = d[τ] / ((1/τ) * Σ d[j] for j=1 to τ)
+    // 等價於：d'_cmndf[τ] = d[τ] * τ / (Σ d[j] for j=1 to τ)
+    // 分子：差異函數值乘以 lag；分母：差異函數在 1 到 lag 的累積和
     const cmndf = new Float32Array(FRAME_LENGTH);
     cmndf[0] = 1;  // 定義 cmndf[0] = 1（約定）
 
-    let runningMean = differenceFunction[0];
+    let runningMean = 0;
 
     for (let lag = 1; lag < FRAME_LENGTH; lag++) {
       runningMean += differenceFunction[lag];
-      // 計算累積平均：mean = sum(d[0:lag+1]) / (lag+1)
+      // 計算累積平均：sum(d[1:lag])
       // 為避免除以零，加上極小值 epsilon = 1e-10
-      cmndf[lag] = lag > 0 ? (differenceFunction[lag] * lag) / (runningMean + 1e-10) : 1;
+      cmndf[lag] = (differenceFunction[lag] * lag) / (runningMean + 1e-10);
     }
 
     // ========== 步驟 3: 絕對閾值搜尋（Absolute Threshold Search）==========
@@ -589,13 +590,35 @@ class AudioAnalyzer {
     // ========== 計算最終結果 ==========
     // 從 lag 轉換為頻率：frequency = sampleRate / lag
     // lag 單位為樣本，一個週期等於 lag 個樣本
-    const frequency = refinedLag > 0 ? sampleRate / refinedLag : 0;
+    let frequency = refinedLag > 0 ? sampleRate / refinedLag : 0;
 
-    // 置信度計算：基於 CMNDF 的最小值
+    // 檢查頻率是否在合理範圍內，防止極端值
+    const maxReasonableFrequency = MAX_FREQUENCY * 10;  // 允許範圍的 10 倍
+    const minReasonableFrequency = MIN_FREQUENCY / 10;   // 允許範圍的 1/10
+    if (frequency > maxReasonableFrequency || frequency < minReasonableFrequency) {
+      return { frequency: 0, confidence: 0 };
+    }
+
+    // 置信度計算：基於 CMNDF 的最小值（使用插值以匹配精細化的 lag）
     // CMNDF 越低，置信度越高（CMNDF 接近 0 表示找到明確的週期）
-    // 使用公式：confidence = 1 - cmndf[refinedLag]
-    const lagIndex = Math.round(refinedLag);
-    const baseConfidence = Math.max(0, 1 - cmndf[lagIndex]);
+    // 使用拋物線插值計算精細化 lag 位置的 CMNDF 值，確保置信度與精細化頻率一致
+    let interpolatedCmndf = 1;
+    const lagIndex = Math.floor(refinedLag);
+    if (lagIndex > 0 && lagIndex < FRAME_LENGTH - 1) {
+      // 使用與 lag 相同的拋物線插值方法計算 CMNDF
+      const y1 = cmndf[lagIndex - 1];
+      const y0 = cmndf[lagIndex];
+      const y2 = cmndf[lagIndex + 1];
+      const a = (y1 - 2 * y0 + y2) / 2;
+      const b = (y2 - y1) / 2;
+      const c = y0;
+      const lagOffset = refinedLag - lagIndex;
+      interpolatedCmndf = a * lagOffset * lagOffset + b * lagOffset + c;
+    } else if (lagIndex >= 0 && lagIndex < FRAME_LENGTH) {
+      // 邊界情況：直接使用最接近的 CMNDF 值
+      interpolatedCmndf = cmndf[lagIndex];
+    }
+    const baseConfidence = Math.max(0, 1 - Math.max(interpolatedCmndf, 0));
 
     // 應用頻率範圍過濾：如果頻率超出 80-1000 Hz 範圍，降低置信度
     let confidence = baseConfidence;
