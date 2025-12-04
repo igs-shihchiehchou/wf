@@ -202,8 +202,8 @@
 
 .graph-node {
     position: absolute;
-    min-width: 200px;
-    max-width: 280px;
+    min-width: 180px;
+    max-width: 400px;
     background-color: var(--bg-light);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -225,6 +225,46 @@
     opacity: 0.7;
 }
 
+.graph-node.resizing {
+    transition: none;
+}
+
+/* 調整大小手柄 */
+.node-resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    border-radius: 0 0 8px 0;
+    background: linear-gradient(
+        135deg,
+        transparent 0%,
+        transparent 50%,
+        var(--border-muted) 50%,
+        var(--border-muted) 60%,
+        transparent 60%,
+        transparent 70%,
+        var(--border-muted) 70%,
+        var(--border-muted) 80%,
+        transparent 80%,
+        transparent 90%,
+        var(--border-muted) 90%,
+        var(--border-muted) 100%
+    );
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.node-resize-handle:hover {
+    opacity: 1;
+}
+
+.graph-node.resizing .node-resize-handle {
+    opacity: 1;
+}
+
 /* 節點標題 */
 .node-header {
     display: flex;
@@ -235,32 +275,22 @@
     border-bottom: 1px solid var(--border-muted);
     border-radius: 8px 8px 0 0;
     cursor: move;
+    position: relative;
 }
 
 .node-header-left {
     display: flex;
     align-items: center;
     gap: var(--spacing-2);
+    position: relative;
 }
 
-.node-color-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: var(--primary);
-}
-
-/* 節點類型顏色 */
-.graph-node[data-type="input"] .node-color-dot {
-    background-color: var(--success);
-}
-
-.graph-node[data-type="process"] .node-color-dot {
-    background-color: var(--info);
-}
-
-.graph-node[data-type="output"] .node-color-dot {
-    background-color: var(--secondary);
+/* Header 中的 input port */
+.node-header-left > .node-port.input {
+    position: absolute;
+    left: calc(-1 * var(--spacing-3) - 7px);
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 .node-icon {
@@ -275,7 +305,17 @@
 
 .node-header-actions {
     display: flex;
+    align-items: center;
     gap: var(--spacing-1);
+    position: relative;
+}
+
+/* Header 中的 output port */
+.node-header-actions > .node-port.output {
+    position: absolute;
+    right: calc(-1 * var(--spacing-3) - 7px);
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 .node-action-btn {
@@ -306,10 +346,17 @@
 /* 節點內容 */
 .node-content {
     padding: var(--spacing-3);
+    border-radius: 0 0 8px 8px;
 }
 
 .node-content.collapsed {
     display: none;
+}
+
+/* 當內容摺疊時，header 要有完整圓角 */
+.graph-node:has(.node-content.collapsed) .node-header {
+    border-radius: 8px;
+    border-bottom: none;
 }
 
 /* 節點內部控制 */
@@ -758,77 +805,12 @@
     border-radius: 4px;
 }
 
-.node-preview-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-2);
-}
-
-.node-preview-label {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.node-preview-close {
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: var(--text-sm);
-}
-
-.node-preview-close:hover {
-    background-color: var(--highlight);
-    color: var(--text);
-}
-
-.node-preview-btn {
-    margin-top: var(--spacing-2);
-    background-color: hsl(242 30% 25%);
-    border-color: hsl(242 30% 35%);
-}
-
-.node-preview-btn:hover {
-    background-color: hsl(242 30% 35%);
-    border-color: hsl(242 40% 50%);
-}
-
 /* ===========================
    端口樣式
    =========================== */
 
-.node-ports {
-    position: relative;
-}
-
-.node-port-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-1) 0;
-    position: relative;
-}
-
-.node-port-row.input-only {
-    justify-content: flex-start;
-}
-
-.node-port-row.output-only {
-    justify-content: flex-end;
-}
-
 /* 端口 */
 .node-port {
-    position: absolute;
     width: 14px;
     height: 14px;
     background-color: var(--bg);
@@ -840,7 +822,7 @@
 }
 
 .node-port:hover {
-    transform: scale(1.3);
+    transform: translateY(-50%) scale(1.3);
     border-color: var(--primary);
     background-color: var(--primary);
 }
@@ -850,14 +832,6 @@
     border-color: var(--primary);
 }
 
-.node-port.input {
-    left: -7px;
-}
-
-.node-port.output {
-    right: -7px;
-}
-
 .node-port.compatible {
     border-color: var(--success);
     box-shadow: 0 0 8px var(--success);
@@ -865,29 +839,6 @@
 
 .node-port.incompatible {
     border-color: var(--danger);
-}
-
-/* 端口標籤 */
-.node-port-label {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    padding: 0 var(--spacing-3);
-}
-
-.node-port-label.input {
-    text-align: left;
-}
-
-.node-port-label.output {
-    text-align: right;
-}
-
-/* 端口區域（底部） */
-.node-ports-section {
-    padding: var(--spacing-2) var(--spacing-3);
-    border-top: 1px solid var(--border-muted);
-    background-color: var(--bg);
-    border-radius: 0 0 8px 8px;
 }
 
 /* ===========================

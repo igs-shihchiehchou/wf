@@ -320,6 +320,11 @@ class GraphCanvas {
 
         // 綁定節點事件
         this.bindNodeEvents(node);
+
+        // 綁定調整大小回調
+        node.onResize = () => {
+            this.updateLinks();
+        };
     }
 
     removeNode(nodeId) {

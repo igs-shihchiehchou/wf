@@ -165,6 +165,10 @@ class GraphEngine {
             if (targetNode.setAudioBuffer) {
                 targetNode.setAudioBuffer(null);
             }
+            // 清除預覽
+            if (targetNode.clearPreview) {
+                targetNode.clearPreview();
+            }
         }
     }
 
@@ -247,6 +251,11 @@ class GraphEngine {
                     setTimeout(() => link.setActive(false), 500);
                 }
             });
+
+            // 更新節點預覽（如果有預覽功能）
+            if (node.updatePreview) {
+                await node.updatePreview();
+            }
         } finally {
             node.setProcessing(false);
         }
@@ -466,6 +475,14 @@ class GraphEngine {
                 if (nodeData.data) {
                     Object.assign(node.data, nodeData.data);
                     node.updateContent();
+
+                    // 恢復節點尺寸
+                    if (nodeData.data.width) {
+                        node.element.style.width = nodeData.data.width + 'px';
+                    }
+                    if (nodeData.data.height) {
+                        node.element.style.minHeight = nodeData.data.height + 'px';
+                    }
                 }
 
                 if (nodeData.collapsed) {
