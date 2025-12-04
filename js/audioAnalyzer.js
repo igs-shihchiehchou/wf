@@ -1114,18 +1114,6 @@ class AudioAnalyzer {
       // 計算時間解析度（每幀代表的時間長度）
       const timeStep = HOP_SIZE / sampleRate;
 
-      // ========== 初始化離線音訊上下文用於 FFT ==========
-      // 建立一個離線上下文用於 FFT 計算（比建立多個上下文更高效）
-      const offlineContext = new OfflineAudioContext(
-        1,                          // 單聲道
-        FFT_SIZE,                   // 長度為 FFT_SIZE 樣本
-        sampleRate                  // 使用原始採樣率
-      );
-
-      const analyser = offlineContext.createAnalyser();
-      analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = 0;  // 不使用時域平滑
-
       // ========== 滑動窗口 STFT 分析 ==========
       for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
         // 計算當前窗口的起始和結束位置
@@ -1150,51 +1138,30 @@ class AudioAnalyzer {
           windowedSamples[i] = windowSamples[i] * windowValue;
         }
 
-        // ========== 計算 FFT 頻譜 ==========
-        // 為每個幀建立一個音訊緩衝區
-        const analyserBuffer = offlineContext.createBuffer(1, FFT_SIZE, sampleRate);
-        analyserBuffer.getChannelData(0).set(windowedSamples);
+        // ========== 計算 FFT 頻譜 (使用 DFT) ==========
+        // 使用離散傅立葉變換計算頻譜
+        const frequencyBinCount = FFT_SIZE / 2;
+        const rawSpectrum = new Float32Array(frequencyBinCount);
 
-        // 建立音訊源並連接到分析器
-        const source = offlineContext.createBufferSource();
-        source.buffer = analyserBuffer;
-        source.connect(analyser);
-        analyser.connect(offlineContext.destination);
+        for (let k = 0; k < frequencyBinCount; k++) {
+          let real = 0;
+          let imag = 0;
 
-        // 啟動音訊源並渲染
-        source.start(0);
-        await offlineContext.startRendering();
-
-        // ========== 提取頻率數據 ==========
-        // 創建陣列存儲頻率域的數據（分貝值）
-        const rawSpectrum = new Float32Array(analyser.frequencyBinCount);
-        analyser.getFloatFrequencyData(rawSpectrum);
-
-        // 檢查是否有有效數據（備選方案：使用 DFT）
-        const hasValidData = rawSpectrum.some(val => val > -Infinity && !isNaN(val));
-
-        if (!hasValidData) {
-          // 備用方案：使用簡化的 DFT 計算頻譜
-          for (let k = 0; k < analyser.frequencyBinCount; k++) {
-            let real = 0;
-            let imag = 0;
-
-            // DFT 公式: X[k] = Σ x[n] * e^(-2πikn/N)
-            for (let n = 0; n < FFT_SIZE; n++) {
-              const angle = -2 * Math.PI * k * n / FFT_SIZE;
-              real += windowedSamples[n] * Math.cos(angle);
-              imag += windowedSamples[n] * Math.sin(angle);
-            }
-
-            // 計算幅度並轉換為分貝
-            const magnitude = Math.sqrt(real * real + imag * imag) / FFT_SIZE;
-            rawSpectrum[k] = magnitude > 0 ? 20 * Math.log10(magnitude) : -100;
+          // DFT 公式: X[k] = Σ x[n] * e^(-2πikn/N)
+          for (let n = 0; n < FFT_SIZE; n++) {
+            const angle = -2 * Math.PI * k * n / FFT_SIZE;
+            real += windowedSamples[n] * Math.cos(angle);
+            imag += windowedSamples[n] * Math.sin(angle);
           }
+
+          // 計算幅度並轉換為分貝
+          const magnitude = Math.sqrt(real * real + imag * imag) / FFT_SIZE;
+          rawSpectrum[k] = magnitude > 0 ? 20 * Math.log10(magnitude) : -100;
         }
 
         // ========== 轉換為強度值 (0-255) ==========
         // 將分貝值正規化為可視化的 0-255 強度值
-        const spectrum = new Float32Array(analyser.frequencyBinCount);
+        const spectrum = new Float32Array(frequencyBinCount);
 
         // 定義 dB 範圍用於正規化
         // -100 dB 映射到 0（黑色），0 dB 映射到 255（白色）

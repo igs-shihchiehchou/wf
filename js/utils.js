@@ -11,6 +11,29 @@ function formatTime(seconds) {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
+// 將頻率轉換為音符名稱（如 440 Hz → A4）
+function frequencyToNoteName(frequency) {
+  if (!frequency || frequency <= 0) return null;
+
+  // A4 = 440 Hz 作為參考音
+  const A4 = 440;
+  const A4_INDEX = 57; // A4 is the 57th key on a piano (counting from C0)
+
+  // 計算與 A4 的半音差距
+  // 公式: n = 12 * log2(f / 440)
+  const halfStepsFromA4 = 12 * Math.log2(frequency / A4);
+  const noteIndex = Math.round(A4_INDEX + halfStepsFromA4);
+
+  // 音符名稱（C, C#, D, D#, E, F, F#, G, G#, A, A#, B）
+  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+  // 計算八度（C0 開始）
+  const octave = Math.floor(noteIndex / 12);
+  const note = noteNames[noteIndex % 12];
+
+  return `${note}${octave}`;
+}
+
 // 產生唯一 ID
 function generateId() {
   return `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

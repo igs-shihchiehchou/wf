@@ -576,7 +576,13 @@ class AudioInputNode extends BaseNode {
         // === 3. 音高分析區 (默認收合) ===
         if (pitch) {
             const pitchedText = pitch.isPitched ? '是（有明確音高）' : '否（噪音或無明確音高）';
-            const avgPitchText = pitch.averagePitch > 0 ? `${pitch.averagePitch.toFixed(1)} Hz` : '無';
+            let avgPitchText = '無';
+            if (pitch.averagePitch > 0) {
+                const noteName = frequencyToNoteName(pitch.averagePitch);
+                avgPitchText = noteName
+                    ? `${pitch.averagePitch.toFixed(1)} Hz (${noteName})`
+                    : `${pitch.averagePitch.toFixed(1)} Hz`;
+            }
             const pitchRangeText = pitch.pitchRange.min > 0 && pitch.pitchRange.max > 0
                 ? `${pitch.pitchRange.min.toFixed(1)} - ${pitch.pitchRange.max.toFixed(1)} Hz`
                 : '無';
