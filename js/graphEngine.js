@@ -496,7 +496,7 @@ class GraphEngine {
       </div>
       <div class="context-menu-item" data-action="add-pitch">
         <span class="context-menu-icon">🎵</span>
-        <span>新增音高調整</span>
+        <span>新增音高調整 (Pitch)</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="fit-view">

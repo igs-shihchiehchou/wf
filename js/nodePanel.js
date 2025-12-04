@@ -25,7 +25,7 @@ class NodePanel {
                     { type: 'fade-in', label: '淡入', icon: '📈', description: '添加淡入效果' },
                     { type: 'fade-out', label: '淡出', icon: '📉', description: '添加淡出效果' },
                     { type: 'speed', label: '速度調整', icon: '⏩', description: '調整播放速度' },
-                    { type: 'pitch', label: '音高調整', icon: '🎵', description: '調整音高（不改變速度）' }
+                    { type: 'pitch', label: '音高調整 (Pitch)', icon: '🎵', description: '調整音高（不改變速度）' }
                 ]
             }
         ];

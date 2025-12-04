@@ -867,11 +867,19 @@ class SpeedNode extends BaseNode {
  */
 
 class PitchNode extends BaseNode {
+    // 音名常數（不含八度）
+    static NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    
     constructor(id, options = {}) {
         const defaultData = {
-            pitch: options.pitch || 0  // 半音數，範圍 -12 到 +12
+            pitch: options.pitch || 0,  // 半音數，範圍 -12 到 +12
+            detectedKey: null,          // 偵測到的音高 { noteName, midiNote, confidence }
+            targetKey: null             // 目標調性（音名，不含八度，如 'C', 'D#'）
         };
-        super(id, 'pitch', '音高調整', '🎵', options, defaultData);
+        super(id, 'pitch', '音高調整 (Pitch)', '🎵', options, defaultData);
+        
+        this.inputAudioBuffer = null;
+        this.isAnalyzing = false;
     }
 
     setupPorts() {
@@ -886,6 +894,14 @@ class PitchNode extends BaseNode {
     renderContent() {
         const pitch = this.data.pitch || 0;
         const pitchDisplay = pitch >= 0 ? `+${pitch}` : `${pitch}`;
+        const detectedKey = this.data.detectedKey;
+        const targetKey = this.data.targetKey;
+
+        // 生成目標調性選項
+        const keyOptions = PitchNode.NOTE_NAMES.map(note => {
+            const selected = targetKey === note ? 'selected' : '';
+            return `<option value="${note}" ${selected}>${note}</option>`;
+        }).join('');
 
         return `
       <div class="node-control">
@@ -902,13 +918,72 @@ class PitchNode extends BaseNode {
           <button class="pitch-preset-btn" data-pitch="12" title="升高八度">+8ve</button>
         </div>
       </div>
+      
+      <div class="node-control transpose-control">
+        <label class="node-control-label">🎹 智慧轉調</label>
+        <div class="transpose-info">
+          <div class="transpose-row">
+            <span class="transpose-label">偵測音高:</span>
+            <span class="detected-key-value">${detectedKey ? `${detectedKey.noteName} (${Math.round(detectedKey.confidence * 100)}%)` : '等待分析...'}</span>
+          </div>
+          <div class="transpose-row">
+            <span class="transpose-label">目標調性:</span>
+            <select class="target-key-select" ${!detectedKey ? 'disabled' : ''}>
+              <option value="">-- 選擇調性 --</option>
+              ${keyOptions}
+            </select>
+          </div>
+          <div class="transpose-row transpose-result" style="display: ${targetKey && detectedKey ? 'flex' : 'none'}">
+            <span class="transpose-label">轉調半音:</span>
+            <span class="transpose-semitones">${this.calculateTransposeSemitones()}</span>
+          </div>
+        </div>
+        <button class="transpose-apply-btn" ${!targetKey || !detectedKey ? 'disabled' : ''}>套用轉調</button>
+      </div>
     `;
+    }
+
+    /**
+     * 計算從偵測音高到目標調性需要的半音數
+     * @returns {string} 半音數顯示字串
+     */
+    calculateTransposeSemitones() {
+        if (!this.data.detectedKey || !this.data.targetKey) {
+            return '--';
+        }
+
+        const detectedNoteName = this.data.detectedKey.noteName;
+        // 從音名中提取不含八度的部分（如 'A4' -> 'A', 'C#3' -> 'C#'）
+        const detectedNote = detectedNoteName.replace(/\d+$/, '');
+        const targetNote = this.data.targetKey;
+
+        const detectedIndex = PitchNode.NOTE_NAMES.indexOf(detectedNote);
+        const targetIndex = PitchNode.NOTE_NAMES.indexOf(targetNote);
+
+        if (detectedIndex === -1 || targetIndex === -1) {
+            return '--';
+        }
+
+        // 計算最短路徑的半音數（可能是正或負）
+        let semitones = targetIndex - detectedIndex;
+        
+        // 選擇最短路徑（-6 到 +6 之間）
+        if (semitones > 6) {
+            semitones -= 12;
+        } else if (semitones < -6) {
+            semitones += 12;
+        }
+
+        const display = semitones >= 0 ? `+${semitones}` : `${semitones}`;
+        return display;
     }
 
     bindContentEvents() {
         const slider = this.element.querySelector('.pitch-slider');
         const valueDisplay = this.element.querySelector('.node-control-value');
         const presetBtns = this.element.querySelectorAll('.pitch-preset-btn');
+        const targetKeySelect = this.element.querySelector('.target-key-select');
+        const applyBtn = this.element.querySelector('.transpose-apply-btn');
 
         if (slider) {
             slider.addEventListener('input', (e) => {
@@ -943,6 +1018,179 @@ class PitchNode extends BaseNode {
                 }
             });
         });
+
+        // 目標調性選擇
+        if (targetKeySelect) {
+            targetKeySelect.addEventListener('change', (e) => {
+                this.data.targetKey = e.target.value || null;
+                this.updateTransposeUI();
+            });
+        }
+
+        // 套用轉調按鈕
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
+                this.applyTranspose();
+            });
+        }
+    }
+
+    /**
+     * 更新轉調 UI 顯示
+     */
+    updateTransposeUI() {
+        const transposeResult = this.element.querySelector('.transpose-result');
+        const transposeSemitones = this.element.querySelector('.transpose-semitones');
+        const applyBtn = this.element.querySelector('.transpose-apply-btn');
+
+        if (transposeResult) {
+            transposeResult.style.display = (this.data.targetKey && this.data.detectedKey) ? 'flex' : 'none';
+        }
+
+        if (transposeSemitones) {
+            transposeSemitones.textContent = this.calculateTransposeSemitones();
+        }
+
+        if (applyBtn) {
+            applyBtn.disabled = !this.data.targetKey || !this.data.detectedKey;
+        }
+    }
+
+    /**
+     * 套用轉調設定到音高滑桿
+     */
+    applyTranspose() {
+        if (!this.data.detectedKey || !this.data.targetKey) {
+            return;
+        }
+
+        const semitones = this.calculateTransposeSemitonesValue();
+        if (semitones === null) return;
+
+        // 更新 pitch 值
+        this.data.pitch = semitones;
+
+        // 更新 UI
+        const slider = this.element.querySelector('.pitch-slider');
+        const valueDisplay = this.element.querySelector('.node-control-value');
+
+        if (slider) slider.value = semitones;
+        if (valueDisplay) {
+            const display = semitones >= 0 ? `+${semitones}` : `${semitones}`;
+            valueDisplay.textContent = display;
+        }
+
+        // 自動更新預覽
+        this.schedulePreviewUpdate();
+
+        if (this.onDataChange) {
+            this.onDataChange('pitch', this.data.pitch);
+        }
+    }
+
+    /**
+     * 計算轉調半音數值
+     * @returns {number|null} 半音數，或 null 如果無法計算
+     */
+    calculateTransposeSemitonesValue() {
+        if (!this.data.detectedKey || !this.data.targetKey) {
+            return null;
+        }
+
+        const detectedNoteName = this.data.detectedKey.noteName;
+        const detectedNote = detectedNoteName.replace(/\d+$/, '');
+        const targetNote = this.data.targetKey;
+
+        const detectedIndex = PitchNode.NOTE_NAMES.indexOf(detectedNote);
+        const targetIndex = PitchNode.NOTE_NAMES.indexOf(targetNote);
+
+        if (detectedIndex === -1 || targetIndex === -1) {
+            return null;
+        }
+
+        let semitones = targetIndex - detectedIndex;
+        
+        // 選擇最短路徑（-6 到 +6 之間）
+        if (semitones > 6) {
+            semitones -= 12;
+        } else if (semitones < -6) {
+            semitones += 12;
+        }
+
+        return semitones;
+    }
+
+    /**
+     * 當輸入音訊變更時，分析音高
+     */
+    async updateInputAudio(audioBuffer) {
+        if (!audioBuffer) {
+            this.inputAudioBuffer = null;
+            this.data.detectedKey = null;
+            this.updateDetectedKeyUI();
+            return;
+        }
+
+        this.inputAudioBuffer = audioBuffer;
+
+        // 開始分析音高
+        await this.analyzeAudioPitch(audioBuffer);
+    }
+
+    /**
+     * 分析音訊的主要音高
+     */
+    async analyzeAudioPitch(audioBuffer) {
+        if (this.isAnalyzing) return;
+        
+        this.isAnalyzing = true;
+        this.updateDetectedKeyUI('分析中...');
+
+        try {
+            // 使用 audioAnalyzer 分析音高
+            const result = await window.audioAnalyzer.analyze(audioBuffer, () => {});
+            
+            if (result.pitch && result.pitch.dominantPitch && result.pitch.dominantPitch.noteName) {
+                this.data.detectedKey = {
+                    noteName: result.pitch.dominantPitch.noteName,
+                    midiNote: result.pitch.dominantPitch.midiNote,
+                    confidence: result.pitch.dominantPitch.confidence,
+                    frequency: result.pitch.dominantPitch.frequency
+                };
+            } else {
+                this.data.detectedKey = null;
+            }
+        } catch (error) {
+            console.error('音高分析失敗:', error);
+            this.data.detectedKey = null;
+        }
+
+        this.isAnalyzing = false;
+        this.updateDetectedKeyUI();
+    }
+
+    /**
+     * 更新偵測音高 UI
+     */
+    updateDetectedKeyUI(customText = null) {
+        const detectedKeyValue = this.element.querySelector('.detected-key-value');
+        const targetKeySelect = this.element.querySelector('.target-key-select');
+
+        if (detectedKeyValue) {
+            if (customText) {
+                detectedKeyValue.textContent = customText;
+            } else if (this.data.detectedKey) {
+                detectedKeyValue.textContent = `${this.data.detectedKey.noteName} (${Math.round(this.data.detectedKey.confidence * 100)}%)`;
+            } else {
+                detectedKeyValue.textContent = '無法判定';
+            }
+        }
+
+        if (targetKeySelect) {
+            targetKeySelect.disabled = !this.data.detectedKey;
+        }
+
+        this.updateTransposeUI();
     }
 
     async process(inputs) {
