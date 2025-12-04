@@ -668,24 +668,140 @@ class AudioAnalyzer {
    * }
    */
   async analyzePitch(audioBuffer, onProgress = () => {}) {
-    // 預留位置，待後續實作
-    // 此版本返回空物件，實際實作將使用 YIN 算法進行音高檢測和頻譜圖生成
+    try {
+      const sampleRate = audioBuffer.sampleRate;
+      const channelData = audioBuffer.getChannelData(0);
 
-    onProgress(1);
+      // ========== 參數設置 ==========
+      // 100ms 窗口大小（0.1 * sampleRate 個樣本）
+      const windowSize = Math.floor(0.1 * sampleRate);
 
-    return {
-      pitchCurve: [],
-      spectrogram: {
-        width: 0,
-        height: 0,
-        data: [],
-        timeStep: 0,
-        frequencyRange: [0, 0]
-      },
-      averagePitch: 0,
-      pitchRange: { min: 0, max: 0 },
-      isPitched: false
-    };
+      // 50ms hop 大小（50% 重疊），導致每個窗口之間間隔 50ms
+      const hopSize = Math.floor(0.05 * sampleRate);
+
+      // 計算總 hop 數（整個音訊將被分成多個 hop）
+      const totalHops = Math.ceil((channelData.length - windowSize) / hopSize) + 1;
+
+      // ========== 邊界檢查 ==========
+      if (windowSize <= 0 || hopSize <= 0 || totalHops <= 0) {
+        onProgress(1);
+        return {
+          pitchCurve: [],
+          spectrogram: {
+            width: 0,
+            height: 0,
+            data: [],
+            timeStep: 0,
+            frequencyRange: [0, 0]
+          },
+          averagePitch: 0,
+          pitchRange: { min: 0, max: 0 },
+          isPitched: false
+        };
+      }
+
+      // ========== 初始化音高曲線陣列 ==========
+      // 存儲所有窗口的音高檢測結果：{ time, frequency, confidence }
+      const pitchCurve = [];
+
+      // ========== 滑動窗口音高分析 ==========
+      // 使用 50% 重疊的滑動窗口，對每個窗口執行 YIN 算法
+      //
+      // 窗口示例（windowSize=4410, hopSize=2205, 44.1kHz）：
+      // Window 1: samples [0:4410]         → time = 0.0s
+      // Window 2: samples [2205:6615]      → time = 0.05s
+      // Window 3: samples [4410:8820]      → time = 0.1s
+      // ...
+
+      for (let hopIndex = 0; hopIndex < totalHops; hopIndex++) {
+        // 計算當前窗口在樣本數組中的起始位置
+        const windowStart = hopIndex * hopSize;
+        const windowEnd = Math.min(windowStart + windowSize, channelData.length);
+
+        // 邊界檢查：如果剩餘樣本不足以形成有效窗口，停止處理
+        if (windowEnd - windowStart < windowSize / 2) {
+          break;
+        }
+
+        // 提取當前窗口的音訊樣本
+        const windowSamples = channelData.slice(windowStart, windowEnd);
+
+        // 使用 YIN 算法檢測當前窗口的音高
+        const pitchResult = this.detectPitchYIN(windowSamples, sampleRate);
+
+        // 計算當前窗口的時間位置（秒）
+        // 時間 = (hopIndex * hopSize) / sampleRate
+        const time = (hopIndex * hopSize) / sampleRate;
+
+        // 添加檢測結果到音高曲線
+        pitchCurve.push({
+          time: time,
+          frequency: pitchResult.frequency,
+          confidence: pitchResult.confidence
+        });
+
+        // ========== 進度報告 ==========
+        // 計算已完成的進度百分比 (0-1)
+        const progress = (hopIndex + 1) / totalHops;
+        onProgress(progress);
+
+        // ========== UI 響應性保證 ==========
+        // 使用 setTimeout(0) 將控制權交回給瀏覽器事件循環
+        // 這允許瀏覽器在長時間分析期間保持 UI 響應性
+        // 每個 10 個窗口讓出一次控制權（節省許多微任務開銷）
+        if (hopIndex % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+
+      // ========== 音高統計計算 ==========
+      // 過濾出高置信度的音高點（置信度 > 0.5）用於統計
+      const validPitches = pitchCurve.filter(p => p.confidence > 0.5);
+
+      // 初始化統計變量
+      let averagePitch = 0;
+      let minPitch = Infinity;
+      let maxPitch = -Infinity;
+      let isPitched = false;
+
+      // 計算平均音高和音高範圍
+      if (validPitches.length > 0) {
+        // 計算有效音高的平均值
+        const pitchSum = validPitches.reduce((sum, p) => sum + p.frequency, 0);
+        averagePitch = pitchSum / validPitches.length;
+
+        // 找出音高的最小值和最大值
+        minPitch = Math.min(...validPitches.map(p => p.frequency));
+        maxPitch = Math.max(...validPitches.map(p => p.frequency));
+
+        // 判斷是否為有音高的聲音
+        // 如果有效音高點數佔總點數的 30% 以上，則認為是有音高的聲音
+        const pitchedRatio = validPitches.length / pitchCurve.length;
+        isPitched = pitchedRatio >= 0.3;
+      }
+
+      // 返回分析結果
+      return {
+        pitchCurve: pitchCurve,          // 完整的音高曲線陣列 [{time, frequency, confidence}, ...]
+        spectrogram: {
+          // 頻譜圖數據留作後續任務 (Task 4.1) 實作
+          width: 0,
+          height: 0,
+          data: [],
+          timeStep: 0,
+          frequencyRange: [0, 0]
+        },
+        averagePitch: averagePitch,      // 平均音高 (Hz)
+        pitchRange: {
+          min: minPitch === Infinity ? 0 : minPitch,  // 最低音高 (Hz)
+          max: maxPitch === -Infinity ? 0 : maxPitch  // 最高音高 (Hz)
+        },
+        isPitched: isPitched             // 是否為有音高的聲音 (true/false)
+      };
+    } catch (error) {
+      console.error('音高分析出現錯誤:', error);
+      throw error;
+    }
   }
 }
 
