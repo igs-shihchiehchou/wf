@@ -1239,6 +1239,11 @@
     min-width: 240px;
 }
 
+/* 智慧音高調整節點 */
+.graph-node.node-smart-pitch {
+    min-width: 280px;
+}
+
 /* 輸出節點 - 紫色調（保留以備擴展）*/
 .graph-node.node-player .node-header,
 .graph-node.node-download .node-header,

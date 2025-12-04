@@ -967,7 +967,7 @@ class PitchNode extends BaseNode {
 class SmartPitchNode extends BaseNode {
     // 音名常數（不含八度）
     static NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    
+
     constructor(id, options = {}) {
         const defaultData = {
             pitch: options.pitch || 0,  // 半音數，範圍 -12 到 +12
@@ -975,7 +975,7 @@ class SmartPitchNode extends BaseNode {
             targetKey: null             // 目標調性（音名，不含八度，如 'C', 'D#'）
         };
         super(id, 'smart-pitch', '智慧音高調整', '🎼', options, defaultData);
-        
+
         this.inputAudioBuffer = null;
         this.isAnalyzing = false;
         this.analysisResult = null;
@@ -1005,21 +1005,6 @@ class SmartPitchNode extends BaseNode {
         }).join('');
 
         return `
-      <div class="node-control">
-        <label class="node-control-label">音高 (半音)</label>
-        <div class="node-control-row">
-          <input type="range" class="pitch-slider" min="-12" max="12" value="${pitch}" step="1">
-          <span class="node-control-value">${pitchDisplay}</span>
-        </div>
-        <div class="pitch-presets">
-          <button class="pitch-preset-btn" data-pitch="-12" title="降低八度">-8ve</button>
-          <button class="pitch-preset-btn" data-pitch="-5" title="降低五度">-5th</button>
-          <button class="pitch-preset-btn" data-pitch="0" title="原調">0</button>
-          <button class="pitch-preset-btn" data-pitch="5" title="升高五度">+5th</button>
-          <button class="pitch-preset-btn" data-pitch="12" title="升高八度">+8ve</button>
-        </div>
-      </div>
-      
       <div class="node-control transpose-control">
         <label class="node-control-label">🎹 智慧轉調</label>
         <div class="transpose-info">
@@ -1070,7 +1055,7 @@ class SmartPitchNode extends BaseNode {
 
         // 計算最短路徑的半音數（可能是正或負）
         let semitones = targetIndex - detectedIndex;
-        
+
         // 選擇最短路徑（-6 到 +6 之間）
         if (semitones > 6) {
             semitones -= 12;
@@ -1083,45 +1068,8 @@ class SmartPitchNode extends BaseNode {
     }
 
     bindContentEvents() {
-        const slider = this.element.querySelector('.pitch-slider');
-        const valueDisplay = this.element.querySelector('.node-control-value');
-        const presetBtns = this.element.querySelectorAll('.pitch-preset-btn');
         const targetKeySelect = this.element.querySelector('.target-key-select');
         const applyBtn = this.element.querySelector('.transpose-apply-btn');
-
-        if (slider) {
-            slider.addEventListener('input', (e) => {
-                this.data.pitch = parseInt(e.target.value);
-                const display = this.data.pitch >= 0 ? `+${this.data.pitch}` : `${this.data.pitch}`;
-                valueDisplay.textContent = display;
-
-                // 自動更新預覽
-                this.schedulePreviewUpdate();
-
-                if (this.onDataChange) {
-                    this.onDataChange('pitch', this.data.pitch);
-                }
-            });
-        }
-
-        // 預設按鈕
-        presetBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const pitchValue = parseInt(btn.dataset.pitch);
-                this.data.pitch = pitchValue;
-
-                if (slider) slider.value = pitchValue;
-                const display = pitchValue >= 0 ? `+${pitchValue}` : `${pitchValue}`;
-                if (valueDisplay) valueDisplay.textContent = display;
-
-                // 自動更新預覽
-                this.schedulePreviewUpdate();
-
-                if (this.onDataChange) {
-                    this.onDataChange('pitch', this.data.pitch);
-                }
-            });
-        });
 
         // 目標調性選擇
         if (targetKeySelect) {
@@ -1161,7 +1109,7 @@ class SmartPitchNode extends BaseNode {
     }
 
     /**
-     * 套用轉調設定到音高滑桿
+     * 套用轉調設定
      */
     applyTranspose() {
         if (!this.data.detectedKey || !this.data.targetKey) {
@@ -1173,16 +1121,6 @@ class SmartPitchNode extends BaseNode {
 
         // 更新 pitch 值
         this.data.pitch = semitones;
-
-        // 更新 UI
-        const slider = this.element.querySelector('.pitch-slider');
-        const valueDisplay = this.element.querySelector('.node-control-value');
-
-        if (slider) slider.value = semitones;
-        if (valueDisplay) {
-            const display = semitones >= 0 ? `+${semitones}` : `${semitones}`;
-            valueDisplay.textContent = display;
-        }
 
         // 自動更新預覽
         this.schedulePreviewUpdate();
@@ -1213,7 +1151,7 @@ class SmartPitchNode extends BaseNode {
         }
 
         let semitones = targetIndex - detectedIndex;
-        
+
         // 選擇最短路徑（-6 到 +6 之間）
         if (semitones > 6) {
             semitones -= 12;
@@ -1248,7 +1186,7 @@ class SmartPitchNode extends BaseNode {
      */
     async analyzeAudio(audioBuffer) {
         if (this.isAnalyzing) return;
-        
+
         this.isAnalyzing = true;
         this.updateDetectedKeyUI('分析中...');
         this.showProgressBar();
@@ -1258,7 +1196,7 @@ class SmartPitchNode extends BaseNode {
             const result = await window.audioAnalyzer.analyze(audioBuffer, (progress) => {
                 this.updateProgress(progress);
             });
-            
+
             this.analysisResult = result;
 
             // 更新偵測到的音高
@@ -1294,15 +1232,16 @@ class SmartPitchNode extends BaseNode {
         if (!container) return;
 
         container.style.display = 'block';
-        
-        if (!this.progressBar) {
-            this.progressBar = new ProgressBar(container, {
-                label: '分析音訊中...'
-            });
+
+        // 移除舊的進度條（如果存在）
+        if (this.progressBar) {
+            this.progressBar.remove();
+            this.progressBar = null;
         }
-        
-        this.progressBar.show();
-        this.progressBar.setProgress(0);
+
+        // 建立新的進度條
+        this.progressBar = new ProgressBar(container);
+        this.progressBar.update(0, '分析音訊中...');
     }
 
     /**
@@ -1313,9 +1252,10 @@ class SmartPitchNode extends BaseNode {
         if (container) {
             container.style.display = 'none';
         }
-        
+
         if (this.progressBar) {
-            this.progressBar.hide();
+            this.progressBar.remove();
+            this.progressBar = null;
         }
     }
 
@@ -1324,7 +1264,7 @@ class SmartPitchNode extends BaseNode {
      */
     updateProgress(progress) {
         if (this.progressBar) {
-            this.progressBar.setProgress(progress);
+            this.progressBar.update(progress);
         }
     }
 
@@ -1389,17 +1329,33 @@ class SmartPitchNode extends BaseNode {
 
         // 頻率分析區塊
         const freqCollapsed = this.getSectionCollapseState('frequency') ? 'collapsed' : '';
-        const freqBands = frequency.bands || [];
-        const maxMagnitude = Math.max(...freqBands.map(b => b.magnitude || 0), 1);
-        const freqBarsHTML = freqBands.slice(0, 8).map(band => {
-            const height = Math.round((band.magnitude / maxMagnitude) * 100);
+        // frequency.spectrum 包含 {low, mid, high} 低中高頻能量比例
+        const spectrum = frequency.spectrum || {};
+        const freqBands = [
+            { label: '低頻', value: spectrum.low || 0, class: 'low' },
+            { label: '中頻', value: spectrum.mid || 0, class: 'mid' },
+            { label: '高頻', value: spectrum.high || 0, class: 'high' }
+        ];
+
+        // 使用水平條形圖
+        const freqBarsHTML = freqBands.map(band => {
+            const width = Math.round(band.value * 100);
+            const percentage = (band.value * 100).toFixed(1);
             return `
-                <div class="freq-bar-container">
-                    <div class="freq-bar" style="height: ${height}%" title="${band.label}: ${band.magnitude.toFixed(1)} dB"></div>
-                    <span class="freq-label">${band.label}</span>
+                <div class="frequency-bar-item">
+                    <span class="frequency-bar-label">${band.label}</span>
+                    <div class="frequency-bar">
+                        <div class="frequency-bar-fill ${band.class}" style="width: ${width}%">
+                            <span class="frequency-bar-percentage">${percentage}%</span>
+                        </div>
+                    </div>
                 </div>
             `;
         }).join('');
+
+        // 顯示主頻率和頻譜重心
+        const dominantFreq = frequency.dominantFrequency ? frequency.dominantFrequency.toFixed(0) + ' Hz' : '-';
+        const spectralCentroid = frequency.spectralCentroid ? frequency.spectralCentroid.toFixed(0) + ' Hz' : '-';
 
         const freqHTML = `
             <div class="analysis-section ${freqCollapsed}" data-section="frequency">
@@ -1411,6 +1367,16 @@ class SmartPitchNode extends BaseNode {
                 <div class="analysis-section-content">
                     <div class="frequency-bars">
                         ${freqBarsHTML}
+                    </div>
+                    <div class="frequency-stats">
+                        <div class="frequency-stat-item">
+                            <span class="frequency-stat-label">主頻率</span>
+                            <span class="frequency-stat-value">${dominantFreq}</span>
+                        </div>
+                        <div class="frequency-stat-item">
+                            <span class="frequency-stat-label">頻譜重心</span>
+                            <span class="frequency-stat-value">${spectralCentroid}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1458,7 +1424,7 @@ class SmartPitchNode extends BaseNode {
                     section.classList.toggle('collapsed');
                     const sectionName = section.dataset.section;
                     this.saveSectionCollapseState(sectionName, section.classList.contains('collapsed'));
-                    
+
                     // 如果是音高區塊展開，渲染頻譜圖
                     if (sectionName === 'pitch' && !section.classList.contains('collapsed')) {
                         this.renderSpectrogramIfNeeded();
@@ -1478,43 +1444,48 @@ class SmartPitchNode extends BaseNode {
      * 渲染頻譜圖（如果需要）
      */
     renderSpectrogramIfNeeded() {
-        if (!this.analysisResult || !this.analysisResult.spectrogram) return;
+        // 頻譜圖在 pitch.spectrogram 中
+        if (!this.analysisResult || !this.analysisResult.pitch || !this.analysisResult.pitch.spectrogram) return;
 
         const canvas = this.element.querySelector(`#spectrogram-canvas-${this.id}`);
         const container = this.element.querySelector(`#spectrogram-container-${this.id}`);
         const hoverInfo = this.element.querySelector(`#spectrogram-hover-${this.id}`);
-        
+
         if (!canvas || !container) return;
 
         // 設定 canvas 尺寸
         const rect = container.getBoundingClientRect();
-        canvas.width = rect.width || 280;
-        canvas.height = 100;
+        const canvasWidth = rect.width || 280;
+        const canvasHeight = 100;
 
         // 建立或更新 SpectrogramRenderer
         if (!this.spectrogramRenderer) {
             this.spectrogramRenderer = new SpectrogramRenderer(canvas);
         }
 
-        // 渲染頻譜圖
-        const specData = this.analysisResult.spectrogram;
-        this.spectrogramRenderer.render(specData.data, specData.frequencies, specData.times);
+        // 渲染頻譜圖 - 傳入整個 spectrogramData 物件和選項
+        const specData = this.analysisResult.pitch.spectrogram;
+        this.spectrogramRenderer.render(specData, {
+            canvasWidth: canvasWidth,
+            canvasHeight: canvasHeight
+        });
 
         // 綁定滑鼠懸停事件
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            
-            const timeIndex = Math.floor((x / canvas.width) * specData.times.length);
-            const freqIndex = Math.floor(((canvas.height - y) / canvas.height) * specData.frequencies.length);
-            
-            if (timeIndex >= 0 && timeIndex < specData.times.length && 
-                freqIndex >= 0 && freqIndex < specData.frequencies.length) {
-                const time = specData.times[timeIndex];
-                const freq = specData.frequencies[freqIndex];
-                const magnitude = specData.data[freqIndex]?.[timeIndex] || 0;
-                
+
+            // 計算時間和頻率索引
+            const timeIndex = Math.floor((x / rect.width) * specData.width);
+            const freqIndex = Math.floor(((rect.height - y) / rect.height) * specData.height);
+
+            if (timeIndex >= 0 && timeIndex < specData.width &&
+                freqIndex >= 0 && freqIndex < specData.height) {
+                const time = timeIndex * specData.timeStep;
+                const freq = (freqIndex / specData.height) * specData.frequencyRange[1];
+                const magnitude = specData.data[timeIndex]?.[freqIndex] || 0;
+
                 if (hoverInfo) {
                     hoverInfo.style.display = 'block';
                     hoverInfo.style.left = (x + 10) + 'px';
@@ -1545,7 +1516,7 @@ class SmartPitchNode extends BaseNode {
      * 開啟頻譜圖大圖 Modal
      */
     openSpectrogramModal() {
-        if (!this.analysisResult || !this.analysisResult.spectrogram) return;
+        if (!this.analysisResult || !this.analysisResult.pitch || !this.analysisResult.pitch.spectrogram) return;
 
         // 建立 Modal
         const overlay = document.createElement('div');
@@ -1572,36 +1543,40 @@ class SmartPitchNode extends BaseNode {
         const hoverInfo = modal.querySelector('#spectrogram-modal-hover');
 
         // 設定較大的尺寸
-        canvas.width = Math.min(window.innerWidth - 100, 800);
-        canvas.height = 300;
+        const canvasWidth = Math.min(window.innerWidth - 100, 800);
+        const canvasHeight = 300;
 
         // 渲染
         const renderer = new SpectrogramRenderer(canvas);
-        const specData = this.analysisResult.spectrogram;
-        renderer.render(specData.data, specData.frequencies, specData.times);
+        const specData = this.analysisResult.pitch.spectrogram;
+        renderer.render(specData, {
+            canvasWidth: canvasWidth,
+            canvasHeight: canvasHeight
+        });
 
         // 懸停事件
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            
-            const timeIndex = Math.floor((x / canvas.width) * specData.times.length);
-            const freqIndex = Math.floor(((canvas.height - y) / canvas.height) * specData.frequencies.length);
-            
-            if (timeIndex >= 0 && timeIndex < specData.times.length && 
-                freqIndex >= 0 && freqIndex < specData.frequencies.length) {
-                const time = specData.times[timeIndex];
-                const freq = specData.frequencies[freqIndex];
-                const magnitude = specData.data[freqIndex]?.[timeIndex] || 0;
-                
+
+            // 計算時間和頻率索引
+            const timeIndex = Math.floor((x / rect.width) * specData.width);
+            const freqIndex = Math.floor(((rect.height - y) / rect.height) * specData.height);
+
+            if (timeIndex >= 0 && timeIndex < specData.width &&
+                freqIndex >= 0 && freqIndex < specData.height) {
+                const time = timeIndex * specData.timeStep;
+                const freq = (freqIndex / specData.height) * specData.frequencyRange[1];
+                const magnitude = specData.data[timeIndex]?.[freqIndex] || 0;
+
                 hoverInfo.style.display = 'block';
                 hoverInfo.style.left = (x + 10) + 'px';
                 hoverInfo.style.top = (y - 30) + 'px';
                 hoverInfo.innerHTML = `
                     <div>時間: ${time.toFixed(2)}s</div>
                     <div>頻率: ${freq.toFixed(0)} Hz</div>
-                    <div>強度: ${magnitude.toFixed(1)} dB</div>
+                    <div>強度: ${magnitude.toFixed(1)}</div>
                 `;
             }
         });
@@ -1637,7 +1612,12 @@ class SmartPitchNode extends BaseNode {
      */
     getSectionCollapseState(sectionName) {
         const key = `smartPitchNode_section_${sectionName}_collapsed`;
-        return localStorage.getItem(key) === 'true';
+        const stored = localStorage.getItem(key);
+        // 預設為收合狀態（true），除非使用者明確展開過（stored === 'false'）
+        if (stored === null) {
+            return true; // 預設收合
+        }
+        return stored === 'true';
     }
 
     /**
