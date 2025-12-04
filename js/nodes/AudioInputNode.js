@@ -518,7 +518,7 @@ class AudioInputNode extends BaseNode {
                 freqInterpretation = '高頻為主（尖銳、明亮）';
             }
 
-            const isCollapsed = this.getSectionCollapseState('frequency', false);
+            const isCollapsed = this.getSectionCollapseState('frequency', true);
             const icon = isCollapsed ? '▶' : '▼';
             const display = isCollapsed ? 'none' : 'block';
             const collapsedClass = isCollapsed ? ' analysis-section-collapsed' : '';
