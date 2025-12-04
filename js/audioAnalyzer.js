@@ -780,17 +780,17 @@ class AudioAnalyzer {
         isPitched = pitchedRatio >= 0.3;
       }
 
+      // ========== 生成頻譜圖 (Task 4.1) ==========
+      // 使用 STFT 計算時頻表示，供頻譜圖可視化使用
+      const spectrogram = await this.generateSpectrogram(audioBuffer, (progress) => {
+        // 進度回調被集成到上層 analyzePitch 的進度報告中
+        // 不需要額外的進度更新
+      });
+
       // 返回分析結果
       return {
         pitchCurve: pitchCurve,          // 完整的音高曲線陣列 [{time, frequency, confidence}, ...]
-        spectrogram: {
-          // 頻譜圖數據留作後續任務 (Task 4.1) 實作
-          width: 0,
-          height: 0,
-          data: [],
-          timeStep: 0,
-          frequencyRange: [0, 0]
-        },
+        spectrogram: spectrogram,        // 頻譜圖數據 (由 Task 4.1 生成)
         averagePitch: averagePitch,      // 平均音高 (Hz)
         pitchRange: {
           min: minPitch === Infinity ? 0 : minPitch,  // 最低音高 (Hz)
@@ -801,6 +801,217 @@ class AudioAnalyzer {
     } catch (error) {
       console.error('音高分析出現錯誤:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 生成頻譜圖（STFT 短時傅立葉變換）
+   *
+   * 使用滑動窗口技術計算時頻表示（spectrogram）。頻譜圖是一個 2D 熱力圖，
+   * 表示音訊在不同時間點的頻率分布。用於可視化音訊的時頻特性。
+   *
+   * 算法步驟：
+   * 1. 設置 STFT 參數：FFT 大小 512，hop 大小 128（25% 重疊）
+   * 2. 使用漢寧窗應用於每個窗口以減少頻譜洩漏
+   * 3. 對每個窗口計算 FFT 頻譜
+   * 4. 轉換為分貝 (dB) 標度：20 * log10(magnitude)
+   * 5. 正規化為 0-255 強度值供可視化
+   * 6. 構建 2D 陣列：data[timeIndex][frequencyBin] = intensity (0-255)
+   *
+   * 返回結構：
+   * {
+   *   data: Float32Array[][]  // 2D 強度矩陣 [時間][頻率]
+   *   width: number           // 時間幀數（列數）
+   *   height: number          // 頻率 bin 數（行數）
+   *   timeStep: number        // 時間解析度（秒/幀）
+   *   frequencyRange: [0, nyquist]  // 頻率範圍 (Hz)
+   * }
+   *
+   * @param {AudioBuffer} audioBuffer - 音訊緩衝區
+   * @param {Function} [onProgress] - 進度回調函數，簽名: (progress: 0-1) => void
+   * @returns {Promise<SpectrogramData>} 頻譜圖數據物件
+   *
+   * @example
+   * const spectrogram = await audioAnalyzer.generateSpectrogram(audioBuffer, (progress) => {
+   *   console.log(`Spectrogram generation: ${(progress * 100).toFixed(1)}%`);
+   * });
+   * // spectrogram.data[10][50] = 128  // 第 10 幀，第 50 個頻率 bin 的強度
+   *
+   * @private
+   */
+  async generateSpectrogram(audioBuffer, onProgress = () => {}) {
+    try {
+      const sampleRate = audioBuffer.sampleRate;
+      const channelData = audioBuffer.getChannelData(0);
+
+      // ========== STFT 參數設置 ==========
+      // FFT 大小：512 個樣本
+      // 更小的 FFT 提供更好的時間解析度，但頻率解析度較差
+      const FFT_SIZE = 512;
+
+      // Hop 大小：128 個樣本（FFT 大小的 25%）
+      // 更小的 hop 提供更密集的時頻表示，但需要更多計算
+      const HOP_SIZE = 128;
+
+      // ========== 計算時頻維度 ==========
+      // 計算需要多少幀來覆蓋整個音訊
+      const totalFrames = Math.ceil((channelData.length - FFT_SIZE) / HOP_SIZE) + 1;
+
+      // 檢查是否有足夠的音訊樣本進行分析
+      if (totalFrames <= 0 || FFT_SIZE > channelData.length) {
+        onProgress(1);
+        return {
+          data: [],
+          width: 0,
+          height: 0,
+          timeStep: 0,
+          frequencyRange: [0, sampleRate / 2]
+        };
+      }
+
+      // 初始化 2D 頻譜圖數據陣列
+      // data[timeIndex] 是一個 Float32Array，包含該時間幀的所有頻率 bin
+      const data = [];
+
+      // 計算頻率解析度
+      const nyquistFrequency = sampleRate / 2;
+      const frequencyPerBin = nyquistFrequency / FFT_SIZE;
+
+      // 計算時間解析度（每幀代表的時間長度）
+      const timeStep = HOP_SIZE / sampleRate;
+
+      // ========== 初始化離線音訊上下文用於 FFT ==========
+      // 建立一個離線上下文用於 FFT 計算（比建立多個上下文更高效）
+      const offlineContext = new OfflineAudioContext(
+        1,                          // 單聲道
+        FFT_SIZE,                   // 長度為 FFT_SIZE 樣本
+        sampleRate                  // 使用原始採樣率
+      );
+
+      const analyser = offlineContext.createAnalyser();
+      analyser.fftSize = FFT_SIZE;
+      analyser.smoothingTimeConstant = 0;  // 不使用時域平滑
+
+      // ========== 滑動窗口 STFT 分析 ==========
+      for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+        // 計算當前窗口的起始和結束位置
+        const windowStart = frameIndex * HOP_SIZE;
+        const windowEnd = Math.min(windowStart + FFT_SIZE, channelData.length);
+
+        // 邊界檢查：確保有足夠的樣本形成完整窗口
+        if (windowEnd - windowStart < FFT_SIZE) {
+          break;
+        }
+
+        // 提取當前窗口的音訊樣本
+        const windowSamples = channelData.slice(windowStart, windowEnd);
+
+        // ========== 應用漢寧窗函數 ==========
+        // 窗函數用於減少頻譜洩漏，改善 FFT 分析質量
+        const windowedSamples = new Float32Array(FFT_SIZE);
+        for (let i = 0; i < FFT_SIZE; i++) {
+          // Hann window: 0.5 * (1 - cos(2π * i / (N-1)))
+          // 在窗口邊界處衰減到零，減少頻譜洩漏
+          const windowValue = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
+          windowedSamples[i] = windowSamples[i] * windowValue;
+        }
+
+        // ========== 計算 FFT 頻譜 ==========
+        // 為每個幀建立一個音訊緩衝區
+        const analyserBuffer = offlineContext.createBuffer(1, FFT_SIZE, sampleRate);
+        analyserBuffer.getChannelData(0).set(windowedSamples);
+
+        // 建立音訊源並連接到分析器
+        const source = offlineContext.createBufferSource();
+        source.buffer = analyserBuffer;
+        source.connect(analyser);
+        analyser.connect(offlineContext.destination);
+
+        // 啟動音訊源並渲染
+        source.start(0);
+        await offlineContext.startRendering();
+
+        // ========== 提取頻率數據 ==========
+        // 創建陣列存儲頻率域的數據（分貝值）
+        const rawSpectrum = new Float32Array(analyser.frequencyBinCount);
+        analyser.getFloatFrequencyData(rawSpectrum);
+
+        // 檢查是否有有效數據（備選方案：使用 DFT）
+        const hasValidData = rawSpectrum.some(val => val > -Infinity && !isNaN(val));
+
+        if (!hasValidData) {
+          // 備用方案：使用簡化的 DFT 計算頻譜
+          for (let k = 0; k < analyser.frequencyBinCount; k++) {
+            let real = 0;
+            let imag = 0;
+
+            // DFT 公式: X[k] = Σ x[n] * e^(-2πikn/N)
+            for (let n = 0; n < FFT_SIZE; n++) {
+              const angle = -2 * Math.PI * k * n / FFT_SIZE;
+              real += windowedSamples[n] * Math.cos(angle);
+              imag += windowedSamples[n] * Math.sin(angle);
+            }
+
+            // 計算幅度並轉換為分貝
+            const magnitude = Math.sqrt(real * real + imag * imag) / FFT_SIZE;
+            rawSpectrum[k] = magnitude > 0 ? 20 * Math.log10(magnitude) : -100;
+          }
+        }
+
+        // ========== 轉換為強度值 (0-255) ==========
+        // 將分貝值正規化為可視化的 0-255 強度值
+        const spectrum = new Float32Array(analyser.frequencyBinCount);
+
+        // 定義 dB 範圍用於正規化
+        // -100 dB 映射到 0（黑色），0 dB 映射到 255（白色）
+        const DB_MIN = -100;
+        const DB_MAX = 0;
+        const INTENSITY_MIN = 0;
+        const INTENSITY_MAX = 255;
+
+        for (let i = 0; i < rawSpectrum.length; i++) {
+          // 處理 -Infinity 值（無效頻率），設為最小值
+          const dbValue = Math.max(rawSpectrum[i], DB_MIN);
+
+          // 正規化到 0-1 範圍
+          const normalized = (dbValue - DB_MIN) / (DB_MAX - DB_MIN);
+
+          // 縮放到 0-255 強度範圍
+          spectrum[i] = normalized * INTENSITY_MAX;
+        }
+
+        // 添加該幀的頻譜到 2D 陣列
+        data.push(spectrum);
+
+        // ========== 進度報告 ==========
+        const progress = (frameIndex + 1) / totalFrames;
+        onProgress(progress);
+
+        // ========== UI 響應性保證 ==========
+        // 每 10 幀讓出一次控制權，保持 UI 響應性
+        if (frameIndex % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+
+      // ========== 構建返回結果 ==========
+      return {
+        data: data,                           // 2D 強度矩陣 [時間幀][頻率 bin]
+        width: data.length,                   // 時間幀數（列數）
+        height: data.length > 0 ? data[0].length : 0,  // 頻率 bin 數（行數）
+        timeStep: timeStep,                   // 時間解析度（秒/幀）= HOP_SIZE / sampleRate
+        frequencyRange: [0, nyquistFrequency] // 頻率範圍 [0, Nyquist]
+      };
+    } catch (error) {
+      console.error('頻譜圖生成出現錯誤:', error);
+      // 返回空頻譜圖而不是拋出錯誤，允許分析繼續進行
+      return {
+        data: [],
+        width: 0,
+        height: 0,
+        timeStep: 0,
+        frequencyRange: [0, audioBuffer.sampleRate / 2]
+      };
     }
   }
 }
