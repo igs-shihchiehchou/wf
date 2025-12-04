@@ -82,6 +82,144 @@ class GraphEngine {
         return node;
     }
 
+    // ========== 複製貼上 ==========
+
+    /**
+     * 複製選取的節點
+     * @returns {Object|null} 剪貼簿資料，格式與存檔相同
+     */
+    copySelectedNodes() {
+        const selectedIds = this.canvas.selectedNodes;
+        if (selectedIds.size === 0) {
+            return null;
+        }
+
+        const nodes = [];
+        const links = [];
+
+        // 收集選取的節點資料
+        selectedIds.forEach(nodeId => {
+            const node = this.canvas.nodes.get(nodeId);
+            if (node) {
+                nodes.push(node.toJSON());
+            }
+        });
+
+        // 收集選取節點之間的連線
+        this.canvas.links.forEach(link => {
+            if (selectedIds.has(link.sourceNodeId) && selectedIds.has(link.targetNodeId)) {
+                links.push({
+                    sourceNodeId: link.sourceNodeId,
+                    sourcePortName: link.sourcePort.name,
+                    targetNodeId: link.targetNodeId,
+                    targetPortName: link.targetPort.name
+                });
+            }
+        });
+
+        showToast(`已複製 ${nodes.length} 個節點`, 'success');
+
+        // 格式與存檔相同，方便互通
+        return {
+            transform: null,  // 複製時不包含視圖變換
+            nodes,
+            links
+        };
+    }
+
+    /**
+     * 貼上節點（也可用於從檔案載入後貼上）
+     * @param {Object} data 剪貼簿資料或檔案資料
+     * @param {number} offsetX X 偏移量（預設 50，設為 0 可保持原位置）
+     * @param {number} offsetY Y 偏移量（預設 50，設為 0 可保持原位置）
+     */
+    pasteNodes(data, offsetX = 50, offsetY = 50) {
+        if (!data || !data.nodes || data.nodes.length === 0) {
+            return;
+        }
+
+        // 清除目前選取
+        this.canvas.clearSelection();
+
+        // 建立 ID 對照表（舊 ID -> 新 ID）
+        const idMap = new Map();
+        const newNodes = [];
+
+        // 建立新節點
+        for (const nodeData of data.nodes) {
+            const newNode = this.createNode(
+                nodeData.type,
+                nodeData.x + offsetX,
+                nodeData.y + offsetY
+            );
+
+            if (newNode) {
+                idMap.set(nodeData.id, newNode.id);
+                newNodes.push(newNode);
+
+                // 恢復節點資料（排除音訊相關資料，因為無法複製 AudioBuffer）
+                if (nodeData.data) {
+                    const dataToCopy = { ...nodeData.data };
+                    // 不複製 AudioBuffer 相關資料
+                    delete dataToCopy.audioBuffer;
+                    Object.assign(newNode.data, dataToCopy);
+                    newNode.updateContent();
+
+                    // 恢復節點尺寸
+                    if (nodeData.data.width) {
+                        newNode.element.style.width = nodeData.data.width + 'px';
+                    }
+                    if (nodeData.data.height) {
+                        newNode.element.style.minHeight = nodeData.data.height + 'px';
+                    }
+                }
+
+                if (nodeData.collapsed) {
+                    newNode.toggleCollapse();
+                }
+
+                // 選取新建立的節點
+                this.canvas.selectNode(newNode.id);
+            }
+        }
+
+        // 恢復連線
+        for (const linkData of data.links) {
+            const newSourceId = idMap.get(linkData.sourceNodeId);
+            const newTargetId = idMap.get(linkData.targetNodeId);
+
+            if (newSourceId && newTargetId) {
+                const sourceNode = this.canvas.nodes.get(newSourceId);
+                const targetNode = this.canvas.nodes.get(newTargetId);
+
+                if (sourceNode && targetNode) {
+                    const sourcePort = sourceNode.getOutputPort(linkData.sourcePortName);
+                    const targetPort = targetNode.getInputPort(linkData.targetPortName);
+
+                    if (sourcePort && targetPort) {
+                        // 建立連線但不顯示 toast
+                        const id = `link-${++this.linkIdCounter}`;
+                        const link = new GraphLink(id, sourceNode.id, sourcePort, targetNode.id, targetPort);
+
+                        link.onSelect = (link) => {
+                            this.canvas.clearSelection();
+                            this.canvas.selectedLinks.add(link.id);
+                            link.setSelected(true);
+                        };
+
+                        link.onContextMenu = (link, e) => {
+                            this.showLinkContextMenu(link, e);
+                        };
+
+                        this.canvas.addLink(link);
+                    }
+                }
+            }
+        }
+
+        showToast(`已貼上 ${newNodes.length} 個節點`, 'success');
+    }
+
     // ========== 連線管理 ==========
 
     createLink(sourceNode, sourcePort, targetNode, targetPort) {
@@ -165,6 +303,10 @@ class GraphEngine {
             if (targetNode.setAudioBuffer) {
                 targetNode.setAudioBuffer(null);
             }
+            // 清除預覽
+            if (targetNode.clearPreview) {
+                targetNode.clearPreview();
+            }
         }
     }
 
@@ -247,6 +389,11 @@ class GraphEngine {
                     setTimeout(() => link.setActive(false), 500);
                 }
             });
+
+            // 更新節點預覽（如果有預覽功能）
+            if (node.updatePreview) {
+                await node.updatePreview();
+            }
         } finally {
             node.setProcessing(false);
         }
@@ -466,6 +613,14 @@ class GraphEngine {
                 if (nodeData.data) {
                     Object.assign(node.data, nodeData.data);
                     node.updateContent();
+
+                    // 恢復節點尺寸
+                    if (nodeData.data.width) {
+                        node.element.style.width = nodeData.data.width + 'px';
+                    }
+                    if (nodeData.data.height) {
+                        node.element.style.minHeight = nodeData.data.height + 'px';
+                    }
                 }
 
                 if (nodeData.collapsed) {
@@ -501,7 +656,7 @@ class GraphEngine {
         try {
             const json = this.toJSON();
             localStorage.setItem(key, JSON.stringify(json));
-            showToast('已儲存', 'success');
+            showToast('快速儲存完成', 'success');
         } catch (error) {
             console.error('儲存失敗:', error);
             showToast('儲存失敗', 'error');
@@ -514,12 +669,148 @@ class GraphEngine {
             if (data) {
                 const json = JSON.parse(data);
                 this.fromJSON(json);
-                showToast('已載入', 'success');
+                showToast('快速載入完成', 'success');
+            } else {
+                showToast('沒有快速存檔', 'warning');
             }
         } catch (error) {
             console.error('載入失敗:', error);
             showToast('載入失敗', 'error');
         }
+    }
+
+    // 另存新檔（下載 JSON 檔案）
+    saveToFile(filename = 'audio-graph') {
+        try {
+            const json = this.toJSON();
+            const jsonString = JSON.stringify(json, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            // 建立下載連結
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('檔案已下載', 'success');
+        } catch (error) {
+            console.error('另存檔案失敗:', error);
+            showToast('另存檔案失敗', 'error');
+        }
+    }
+
+    // 儲存選擇的節點為檔案
+    saveSelectedToFile(filename = 'workflow-selected') {
+        try {
+            const data = this.copySelectedNodes();
+            if (!data || data.nodes.length === 0) {
+                showToast('請先選擇要儲存的節點', 'warning');
+                return;
+            }
+
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            // 建立下載連結
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast(`已儲存 ${data.nodes.length} 個節點`, 'success');
+        } catch (error) {
+            console.error('儲存選擇工作流失敗:', error);
+            showToast('儲存失敗', 'error');
+        }
+    }
+
+    // 從檔案載入
+    loadFromFile() {
+        return new Promise((resolve, reject) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    reject(new Error('未選擇檔案'));
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const json = JSON.parse(event.target.result);
+                        this.fromJSON(json);
+                        showToast(`已載入: ${file.name}`, 'success');
+                        resolve(json);
+                    } catch (error) {
+                        console.error('解析檔案失敗:', error);
+                        showToast('檔案格式錯誤', 'error');
+                        reject(error);
+                    }
+                };
+
+                reader.onerror = () => {
+                    showToast('讀取檔案失敗', 'error');
+                    reject(new Error('讀取檔案失敗'));
+                };
+
+                reader.readAsText(file);
+            };
+
+            input.click();
+        });
+    }
+
+    // 從檔案加入工作流（不清除現有節點）
+    appendFromFile() {
+        return new Promise((resolve, reject) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    reject(new Error('未選擇檔案'));
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const json = JSON.parse(event.target.result);
+                        // 使用 pasteNodes 來加入節點，不清除現有內容
+                        this.pasteNodes(json, 100, 100);
+                        showToast(`已加入工作流: ${file.name}`, 'success');
+                        resolve(json);
+                    } catch (error) {
+                        console.error('解析檔案失敗:', error);
+                        showToast('檔案格式錯誤', 'error');
+                        reject(error);
+                    }
+                };
+
+                reader.onerror = () => {
+                    showToast('讀取檔案失敗', 'error');
+                    reject(new Error('讀取檔案失敗'));
+                };
+
+                reader.readAsText(file);
+            };
+
+            input.click();
+        });
     }
 }
 

@@ -61,25 +61,28 @@ class BaseNode {
         node.id = this.id;
         node.dataset.type = this.getNodeCategory();
 
+        // 取得第一個 input 和 output port（用於顯示在 header）
+        const inputPort = this.inputPorts[0];
+        const outputPort = this.outputPorts[0];
+
         node.innerHTML = `
       <div class="node-header">
         <div class="node-header-left">
-          <span class="node-color-dot"></span>
+          ${inputPort ? `<div class="node-port input" data-port="${inputPort.name}" data-type="input" data-datatype="${inputPort.dataType}" title="${inputPort.label}"></div>` : ''}
           <span class="node-icon">${this.icon}</span>
           <span class="node-title">${this.title}</span>
         </div>
         <div class="node-header-actions">
           <button class="node-action-btn collapse" title="折疊">▼</button>
           <button class="node-action-btn delete" title="刪除">×</button>
+          ${outputPort ? `<div class="node-port output" data-port="${outputPort.name}" data-type="output" data-datatype="${outputPort.dataType}" title="${outputPort.label}"></div>` : ''}
         </div>
       </div>
       <div class="node-content">
         ${this.renderContent()}
         ${this.renderPreview()}
       </div>
-      <div class="node-ports-section">
-        ${this.renderPorts()}
-      </div>
+      <div class="node-resize-handle" title="拖拉調整大小"></div>
     `;
 
         // 綁定事件
@@ -101,43 +104,6 @@ class BaseNode {
         return '';
     }
 
-    renderPorts() {
-        let html = '<div class="node-ports">';
-
-        // 計算最大行數
-        const maxRows = Math.max(this.inputPorts.length, this.outputPorts.length);
-
-        for (let i = 0; i < maxRows; i++) {
-            const input = this.inputPorts[i];
-            const output = this.outputPorts[i];
-
-            let rowClass = 'node-port-row';
-            if (!input) rowClass += ' output-only';
-            if (!output) rowClass += ' input-only';
-
-            html += `<div class="${rowClass}">`;
-
-            if (input) {
-                html += `
-          <div class="node-port input" data-port="${input.name}" data-type="input" data-datatype="${input.dataType}"></div>
-          <span class="node-port-label input">${input.label}</span>
-        `;
-            }
-
-            if (output) {
-                html += `
-          <span class="node-port-label output">${output.label}</span>
-          <div class="node-port output" data-port="${output.name}" data-type="output" data-datatype="${output.dataType}"></div>
-        `;
-            }
-
-            html += '</div>';
-        }
-
-        html += '</div>';
-        return html;
-    }
-
     // ========== 預覽功能（所有節點共用）==========
 
     renderPreview() {
@@ -145,11 +111,7 @@ class BaseNode {
         if (this.getNodeCategory() === 'input') return '';
 
         return `
-      <div class="node-preview" style="display: none;">
-        <div class="node-preview-header">
-          <span class="node-preview-label">預覽</span>
-          <button class="node-preview-close" data-action="close-preview">×</button>
-        </div>
+      <div class="node-preview">
         <div class="node-waveform" id="preview-waveform-${this.id}"></div>
         <div class="node-playback">
           <button class="node-play-btn" data-action="preview-play">▶</button>
@@ -159,7 +121,6 @@ class BaseNode {
           <button class="node-download-btn" data-action="preview-download" title="下載">⬇</button>
         </div>
       </div>
-      <button class="node-btn node-preview-btn" data-action="show-preview">🎧 預覽結果</button>
     `;
     }
 
@@ -167,18 +128,6 @@ class BaseNode {
         // 使用傳入的 node 或 this.element
         const element = node || this.element;
         if (!element) return;
-
-        // 預覽按鈕
-        const previewBtn = element.querySelector('[data-action="show-preview"]');
-        if (previewBtn) {
-            previewBtn.addEventListener('click', () => this.showPreview());
-        }
-
-        // 關閉預覽
-        const closeBtn = element.querySelector('[data-action="close-preview"]');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => this.hidePreview());
-        }
 
         // 播放按鈕
         const playBtn = element.querySelector('[data-action="preview-play"]');
@@ -193,9 +142,8 @@ class BaseNode {
         }
     }
 
-    async showPreview() {
+    async updatePreview() {
         const previewEl = this.element.querySelector('.node-preview');
-        const previewBtn = this.element.querySelector('.node-preview-btn');
         if (!previewEl) return;
 
         // 標記預覽已開啟
@@ -203,8 +151,6 @@ class BaseNode {
 
         // 執行此節點取得處理後的音訊
         try {
-            this.setProcessing(true);
-
             // 取得輸入資料
             const inputs = await this.getInputData();
             const outputs = await this.process(inputs);
@@ -213,14 +159,10 @@ class BaseNode {
             this.previewBuffer = outputs.audio;
 
             if (!this.previewBuffer) {
-                showToast('沒有音訊可預覽，請先連接輸入', 'warning');
-                this.setProcessing(false);
+                // 沒有音訊時清空波形
+                this.clearPreview();
                 return;
             }
-
-            // 顯示預覽區域
-            previewEl.style.display = 'block';
-            if (previewBtn) previewBtn.style.display = 'none';
 
             // 更新時間顯示
             const totalTimeEl = this.element.querySelector('.preview-total-time');
@@ -231,20 +173,18 @@ class BaseNode {
             // 初始化波形
             await this.initPreviewWaveSurfer();
 
-            this.setProcessing(false);
         } catch (error) {
-            this.setProcessing(false);
-            showToast('預覽失敗: ' + error.message, 'error');
-            console.error('預覽失敗:', error);
+            console.error('預覽更新失敗:', error);
+            this.clearPreview();
         }
     }
 
-    hidePreview() {
-        this.previewVisible = false;
-        const previewEl = this.element.querySelector('.node-preview');
-        const previewBtn = this.element.querySelector('.node-preview-btn');
-        if (previewEl) previewEl.style.display = 'none';
-        if (previewBtn) previewBtn.style.display = 'block';
+    clearPreview() {
+        // 重置時間顯示
+        const currentTimeEl = this.element.querySelector('.preview-current-time');
+        const totalTimeEl = this.element.querySelector('.preview-total-time');
+        if (currentTimeEl) currentTimeEl.textContent = '00:00';
+        if (totalTimeEl) totalTimeEl.textContent = '00:00';
 
         // 銷毀 wavesurfer
         if (this.previewWavesurfer) {
@@ -253,6 +193,8 @@ class BaseNode {
             } catch (e) { }
             this.previewWavesurfer = null;
         }
+
+        this.previewBuffer = null;
     }
 
     async initPreviewWaveSurfer() {
@@ -349,8 +291,6 @@ class BaseNode {
 
     // 當節點資料變更時呼叫，自動更新預覽
     schedulePreviewUpdate() {
-        if (!this.previewVisible) return;
-
         // 防抖動：清除之前的計時器
         if (this.previewUpdateTimer) {
             clearTimeout(this.previewUpdateTimer);
@@ -358,35 +298,8 @@ class BaseNode {
 
         // 延遲 300ms 後更新
         this.previewUpdateTimer = setTimeout(() => {
-            this.refreshPreview();
+            this.updatePreview();
         }, 300);
-    }
-
-    // 重新整理預覽（不隱藏再顯示）
-    async refreshPreview() {
-        if (!this.previewVisible) return;
-
-        try {
-            // 取得輸入資料
-            const inputs = await this.getInputData();
-            const outputs = await this.process(inputs);
-
-            // 取得輸出的音訊
-            this.previewBuffer = outputs.audio;
-
-            if (!this.previewBuffer) return;
-
-            // 更新時間顯示
-            const totalTimeEl = this.element.querySelector('.preview-total-time');
-            if (totalTimeEl) {
-                totalTimeEl.textContent = formatTime(this.previewBuffer.duration);
-            }
-
-            // 重新載入波形
-            await this.initPreviewWaveSurfer();
-        } catch (error) {
-            console.error('預覽更新失敗:', error);
-        }
     }
 
     bindEvents(node) {
@@ -425,6 +338,68 @@ class BaseNode {
                 });
             }
         });
+
+        // 調整大小事件
+        const resizeHandle = node.querySelector('.node-resize-handle');
+        if (resizeHandle) {
+            this.bindResizeEvents(resizeHandle);
+        }
+    }
+
+    // ========== 調整大小 ==========
+
+    bindResizeEvents(handle) {
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight;
+
+        const onMouseDown = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = this.element.offsetWidth;
+            startHeight = this.element.offsetHeight;
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+
+            this.element.classList.add('resizing');
+        };
+
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            // 計算新尺寸（考慮縮放比例）
+            const scale = this.element.closest('.canvas-viewport')?.style.transform.match(/scale\((\d+\.?\d*)\)/)?.[1] || 1;
+            const newWidth = Math.max(180, startWidth + dx / parseFloat(scale));
+            const newHeight = Math.max(100, startHeight + dy / parseFloat(scale));
+
+            this.element.style.width = newWidth + 'px';
+            this.element.style.minHeight = newHeight + 'px';
+
+            // 儲存尺寸
+            this.data.width = newWidth;
+            this.data.height = newHeight;
+
+            // 觸發連線更新（如果有回調）
+            if (this.onResize) {
+                this.onResize();
+            }
+        };
+
+        const onMouseUp = () => {
+            isResizing = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            this.element.classList.remove('resizing');
+        };
+
+        handle.addEventListener('mousedown', onMouseDown);
     }
 
     // ========== 端口管理 ==========
@@ -535,8 +510,9 @@ class BaseNode {
 
     updateContent() {
         const contentEl = this.element.querySelector('.node-content');
-        contentEl.innerHTML = this.renderContent();
+        contentEl.innerHTML = this.renderContent() + this.renderPreview();
         this.bindContentEvents();
+        this.bindPreviewEvents();
     }
 
     bindContentEvents() {
