@@ -1016,6 +1016,381 @@ class AudioAnalyzer {
   }
 }
 
+/**
+ * 頻譜圖畫布渲染器 (Spectrogram Canvas Renderer)
+ *
+ * 將頻譜圖數據可視化為熱力圖，支持對數頻率軸標籤和線性時間軸標籤。
+ * 使用像素級渲染實現高效的大型頻譜圖繪製。
+ *
+ * 使用方法：
+ * ```javascript
+ * const renderer = new SpectrogramRenderer(canvas);
+ * renderer.render(spectrogramData, { canvasWidth: 300 });
+ * ```
+ */
+class SpectrogramRenderer {
+  /**
+   * 建立頻譜圖渲染器
+   * @param {HTMLCanvasElement} [canvas] - 目標 canvas 元素（如未提供會建立新的）
+   */
+  constructor(canvas) {
+    // 如果未提供 canvas，建立新的
+    if (canvas) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+    } else {
+      this.canvas = document.createElement('canvas');
+      this.ctx = this.canvas.getContext('2d');
+    }
+
+    // 渲染參數
+    this.spectrogramData = null;
+    this.canvasWidth = 300;       // 預設寬度（像素）
+    this.canvasHeight = 256;       // 預設高度（像素）
+    this.marginLeft = 50;          // 左邊距（用於頻率軸標籤）
+    this.marginBottom = 40;        // 下邊距（用於時間軸標籤）
+    this.marginTop = 20;           // 上邊距
+    this.marginRight = 10;         // 右邊距
+  }
+
+  /**
+   * 強度值轉換為熱力圖顏色 (RGBA)
+   *
+   * 熱力圖配色：黑色 → 藍色 → 綠色 → 黃色 → 紅色
+   * - 0 (黑色): rgb(0, 0, 0)
+   * - 64 (藍色): rgb(0, 0, 255)
+   * - 128 (綠色): rgb(0, 255, 0)
+   * - 192 (黃色): rgb(255, 255, 0)
+   * - 255 (紅色): rgb(255, 0, 0)
+   *
+   * @param {number} intensity - 強度值（0-255）
+   * @returns {string} CSS RGBA 顏色字符串
+   * @private
+   */
+  intensityToColor(intensity) {
+    // 確保強度值在 0-255 範圍內
+    intensity = Math.max(0, Math.min(255, intensity));
+
+    let r = 0, g = 0, b = 0;
+
+    if (intensity <= 64) {
+      // 黑色 (0) → 藍色 (64)
+      // [0, 0, 0] → [0, 0, 255]
+      const ratio = intensity / 64;
+      b = Math.round(255 * ratio);
+    } else if (intensity <= 128) {
+      // 藍色 (64) → 綠色 (128)
+      // [0, 0, 255] → [0, 255, 0]
+      const ratio = (intensity - 64) / 64;
+      b = Math.round(255 * (1 - ratio));
+      g = Math.round(255 * ratio);
+    } else if (intensity <= 192) {
+      // 綠色 (128) → 黃色 (192)
+      // [0, 255, 0] → [255, 255, 0]
+      const ratio = (intensity - 128) / 64;
+      g = 255;
+      r = Math.round(255 * ratio);
+    } else {
+      // 黃色 (192) → 紅色 (255)
+      // [255, 255, 0] → [255, 0, 0]
+      const ratio = (intensity - 192) / 63;
+      r = 255;
+      g = Math.round(255 * (1 - ratio));
+    }
+
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  /**
+   * 計算對數頻率軸上的像素位置
+   *
+   * 使用對數刻度使低頻更明顯（更易於人耳感知）
+   * 公式：logFreq = log(frequency) / log(nyquistFrequency)
+   *
+   * @param {number} frequency - 頻率（Hz）
+   * @param {number} maxFrequency - 最大頻率（Nyquist 頻率）
+   * @param {number} width - 軸寬度（像素）
+   * @returns {number} 像素位置（0-width）
+   * @private
+   */
+  frequencyToLogPixel(frequency, maxFrequency, width) {
+    if (frequency <= 0) return 0;
+
+    // 對數刻度：log10(frequency) / log10(maxFrequency)
+    const logFreq = Math.log10(frequency) / Math.log10(maxFrequency);
+    return Math.max(0, Math.min(width, logFreq * width));
+  }
+
+  /**
+   * 渲染頻譜圖到 canvas
+   *
+   * 渲染步驟：
+   * 1. 配置 canvas 大小
+   * 2. 繪製頻譜圖像素數據
+   * 3. 繪製頻率軸（對數刻度）
+   * 4. 繪製時間軸
+   * 5. 繪製軸標籤
+   *
+   * @param {Object} spectrogramData - 頻譜圖數據（來自 generateSpectrogram）
+   *                                   格式：{ data: Float32Array[][], width, height, timeStep, frequencyRange }
+   * @param {Object} [options] - 選項物件
+   * @param {number} [options.canvasWidth=300] - Canvas 寬度（像素）
+   * @param {number} [options.canvasHeight=256] - Canvas 高度（像素）
+   * @public
+   */
+  render(spectrogramData, options = {}) {
+    // 設置參數
+    this.spectrogramData = spectrogramData;
+    this.canvasWidth = options.canvasWidth || 300;
+    this.canvasHeight = options.canvasHeight || 256;
+
+    // 邊界檢查
+    if (!spectrogramData || !spectrogramData.data || spectrogramData.data.length === 0) {
+      console.warn('SpectrogramRenderer: 無效的頻譜圖數據');
+      return;
+    }
+
+    const { data, width: specWidth, height: specHeight, timeStep, frequencyRange } = spectrogramData;
+
+    // 配置 canvas 實際大小（考慮邊距）
+    const totalWidth = this.canvasWidth + this.marginLeft + this.marginRight;
+    const totalHeight = this.canvasHeight + this.marginTop + this.marginBottom;
+    this.canvas.width = totalWidth;
+    this.canvas.height = totalHeight;
+
+    // 設置高 DPI 支援（確保清晰渲染）
+    const dpiScale = window.devicePixelRatio || 1;
+    if (dpiScale > 1) {
+      this.canvas.width = totalWidth * dpiScale;
+      this.canvas.height = totalHeight * dpiScale;
+      this.ctx.scale(dpiScale, dpiScale);
+    }
+
+    // 清空 canvas（白色背景）
+    this.ctx.fillStyle = 'white';
+    this.ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+    // ========== 步驟 1: 繪製頻譜圖像素 ==========
+    this.renderSpectrogramPixels(data, specWidth, specHeight);
+
+    // ========== 步驟 2: 繪製軸線 ==========
+    this.renderAxes();
+
+    // ========== 步驟 3: 繪製頻率軸標籤（對數刻度） ==========
+    this.renderFrequencyAxis(frequencyRange[1]);
+
+    // ========== 步驟 4: 繪製時間軸標籤 ==========
+    this.renderTimeAxis(specWidth, timeStep);
+  }
+
+  /**
+   * 繪製頻譜圖像素到 canvas
+   *
+   * 使用 ImageData API 進行高效的像素級渲染：
+   * 1. 建立 ImageData 物件以存儲像素數據
+   * 2. 遍歷頻譜圖的每個像素
+   * 3. 轉換強度值為 RGBA 顏色
+   * 4. 將 ImageData 寫回 canvas
+   *
+   * @param {Float32Array[]} data - 2D 頻譜圖強度數據 [時間][頻率]
+   * @param {number} specWidth - 頻譜圖寬度（時間幀數）
+   * @param {number} specHeight - 頻譜圖高度（頻率 bin 數）
+   * @private
+   */
+  renderSpectrogramPixels(data, specWidth, specHeight) {
+    // 計算縮放比例（頻譜圖數據到 canvas 像素的映射）
+    const scaleX = this.canvasWidth / specWidth;
+    const scaleY = this.canvasHeight / specHeight;
+
+    // 建立 ImageData 物件（RGBA 格式）
+    const imageData = this.ctx.createImageData(this.canvasWidth, this.canvasHeight);
+    const pixelData = imageData.data;
+
+    // ========== 高效的像素填充 ==========
+    // 遍歷 canvas 的每個像素
+    for (let canvasY = 0; canvasY < this.canvasHeight; canvasY++) {
+      for (let canvasX = 0; canvasX < this.canvasWidth; canvasX++) {
+        // 將 canvas 像素映射回頻譜圖數據坐標
+        // 注意：頻譜圖 Y 軸倒轉（0 = 高頻，height = 低頻）
+        const specX = Math.floor(canvasX / scaleX);
+        const specY = Math.floor(canvasY / scaleY);
+
+        // 邊界檢查
+        const x = Math.min(specX, specWidth - 1);
+        const y = Math.min(specY, specHeight - 1);
+
+        // 取得強度值
+        let intensity = 0;
+        if (data[x] && data[x][specHeight - 1 - y] !== undefined) {
+          intensity = data[x][specHeight - 1 - y];
+        }
+
+        // 將強度值轉換為 RGBA
+        const color = this.intensityToColor(intensity);
+        const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (match) {
+          const r = parseInt(match[1]);
+          const g = parseInt(match[2]);
+          const b = parseInt(match[3]);
+
+          // 寫入像素數據（RGBA）
+          const pixelIndex = (canvasY * this.canvasWidth + canvasX) * 4;
+          pixelData[pixelIndex] = r;        // R
+          pixelData[pixelIndex + 1] = g;    // G
+          pixelData[pixelIndex + 2] = b;    // B
+          pixelData[pixelIndex + 3] = 255;  // A（完全不透明）
+        }
+      }
+    }
+
+    // 將 ImageData 寫回 canvas
+    this.ctx.putImageData(imageData, this.marginLeft, this.marginTop);
+  }
+
+  /**
+   * 繪製坐標軸線
+   * @private
+   */
+  renderAxes() {
+    const x = this.marginLeft;
+    const y = this.marginTop;
+    const w = this.canvasWidth;
+    const h = this.canvasHeight;
+
+    this.ctx.strokeStyle = '#333';
+    this.ctx.lineWidth = 2;
+
+    // Y 軸（頻率軸）
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+    this.ctx.lineTo(x, y + h);
+    this.ctx.stroke();
+
+    // X 軸（時間軸）
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y + h);
+    this.ctx.lineTo(x + w, y + h);
+    this.ctx.stroke();
+  }
+
+  /**
+   * 繪製頻率軸標籤（對數刻度）
+   *
+   * 標籤位置：100Hz, 500Hz, 1kHz, 5kHz, 10kHz, 20kHz
+   * 使用對數刻度使低頻更明顯，與人耳感知相符。
+   *
+   * @param {number} maxFrequency - 最大頻率（Nyquist 頻率）
+   * @private
+   */
+  renderFrequencyAxis(maxFrequency) {
+    // 定義標籤頻率
+    const frequencyLabels = [100, 500, 1000, 5000, 10000, 20000];
+
+    // 篩選超出範圍的標籤
+    const validLabels = frequencyLabels.filter(f => f <= maxFrequency);
+
+    this.ctx.fillStyle = '#333';
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'right';
+    this.ctx.textBaseline = 'middle';
+
+    // 繪製每個標籤
+    for (const freq of validLabels) {
+      // 計算在對數刻度上的像素位置
+      const pixelY = this.frequencyToLogPixel(freq, maxFrequency, this.canvasHeight);
+      const yPos = this.marginTop + this.canvasHeight - pixelY;
+
+      // 繪製刻度線
+      this.ctx.strokeStyle = '#ccc';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.marginLeft - 5, yPos);
+      this.ctx.lineTo(this.marginLeft, yPos);
+      this.ctx.stroke();
+
+      // 繪製文字標籤
+      const label = freq >= 1000 ? `${(freq / 1000).toFixed(0)}k` : `${freq}`;
+      this.ctx.fillText(label, this.marginLeft - 10, yPos);
+    }
+
+    // 繪製軸標籤 "頻率 (Hz)"
+    this.ctx.save();
+    this.ctx.translate(15, this.marginTop + this.canvasHeight / 2);
+    this.ctx.rotate(-Math.PI / 2);
+    this.ctx.textAlign = 'center';
+    this.ctx.fillStyle = '#333';
+    this.ctx.font = 'bold 12px Arial';
+    this.ctx.fillText('頻率 (Hz)', 0, 0);
+    this.ctx.restore();
+  }
+
+  /**
+   * 繪製時間軸標籤
+   *
+   * 標籤以固定時間間隔顯示（自動計算合適的間隔）
+   * 間隔選擇：0.1s, 0.5s, 1s, 2s, 5s, 10s 等
+   *
+   * @param {number} specWidth - 頻譜圖寬度（時間幀數）
+   * @param {number} timeStep - 時間解析度（秒/幀）
+   * @private
+   */
+  renderTimeAxis(specWidth, timeStep) {
+    // 計算總時長（秒）
+    const totalTime = specWidth * timeStep;
+
+    // 自動選擇合適的時間間隔標籤
+    let timeInterval = 0.1;  // 預設 0.1 秒
+    if (totalTime > 20) timeInterval = 5;
+    else if (totalTime > 10) timeInterval = 2;
+    else if (totalTime > 5) timeInterval = 1;
+    else if (totalTime > 2) timeInterval = 0.5;
+
+    // 計算應該顯示多少個標籤
+    const numLabels = Math.ceil(totalTime / timeInterval);
+
+    this.ctx.fillStyle = '#333';
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'top';
+
+    // 繪製時間標籤
+    for (let i = 0; i <= numLabels; i++) {
+      const time = i * timeInterval;
+
+      // 轉換時間為幀索引
+      const frameIndex = time / timeStep;
+
+      // 轉換幀索引為 canvas 像素位置
+      const pixelX = (frameIndex / specWidth) * this.canvasWidth;
+      const xPos = this.marginLeft + pixelX;
+
+      // 邊界檢查
+      if (xPos < this.marginLeft || xPos > this.marginLeft + this.canvasWidth) {
+        continue;
+      }
+
+      // 繪製刻度線
+      this.ctx.strokeStyle = '#ccc';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(xPos, this.marginTop + this.canvasHeight);
+      this.ctx.lineTo(xPos, this.marginTop + this.canvasHeight + 5);
+      this.ctx.stroke();
+
+      // 繪製文字標籤
+      const label = time.toFixed(1) + 's';
+      this.ctx.fillText(label, xPos, this.marginTop + this.canvasHeight + 10);
+    }
+
+    // 繪製軸標籤 "時間"
+    this.ctx.fillStyle = '#333';
+    this.ctx.font = 'bold 12px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('時間 (秒)', this.marginLeft + this.canvasWidth / 2, this.marginTop + this.canvasHeight + 30);
+  }
+}
+
 // 建立全域實例
 // 使用 audioProcessor 的 audioContext（已在 audioProcessor.js 中初始化）
 window.audioAnalyzer = new AudioAnalyzer(audioProcessor.audioContext);
+window.SpectrogramRenderer = SpectrogramRenderer;
