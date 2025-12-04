@@ -16,7 +16,8 @@ class GraphEngine {
             'fade-in': FadeInNode,
             'fade-out': FadeOutNode,
             'speed': SpeedNode,
-            'pitch': PitchNode
+            'pitch': PitchNode,
+            'smart-pitch': SmartPitchNode
         };
 
         // 綁定畫布事件
@@ -496,7 +497,11 @@ class GraphEngine {
       </div>
       <div class="context-menu-item" data-action="add-pitch">
         <span class="context-menu-icon">🎵</span>
-        <span>新增音高調整 (Pitch)</span>
+        <span>新增音高調整</span>
+      </div>
+      <div class="context-menu-item" data-action="add-smart-pitch">
+        <span class="context-menu-icon">🎼</span>
+        <span>新增智慧音高調整</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="fit-view">
@@ -571,7 +576,8 @@ class GraphEngine {
             'add-fade-in': 'fade-in',
             'add-fade-out': 'fade-out',
             'add-speed': 'speed',
-            'add-pitch': 'pitch'
+            'add-pitch': 'pitch',
+            'add-smart-pitch': 'smart-pitch'
         };
 
         if (nodeTypeMap[action]) {
