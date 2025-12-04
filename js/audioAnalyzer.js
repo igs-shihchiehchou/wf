@@ -316,18 +316,153 @@ class AudioAnalyzer {
 
       onProgress(1);
 
+      // 步驟 6: 計算主頻率和頻譜重心 (Task 2.3)
+      // 使用 rawSpectrum 計算主頻率（能量最強的頻率）和頻譜重心（平均頻率位置）
+      const dominantFrequency = this.findDominantFrequency(rawSpectrum, sampleRate);
+      const spectralCentroid = this.calculateSpectralCentroid(rawSpectrum, sampleRate);
+
       // 返回分析結果
       // rawSpectrum 會被後續任務（主頻率、頻譜重心）使用
       return {
         spectrum: frequencyBands,   // 由 Task 2.2 計算的頻率帶能量分布
-        dominantFrequency: 0,       // 待 Task 2.3 實作
-        spectralCentroid: 0,        // 待 Task 2.3 實作
+        dominantFrequency: dominantFrequency,  // 由 Task 2.3 計算的主頻率
+        spectralCentroid: spectralCentroid,    // 由 Task 2.3 計算的頻譜重心
         rawSpectrum: rawSpectrum    // 原始 FFT 頻譜資料供後續任務使用
       };
     } catch (error) {
       console.error('頻譜分析出現錯誤:', error);
       throw error;
     }
+  }
+
+  /**
+   * 查找主頻率（能量最強的頻率）
+   *
+   * 主頻率是頻譜中能量最強的頻率分量，代表聲音最突出的頻率特徵。
+   * 對遊戲音效分類很有用：
+   * - 低頻爆炸音：主頻率通常在 50-200 Hz
+   * - 中頻人聲/踏步：主頻率通常在 200-2000 Hz
+   * - 高頻金屬碰撞：主頻率通常在 4000-10000 Hz
+   *
+   * 計算方法：
+   * 1. 遍歷整個頻譜，找出最大能量的 bin
+   * 2. 使用公式轉換 bin 索引為頻率：frequency = binIndex * (sampleRate / 2) / spectrumLength
+   *
+   * @param {Float32Array} rawSpectrum - FFT 原始頻譜資料（分貝值，範圍 -Infinity 到 0）
+   * @param {number} sampleRate - 音訊採樣率 (Hz)
+   * @returns {number} 主頻率（Hz），範圍 0 到 Nyquist 頻率（sampleRate/2）
+   *
+   * @example
+   * const dominantFreq = this.findDominantFrequency(rawSpectrum, 44100);
+   * // 返回: 440 (假設 440Hz 音符是最強的)
+   *
+   * @private
+   */
+  findDominantFrequency(rawSpectrum, sampleRate) {
+    // 邊界檢查：空頻譜或長度無效
+    if (!rawSpectrum || rawSpectrum.length === 0) {
+      return 0;
+    }
+
+    // 遍歷頻譜找出最大能量的 bin
+    let maxMagnitude = -Infinity;  // 初始化為負無窮（因為 dB 值最高為 0）
+    let maxBinIndex = 0;
+
+    for (let i = 0; i < rawSpectrum.length; i++) {
+      const dbValue = rawSpectrum[i];
+
+      // 忽略無效值（-Infinity），取有效的最大值
+      if (dbValue > -Infinity && dbValue > maxMagnitude) {
+        maxMagnitude = dbValue;
+        maxBinIndex = i;
+      }
+    }
+
+    // 邊界檢查：所有值都是 -Infinity（無聲或無效數據）
+    if (maxMagnitude === -Infinity) {
+      return 0;
+    }
+
+    // 將 bin 索引轉換為頻率 (Hz)
+    // Nyquist 頻率 = sampleRate / 2
+    // 頻率解析度 = Nyquist 頻率 / bin 數量
+    // frequency = binIndex * 頻率解析度
+    const nyquistFrequency = sampleRate / 2;
+    const frequencyPerBin = nyquistFrequency / rawSpectrum.length;
+    const dominantFrequency = maxBinIndex * frequencyPerBin;
+
+    return dominantFrequency;
+  }
+
+  /**
+   * 計算頻譜重心（頻率的加權平均）
+   *
+   * 頻譜重心是頻譜的加權平均頻率，代表聲音的整體「亮度」或「音色重心」。
+   * 它用於描述聲音在頻率軸上的分布位置：
+   * - 低頻重心（< 1000 Hz）：音色較暗，溫暖（如貝斯、低沈鼓聲）
+   * - 中頻重心（1000-5000 Hz）：音色清晰，平衡（如人聲、主要樂器）
+   * - 高頻重心（> 5000 Hz）：音色明亮，銳利（如高音樂器、金屬音）
+   *
+   * 計算公式：
+   * centroid = Σ(frequency[i] * magnitude[i]) / Σ(magnitude[i])
+   *
+   * 由於 rawSpectrum 包含分貝值，需先轉換為線性能量：
+   * linearMagnitude = 10^(dB/20)
+   *
+   * @param {Float32Array} rawSpectrum - FFT 原始頻譜資料（分貝值，範圍 -Infinity 到 0）
+   * @param {number} sampleRate - 音訊採樣率 (Hz)
+   * @returns {number} 頻譜重心（Hz），範圍 0 到 Nyquist 頻率（sampleRate/2）
+   *
+   * @example
+   * const centroid = this.calculateSpectralCentroid(rawSpectrum, 44100);
+   * // 返回: 2500 (頻譜重心位於 2500Hz)
+   *
+   * @private
+   */
+  calculateSpectralCentroid(rawSpectrum, sampleRate) {
+    // 邊界檢查：空頻譜或長度無效
+    if (!rawSpectrum || rawSpectrum.length === 0) {
+      return 0;
+    }
+
+    // 計算頻率解析度
+    const nyquistFrequency = sampleRate / 2;
+    const frequencyPerBin = nyquistFrequency / rawSpectrum.length;
+
+    // 累加加權頻率和總能量
+    let weightedFrequencySum = 0;  // Σ(frequency[i] * magnitude[i])
+    let totalMagnitude = 0;        // Σ(magnitude[i])
+
+    for (let i = 0; i < rawSpectrum.length; i++) {
+      const dbValue = rawSpectrum[i];
+
+      // 只處理有效的 dB 值（不是 -Infinity）
+      if (dbValue > -Infinity) {
+        // 將分貝值轉換為線性能量
+        // 分貝公式：dB = 20 * log10(linear)
+        // 反轉得：linear = 10^(dB/20)
+        const linearMagnitude = Math.pow(10, dbValue / 20);
+
+        // 計算該 bin 對應的頻率
+        const frequency = i * frequencyPerBin;
+
+        // 累加加權頻率
+        weightedFrequencySum += frequency * linearMagnitude;
+
+        // 累加總能量
+        totalMagnitude += linearMagnitude;
+      }
+    }
+
+    // 邊界檢查：無有效能量（無聲或無效數據）
+    if (totalMagnitude === 0 || totalMagnitude < 1e-10) {
+      return 0;
+    }
+
+    // 計算頻譜重心：加權平均 = 總加權頻率 / 總能量
+    const spectralCentroid = weightedFrequencySum / totalMagnitude;
+
+    return spectralCentroid;
   }
 
   /**
