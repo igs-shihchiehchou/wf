@@ -44,14 +44,17 @@ This project has no build process, package manager, or test framework. All depen
 js/
 ├── utils.js              # Utility functions (formatTime, generateId, showToast, audioBufferToWav)
 ├── audioProcessor.js     # Audio processing engine (singleton: audioProcessor)
+├── audioAnalyzer.js      # Audio analysis engine (basic info, frequency, pitch, spectrogram)
 ├── canvas.js             # Graph canvas for node rendering and interaction
 ├── link.js               # Connection links between nodes
 ├── graphEngine.js        # Manages node connections and data flow execution
 ├── nodePanel.js          # Left sidebar panel for dragging nodes
 ├── app.js                # Main application controller
+├── components/
+│   └── ProgressBar.js    # Progress bar component for analysis
 └── nodes/
     ├── BaseNode.js       # Base class for all nodes
-    ├── AudioInputNode.js # Audio file input node
+    ├── AudioInputNode.js # Audio file input node with automatic analysis
     └── ProcessNodes.js   # Processing nodes (Volume, Crop, FadeIn, FadeOut, Speed, Pitch)
 ```
 
@@ -90,6 +93,29 @@ AudioInputNode → [ProcessNode] → [ProcessNode] → ... → Preview/Download
 - `applyFadeIn()` / `applyFadeOut()` - Linear fade effects
 - `changePlaybackRate()` - Simple resampling (changes pitch)
 - `changePitch()` - Phase Vocoder algorithm (preserves duration)
+
+**Audio Analysis Engine (audioAnalyzer.js):**
+- `analyzeBasicInfo()` - Extract duration, sample rate, channels
+- `analyzeFrequency()` - FFT-based frequency spectrum analysis
+  - Frequency band distribution (low/mid/high)
+  - Dominant frequency detection
+  - Spectral centroid calculation
+- `analyzePitch()` - YIN algorithm for pitch detection
+  - Sliding window analysis (100ms windows, 50ms hop)
+  - Pitch curve generation over time
+  - Average pitch and range calculation
+  - Pitched vs. noise classification
+- `generateSpectrogram()` - STFT-based spectrogram generation
+  - Time-frequency heat map visualization
+  - Interactive canvas rendering with mouse hover
+- **Caching System:**
+  - SHA-256 hash-based audio fingerprinting
+  - localStorage caching (7-day expiration, max 10 entries)
+  - Automatic cache management and cleanup
+- **Performance Optimizations:**
+  - Async processing with `setTimeout(0)` for UI responsiveness
+  - Progress reporting during long analyses
+  - Chunked processing for large files
 
 **Graph Engine (graphEngine.js):**
 - Manages node creation and deletion
@@ -178,6 +204,10 @@ Dark theme with warm yellow/beige tones defined in `css/theme.css`:
 - No undo/redo functionality
 - Export format is WAV only (no MP3 encoding)
 - Phase Vocoder pitch shift has some audio artifacts
+- Audio analysis:
+  - YIN pitch detection optimized for 80-1000 Hz range (game audio focus)
+  - Spectrogram generation uses first 10 seconds for hash-based caching
+  - Analysis cache limited to 10 most recent files (localStorage constraint)
 
 ## Git Commit Convention
 

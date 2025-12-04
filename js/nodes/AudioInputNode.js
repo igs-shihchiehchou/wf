@@ -353,6 +353,9 @@ class AudioInputNode extends BaseNode {
             // 記錄分析完成
             console.log('音訊分析完成:', this.analysisResult);
 
+            // 顯示分析結果面板
+            this.showAnalysisResult();
+
             // 顯示分析完成提示（可選，取決於設計需求）
             // showToast('音訊分析完成', 'success');
 
@@ -371,6 +374,360 @@ class AudioInputNode extends BaseNode {
 
             // 注意：不重新拋出錯誤，允許整體流程繼續進行
             // 這確保了分析失敗不會影響音訊文件的加載和波形顯示
+        }
+    }
+
+    /**
+     * 顯示音訊分析結果面板
+     *
+     * 在節點內容區域中創建並顯示分析結果，包括：
+     * 1. 基本資訊區（duration, sample rate, channels）
+     * 2. 頻譜分析區（low/mid/high 頻率分布，dominant frequency）
+     * 3. 音高分析區（average pitch, range, isPitched 標記）
+     *
+     * 所有區塊都支持展開/收合功能
+     *
+     * @private
+     */
+    showAnalysisResult() {
+        // 檢查分析結果是否存在
+        if (!this.analysisResult) {
+            console.warn('沒有可用的分析結果');
+            return;
+        }
+
+        // 獲取節點內容容器
+        const contentArea = this.element.querySelector('.node-content-area');
+        if (!contentArea) {
+            console.warn('找不到節點內容區域');
+            return;
+        }
+
+        // 檢查是否已經存在分析面板，如果存在則移除舊的
+        const existingPanel = contentArea.querySelector('.analysis-panel');
+        if (existingPanel) {
+            existingPanel.remove();
+        }
+
+        // 創建分析面板容器
+        const panelDiv = document.createElement('div');
+        panelDiv.className = 'analysis-panel';
+
+        // 構建分析面板 HTML
+        panelDiv.innerHTML = this.buildAnalysisPanelHTML();
+
+        // 將面板插入到節點內容區域（在波形下方）
+        contentArea.appendChild(panelDiv);
+
+        // 綁定展開/收合事件
+        this.bindAnalysisPanelEvents(panelDiv);
+    }
+
+    /**
+     * 從 localStorage 載入收合狀態
+     *
+     * @param {string} sectionName - 區段名稱（basic, frequency, pitch）
+     * @param {boolean} defaultCollapsed - 預設是否收合
+     * @returns {boolean} 是否收合
+     * @private
+     */
+    getSectionCollapseState(sectionName, defaultCollapsed = false) {
+        try {
+            const key = `analysis_${sectionName}_collapsed`;
+            const saved = localStorage.getItem(key);
+            if (saved !== null) {
+                return saved === 'true';
+            }
+            return defaultCollapsed;
+        } catch (error) {
+            console.warn('無法讀取收合狀態:', error);
+            return defaultCollapsed;
+        }
+    }
+
+    /**
+     * 儲存收合狀態到 localStorage
+     *
+     * @param {string} sectionName - 區段名稱（basic, frequency, pitch）
+     * @param {boolean} isCollapsed - 是否收合
+     * @private
+     */
+    saveSectionCollapseState(sectionName, isCollapsed) {
+        try {
+            const key = `analysis_${sectionName}_collapsed`;
+            localStorage.setItem(key, isCollapsed.toString());
+        } catch (error) {
+            console.warn('無法儲存收合狀態:', error);
+        }
+    }
+
+    /**
+     * 構建分析面板 HTML 字串
+     *
+     * @returns {string} 分析面板的 HTML 內容
+     * @private
+     */
+    buildAnalysisPanelHTML() {
+        const { basicInfo, frequency, pitch } = this.analysisResult;
+
+        let html = '';
+
+        // === 1. 基本資訊區 ===
+        if (basicInfo) {
+            const isCollapsed = this.getSectionCollapseState('basic', false);
+            const icon = isCollapsed ? '▶' : '▼';
+            const display = isCollapsed ? 'none' : 'block';
+            const collapsedClass = isCollapsed ? ' analysis-section-collapsed' : '';
+
+            html += `
+        <div class="analysis-section${collapsedClass}" data-section="basic">
+          <div class="analysis-section-header">
+            <span class="analysis-section-icon">${icon}</span>
+            <span class="analysis-section-title">基本資訊</span>
+          </div>
+          <div class="analysis-section-content" style="display: ${display};">
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">時長:</span>
+              <span class="analysis-info-value">${basicInfo.duration}</span>
+            </div>
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">取樣率:</span>
+              <span class="analysis-info-value">${basicInfo.sampleRate}</span>
+            </div>
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">聲道:</span>
+              <span class="analysis-info-value">${basicInfo.channelMode}</span>
+            </div>
+          </div>
+        </div>
+      `;
+        }
+
+        // === 2. 頻譜分析區 ===
+        if (frequency) {
+            // 頻率範圍解讀（用於遊戲音效分析）
+            const dominantFreq = frequency.dominantFrequency;
+            let freqInterpretation = '';
+            if (dominantFreq < 200) {
+                freqInterpretation = '低頻為主（爆炸、隆隆聲）';
+            } else if (dominantFreq < 2000) {
+                freqInterpretation = '中頻為主（人聲、旋律）';
+            } else if (dominantFreq < 6000) {
+                freqInterpretation = '中高頻為主（金屬、碰撞）';
+            } else {
+                freqInterpretation = '高頻為主（尖銳、明亮）';
+            }
+
+            const isCollapsed = this.getSectionCollapseState('frequency', false);
+            const icon = isCollapsed ? '▶' : '▼';
+            const display = isCollapsed ? 'none' : 'block';
+            const collapsedClass = isCollapsed ? ' analysis-section-collapsed' : '';
+
+            html += `
+        <div class="analysis-section${collapsedClass}" data-section="frequency">
+          <div class="analysis-section-header">
+            <span class="analysis-section-icon">${icon}</span>
+            <span class="analysis-section-title">頻譜分析</span>
+          </div>
+          <div class="analysis-section-content" style="display: ${display};">
+            <!-- 頻率分布視覺化 -->
+            <div class="frequency-bars">
+              <div class="frequency-bar">
+                <div class="frequency-bar-label">低頻</div>
+                <div class="frequency-bar-container">
+                  <div class="frequency-bar-fill" style="width: ${(frequency.bands.low * 100).toFixed(1)}%"></div>
+                </div>
+                <div class="frequency-bar-value">${(frequency.bands.low * 100).toFixed(1)}%</div>
+              </div>
+              <div class="frequency-bar">
+                <div class="frequency-bar-label">中頻</div>
+                <div class="frequency-bar-container">
+                  <div class="frequency-bar-fill" style="width: ${(frequency.bands.mid * 100).toFixed(1)}%"></div>
+                </div>
+                <div class="frequency-bar-value">${(frequency.bands.mid * 100).toFixed(1)}%</div>
+              </div>
+              <div class="frequency-bar">
+                <div class="frequency-bar-label">高頻</div>
+                <div class="frequency-bar-container">
+                  <div class="frequency-bar-fill" style="width: ${(frequency.bands.high * 100).toFixed(1)}%"></div>
+                </div>
+                <div class="frequency-bar-value">${(frequency.bands.high * 100).toFixed(1)}%</div>
+              </div>
+            </div>
+
+            <!-- 主要頻率 -->
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">主要頻率:</span>
+              <span class="analysis-info-value">${dominantFreq.toFixed(1)} Hz</span>
+            </div>
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">音色特徵:</span>
+              <span class="analysis-info-value">${freqInterpretation}</span>
+            </div>
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">頻譜重心:</span>
+              <span class="analysis-info-value">${frequency.spectralCentroid.toFixed(1)} Hz</span>
+            </div>
+          </div>
+        </div>
+      `;
+        }
+
+        // === 3. 音高分析區 (默認收合) ===
+        if (pitch) {
+            const pitchedText = pitch.isPitched ? '是（有明確音高）' : '否（噪音或無明確音高）';
+            const avgPitchText = pitch.averagePitch > 0 ? `${pitch.averagePitch.toFixed(1)} Hz` : '無';
+            const pitchRangeText = pitch.pitchRange.min > 0 && pitch.pitchRange.max > 0
+                ? `${pitch.pitchRange.min.toFixed(1)} - ${pitch.pitchRange.max.toFixed(1)} Hz`
+                : '無';
+
+            // 檢查頻譜圖數據是否存在
+            const hasSpectrogram = pitch.spectrogram && pitch.spectrogram.data && pitch.spectrogram.data.length > 0;
+
+            const isCollapsed = this.getSectionCollapseState('pitch', true);  // 預設收合
+            const icon = isCollapsed ? '▶' : '▼';
+            const display = isCollapsed ? 'none' : 'block';
+            const collapsedClass = isCollapsed ? ' analysis-section-collapsed' : '';
+
+            html += `
+        <div class="analysis-section${collapsedClass}" data-section="pitch">
+          <div class="analysis-section-header">
+            <span class="analysis-section-icon">${icon}</span>
+            <span class="analysis-section-title">音高分析</span>
+          </div>
+          <div class="analysis-section-content" style="display: ${display};">
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">是否為音調性聲音:</span>
+              <span class="analysis-info-value">${pitchedText}</span>
+            </div>
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">平均音高:</span>
+              <span class="analysis-info-value">${avgPitchText}</span>
+            </div>
+            <div class="analysis-info-row">
+              <span class="analysis-info-label">音高範圍:</span>
+              <span class="analysis-info-value">${pitchRangeText}</span>
+            </div>
+
+            <!-- 頻譜圖視覺化 -->
+            ${hasSpectrogram ? `
+            <div class="spectrogram-container">
+              <div class="spectrogram-title">頻譜圖</div>
+              <canvas class="spectrogram-canvas" id="spectrogram-${this.id}"></canvas>
+            </div>
+            ` : `
+            <div class="spectrogram-error">
+              <span class="analysis-info-label">頻譜圖:</span>
+              <span class="analysis-info-value">無法生成頻譜圖</span>
+            </div>
+            `}
+          </div>
+        </div>
+      `;
+        }
+
+        return html;
+    }
+
+    /**
+     * 綁定分析面板的展開/收合事件
+     *
+     * @param {HTMLElement} panelDiv - 分析面板容器元素
+     * @private
+     */
+    bindAnalysisPanelEvents(panelDiv) {
+        // 找到所有的區段標題
+        const headers = panelDiv.querySelectorAll('.analysis-section-header');
+
+        headers.forEach(header => {
+            header.addEventListener('click', () => {
+                // 獲取父級 section
+                const section = header.closest('.analysis-section');
+                const content = section.querySelector('.analysis-section-content');
+                const icon = header.querySelector('.analysis-section-icon');
+                const sectionType = section.getAttribute('data-section');
+
+                // 切換展開/收合狀態
+                const isCollapsed = section.classList.toggle('analysis-section-collapsed');
+
+                if (isCollapsed) {
+                    // 收合
+                    content.style.display = 'none';
+                    icon.textContent = '▶';
+                } else {
+                    // 展開
+                    content.style.display = 'block';
+                    icon.textContent = '▼';
+
+                    // 如果是音高分析區且尚未渲染頻譜圖，則渲染頻譜圖
+                    if (sectionType === 'pitch') {
+                        this.renderSpectrogramIfNeeded();
+                    }
+                }
+
+                // 儲存收合狀態到 localStorage
+                this.saveSectionCollapseState(sectionType, isCollapsed);
+            });
+        });
+    }
+
+    /**
+     * 在音高分析區展開時渲染頻譜圖（僅渲染一次）
+     *
+     * @private
+     */
+    renderSpectrogramIfNeeded() {
+        // 檢查分析結果中是否包含頻譜圖數據
+        if (!this.analysisResult || !this.analysisResult.pitch || !this.analysisResult.pitch.spectrogram) {
+            return;
+        }
+
+        const spectrogramData = this.analysisResult.pitch.spectrogram;
+
+        // 檢查頻譜圖數據是否有效
+        if (!spectrogramData.data || spectrogramData.data.length === 0) {
+            return;
+        }
+
+        // 獲取 canvas 元素
+        const canvas = this.element.querySelector(`#spectrogram-${this.id}`);
+        if (!canvas) {
+            return;
+        }
+
+        // 檢查是否已經渲染過（避免重複渲染）
+        if (canvas.hasAttribute('data-rendered')) {
+            return;
+        }
+
+        // 檢查 SpectrogramRenderer 是否可用
+        if (!window.SpectrogramRenderer) {
+            console.warn('SpectrogramRenderer 不可用，無法渲染頻譜圖');
+            return;
+        }
+
+        try {
+            // 創建頻譜圖渲染器並渲染
+            const renderer = new window.SpectrogramRenderer(canvas);
+            renderer.render(spectrogramData, {
+                canvasWidth: 280,  // 適配節點寬度（留出一些邊距）
+                canvasHeight: 200   // 固定高度
+            });
+
+            // 添加互動性（滑鼠懸停顯示時間和頻率）
+            renderer.addInteractivity();
+
+            // 標記為已渲染
+            canvas.setAttribute('data-rendered', 'true');
+
+            // 儲存渲染器引用以便後續清理（如果需要）
+            if (!this.spectrogramRenderers) {
+                this.spectrogramRenderers = [];
+            }
+            this.spectrogramRenderers.push(renderer);
+
+        } catch (error) {
+            console.error('渲染頻譜圖時發生錯誤:', error);
         }
     }
 
