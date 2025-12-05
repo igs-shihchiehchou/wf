@@ -218,12 +218,13 @@ class AudioInputNode extends BaseNode {
     }
 
     /**
-     * 覆寫：渲染多檔案列表（加入移除按鈕）
+     * 覆寫：渲染多檔案列表（加入移除按鈕和輸出連結點）
      */
     renderMultiFileList(options = {}) {
         const {
             waveformIdPrefix = `waveform-${this.id}`,
-            actionPrefix = 'input'
+            actionPrefix = 'input',
+            showOutputPort = true
         } = options;
 
         const items = this.getMultiFileItems();
@@ -240,13 +241,22 @@ class AudioInputNode extends BaseNode {
             const filename = this.getFileName(i);
             const duration = buffer ? formatTime(buffer.duration) : '00:00';
             const displayName = this.formatFilename(filename, 18);
+            const hasConnection = this.previewOutputConnections?.get(i) > 0;
 
             html += `
-                <div class="node-preview-file-item" data-file-index="${i}">
+                <div class="node-preview-file-item ${hasConnection ? 'has-output-connection' : ''}" data-file-index="${i}">
                     <div class="node-preview-file-info">
                         <span class="node-preview-file-icon">📄</span>
                         <span class="node-preview-file-name" title="${filename}">${displayName}</span>
                         <button class="node-file-remove" data-action="remove-file" data-index="${i}" title="移除">×</button>
+                        ${showOutputPort ? `
+                        <div class="node-port output preview-output-port ${hasConnection ? 'connected' : ''}" 
+                             data-port="preview-output-${i}" 
+                             data-type="output" 
+                             data-datatype="audio"
+                             data-file-index="${i}"
+                             title="輸出此檔案"></div>
+                        ` : ''}
                     </div>
                     <div class="node-waveform" id="${waveformIdPrefix}-${i}"></div>
                     <div class="node-playback">
