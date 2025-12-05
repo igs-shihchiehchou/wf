@@ -656,6 +656,349 @@
 }
 
 /* ===========================
+   調性整合節點樣式 (.key-integration)
+   =========================== */
+
+.key-integration-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+/* 目標調性選擇區 */
+.key-integration-target {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.key-target-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.key-integration-target .target-key-select {
+  flex: 1;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.key-integration-target .target-key-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.key-apply-btn {
+  padding: var(--spacing-1) var(--spacing-3);
+  border: none;
+  border-radius: 4px;
+  background: linear-gradient(135deg, hsl(146, 17%, 59%), hsl(56, 38%, 57%));
+  color: var(--bg-dark);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.key-apply-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px hsla(146, 17%, 59%, 0.3);
+}
+
+.key-apply-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 分析進度條 */
+.key-analysis-progress {
+  padding: var(--spacing-2);
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.key-analysis-progress .progress-bar-container {
+  height: 6px;
+  margin-bottom: var(--spacing-1);
+}
+
+.key-analysis-progress .progress-text {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* 分析結果區塊 */
+.key-analysis-section {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.key-analysis-section.key-analysis-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4);
+  gap: var(--spacing-2);
+  color: var(--text-muted);
+}
+
+.key-empty-icon {
+  font-size: var(--text-2xl);
+  opacity: 0.5;
+}
+
+.key-empty-text {
+  font-size: var(--text-sm);
+}
+
+/* 分析結果標題 */
+.key-analysis-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg-dark);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.key-analysis-header:hover {
+  background: var(--highlight);
+}
+
+.key-analysis-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.key-analysis-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.key-analysis-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* 分析結果內容 */
+.key-analysis-content {
+  max-height: 500px;
+  overflow-y: auto;
+  transition: max-height 0.3s ease;
+}
+
+.key-analysis-content.collapsed {
+  max-height: 0;
+  overflow: hidden;
+}
+
+.key-analysis-content.expanded {
+  max-height: 500px;
+}
+
+/* 檔案列表 */
+.key-file-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.key-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--border-muted);
+  transition: background-color 0.2s ease;
+}
+
+.key-file-item:last-child {
+  border-bottom: none;
+}
+
+.key-file-item:hover {
+  background: var(--highlight);
+}
+
+.key-file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.key-file-icon {
+  font-size: var(--text-base);
+  flex-shrink: 0;
+}
+
+.key-file-name {
+  font-size: var(--text-xs);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 分析結果顯示 */
+.key-file-analysis {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.key-detected {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: hsl(146, 17%, 45%);
+  background: hsla(146, 17%, 59%, 0.15);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.key-unknown {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  background: var(--bg-dark);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: help;
+}
+
+.key-semitones-skip {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-dark);
+  cursor: help;
+}
+
+/* 智慧音高調整節點 - 無法偵測樣式 */
+.detected-key-value.key-undetectable {
+  color: var(--text-muted);
+  font-style: italic;
+  cursor: help;
+}
+
+.key-confidence {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.key-semitones {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-dark);
+}
+
+.key-semitones.up {
+  color: hsl(146, 50%, 45%);
+  background: hsla(146, 50%, 45%, 0.15);
+}
+
+.key-semitones.down {
+  color: hsl(9, 50%, 55%);
+  background: hsla(9, 50%, 55%, 0.15);
+}
+
+.key-semitones.same {
+  color: var(--text-muted);
+  background: var(--bg-dark);
+}
+
+/* 移調資訊顯示 */
+.key-transpose-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.key-target-note {
+  font-weight: 700;
+  color: hsl(217, 50%, 55%);
+  background: hsla(217, 50%, 55%, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* 分頁控制 */
+.key-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--bg-dark);
+  border-top: 1px solid var(--border);
+}
+
+.key-page-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: var(--text-xs);
+  padding: var(--spacing-1) var(--spacing-2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.key-page-btn:hover:not(:disabled) {
+  background: var(--highlight);
+  border-color: var(--primary);
+}
+
+.key-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.key-page-info {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ===========================
    頻譜圖點擊放大功能
    =========================== */
 
@@ -856,4 +1199,329 @@
     flex-direction: column;
     gap: var(--spacing-1);
   }
+}
+
+/* ============================================
+   智慧音高調整節點樣式 (SmartPitchNode)
+   ============================================ */
+
+/* 區域一：標題與目標調性 */
+.smart-pitch-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: var(--bg-dark);
+  border-radius: 8px;
+  margin-bottom: var(--spacing-2);
+}
+
+.smart-pitch-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.smart-pitch-icon {
+  font-size: var(--text-base);
+}
+
+.smart-pitch-label {
+  flex: 1;
+}
+
+.smart-pitch-target {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.smart-pitch-target-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.smart-pitch-target-select {
+  flex: 1;
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  min-width: 80px;
+}
+
+.smart-pitch-target-select:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.smart-pitch-target-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.smart-pitch-apply-btn {
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--primary);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.smart-pitch-apply-btn:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.smart-pitch-apply-btn:disabled {
+  background: var(--bg-dark);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* 區域二：檔案列表 */
+.smart-pitch-files {
+  margin-bottom: var(--spacing-2);
+}
+
+.smart-pitch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4);
+  color: var(--text-muted);
+  text-align: center;
+  background: var(--bg-dark);
+  border-radius: 8px;
+}
+
+.smart-pitch-empty-icon {
+  font-size: 24px;
+  margin-bottom: var(--spacing-2);
+  opacity: 0.5;
+}
+
+.smart-pitch-empty-text {
+  font-size: var(--text-xs);
+}
+
+.smart-pitch-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-dark);
+  border-radius: 8px;
+  padding: var(--spacing-2);
+}
+
+.smart-pitch-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2);
+  background: var(--bg);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.smart-pitch-file-item:hover {
+  border-color: var(--primary);
+  background: var(--highlight);
+}
+
+.smart-pitch-file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.smart-pitch-file-icon {
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+}
+
+.smart-pitch-file-name {
+  font-size: var(--text-xs);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.smart-pitch-file-analysis {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.smart-pitch-detected {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: hsl(146, 50%, 45%);
+  background: hsla(146, 50%, 45%, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.smart-pitch-unknown {
+  font-size: var(--text-xs);
+  color: hsl(38, 70%, 50%);
+  background: hsla(38, 70%, 50%, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: help;
+}
+
+.smart-pitch-semitones {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.smart-pitch-semitones.up {
+  color: hsl(146, 50%, 45%);
+  background: hsla(146, 50%, 45%, 0.15);
+}
+
+.smart-pitch-semitones.down {
+  color: hsl(9, 50%, 55%);
+  background: hsla(9, 50%, 55%, 0.15);
+}
+
+.smart-pitch-semitones.same {
+  color: var(--text-muted);
+  background: var(--bg-dark);
+}
+
+.smart-pitch-skip {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.smart-pitch-analyze-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.smart-pitch-analyze-btn:hover:not(:disabled) {
+  background: var(--highlight);
+  border-color: var(--primary);
+}
+
+.smart-pitch-analyze-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* 進度條 */
+.smart-pitch-progress {
+  margin-bottom: var(--spacing-2);
+}
+
+/* 細部分析面板 */
+.smart-pitch-detail-panel {
+  background: var(--bg-dark);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-2);
+  border: 1px solid var(--border);
+}
+
+.smart-pitch-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.smart-pitch-detail-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.smart-pitch-detail-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  padding: 0 var(--spacing-1);
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.smart-pitch-detail-close:hover {
+  color: var(--danger);
+}
+
+/* 頁籤 */
+.smart-pitch-detail-tabs {
+  display: flex;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.smart-pitch-tab {
+  flex: 1;
+  padding: var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.smart-pitch-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.smart-pitch-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: var(--bg-dark);
+}
+
+/* 頁籤內容 */
+.smart-pitch-tab-content {
+  display: none;
+  padding: var(--spacing-3);
+}
+
+.smart-pitch-tab-content.active {
+  display: block;
 }

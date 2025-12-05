@@ -17,7 +17,8 @@ class GraphEngine {
             'fade-out': FadeOutNode,
             'speed': SpeedNode,
             'pitch': PitchNode,
-            'smart-pitch': SmartPitchNode
+            'smart-pitch': SmartPitchNode,
+            'key-integration': KeyIntegrationNode
         };
 
         // 綁定畫布事件
@@ -327,7 +328,17 @@ class GraphEngine {
                     // 遞迴取得來源節點的輸入並處理
                     const sourceInputs = await this.getNodeInputData(link.sourceNodeId);
                     const sourceOutput = await sourceNode.process(sourceInputs);
+
+                    // 傳遞主要端口資料
                     inputs[port.name] = sourceOutput[link.sourcePort.name];
+
+                    // 同時傳遞多檔案相關資料（如果存在）
+                    if (sourceOutput.audioFiles) {
+                        inputs.audioFiles = sourceOutput.audioFiles;
+                    }
+                    if (sourceOutput.filenames) {
+                        inputs.filenames = sourceOutput.filenames;
+                    }
                 }
             }
         }
@@ -373,9 +384,10 @@ class GraphEngine {
         // 收集輸入 - 使用遞迴取得完整輸入鏈
         const inputs = await this.getNodeInputData(nodeId);
 
-        // 如果是裁切節點，更新輸入音訊波形
+        // 如果是裁切節點或需要更新輸入音訊的節點
         if (node.updateInputAudio) {
-            await node.updateInputAudio(inputs.audio || null);
+            // 傳遞完整輸入（支援多檔案）
+            await node.updateInputAudio(inputs.audio || null, inputs.audioFiles, inputs.filenames);
         }
 
         // 執行節點

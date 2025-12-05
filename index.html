@@ -17,6 +17,9 @@
     <!-- WaveSurfer Region plugin -->
     <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
 
+    <!-- JSZip for multi-file download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
     <!-- 自訂樣式 -->
     <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/graph.css">
@@ -110,7 +113,15 @@
     <script src="js/canvas.js"></script>
     <script src="js/nodes/BaseNode.js"></script>
     <script src="js/nodes/AudioInputNode.js"></script>
-    <script src="js/nodes/ProcessNodes.js"></script>
+    <!-- Process Nodes -->
+    <script src="js/nodes/VolumeNode.js"></script>
+    <script src="js/nodes/CropNode.js"></script>
+    <script src="js/nodes/FadeInNode.js"></script>
+    <script src="js/nodes/FadeOutNode.js"></script>
+    <script src="js/nodes/SpeedNode.js"></script>
+    <script src="js/nodes/PitchNode.js"></script>
+    <script src="js/nodes/SmartPitchNode.js"></script>
+    <script src="js/nodes/KeyIntegrationNode.js"></script>
     <script src="js/graphEngine.js"></script>
     <script src="js/nodePanel.js"></script>
     <script src="js/app.js"></script>
