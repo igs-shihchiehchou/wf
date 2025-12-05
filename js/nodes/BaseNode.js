@@ -33,7 +33,16 @@ class BaseNode {
         this.onPortDragStart = null;
         this.onGetInputData = null;
 
-        // 預覽相關（支援多檔案）
+        // 多檔案管理（統一結構）
+        this.files = {
+            items: [],           // { buffer: AudioBuffer, filename: string, wavesurfer: WaveSurfer }
+            wavesurfers: [],     // wavesurfer 實例陣列（索引對應 items）
+            currentPage: 0,
+            filesPerPage: 5,
+            expanded: false
+        };
+
+        // 預覽相關（向下相容）
         this.previewBuffer = null;
         this.previewBuffers = []; // 多檔案預覽
         this.previewWavesurfer = null;
@@ -109,35 +118,524 @@ class BaseNode {
         return '';
     }
 
-    // ========== 預覽功能（所有節點共用，支援多檔案）==========
+    // ========== 統一多檔案管理系統（所有節點共用）==========
+
+    /**
+     * 取得多檔案資料（子類別可覆寫）
+     * 預設使用 files.items，AudioInputNode 會覆寫為 audioFiles
+     */
+    getMultiFileItems() {
+        return this.files.items;
+    }
+
+    /**
+     * 取得檔案的 AudioBuffer
+     */
+    getFileBuffer(index) {
+        const items = this.getMultiFileItems();
+        return items[index]?.buffer || items[index]?.audioBuffer || null;
+    }
+
+    /**
+     * 取得檔案名稱
+     */
+    getFileName(index) {
+        const items = this.getMultiFileItems();
+        return items[index]?.filename || `檔案 ${index + 1}`;
+    }
+
+    /**
+     * 取得多檔案總數
+     */
+    getMultiFileCount() {
+        return this.getMultiFileItems().length;
+    }
+
+    /**
+     * 取得/設定當前頁碼
+     */
+    getMultiFileCurrentPage() {
+        return this.files.currentPage;
+    }
+
+    setMultiFileCurrentPage(page) {
+        this.files.currentPage = page;
+    }
+
+    /**
+     * 取得每頁檔案數
+     */
+    getMultiFilePerPage() {
+        return this.files.filesPerPage;
+    }
+
+    /**
+     * 取得/設定展開狀態
+     */
+    isMultiFileExpanded() {
+        return this.files.expanded;
+    }
+
+    setMultiFileExpanded(expanded) {
+        this.files.expanded = expanded;
+    }
+
+    /**
+     * 取得/設定 WaveSurfer 實例
+     */
+    getMultiFileWaveSurfer(index) {
+        return this.files.wavesurfers[index];
+    }
+
+    setMultiFileWaveSurfer(index, wavesurfer) {
+        this.files.wavesurfers[index] = wavesurfer;
+    }
+
+    /**
+     * 取得多檔案下載用的檔名前綴
+     */
+    getMultiFileDownloadPrefix() {
+        return this.title;
+    }
+
+    /**
+     * 渲染多檔案摘要區塊（頁簽標題）
+     * @param {Object} options - 配置選項
+     * @param {string} options.summaryIcon - 摘要圖示
+     * @param {string} options.summaryLabel - 摘要標籤（例如「個音訊檔案」或「個處理結果」）
+     * @param {string} options.actionPrefix - 動作前綴（例如 'files' 或 'preview'）
+     */
+    renderMultiFileSummary(options = {}) {
+        const {
+            summaryIcon = '🎵',
+            summaryLabel = '個檔案',
+            actionPrefix = 'multi'
+        } = options;
+
+        const fileCount = this.getMultiFileCount();
+        const isExpanded = this.isMultiFileExpanded();
+
+        return `
+            <div class="node-preview-summary">
+                <button class="node-preview-toggle" data-action="${actionPrefix}-toggle" title="${isExpanded ? '收合預覽' : '展開預覽'}">
+                    ${isExpanded ? '▼' : '▶'}
+                </button>
+                <span class="node-preview-icon">${summaryIcon}</span>
+                <span class="node-preview-count">${fileCount} ${summaryLabel}</span>
+                <button class="node-download-all-btn" data-action="${actionPrefix}-download-all" title="下載全部 (ZIP)">📦</button>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染多檔案列表
+     * @param {Object} options - 配置選項
+     * @param {string} options.waveformIdPrefix - 波形容器 ID 前綴
+     * @param {string} options.actionPrefix - 動作前綴
+     */
+    renderMultiFileList(options = {}) {
+        const {
+            waveformIdPrefix = `waveform-${this.id}`,
+            actionPrefix = 'multi'
+        } = options;
+
+        const items = this.getMultiFileItems();
+        if (!items || items.length === 0) return '';
+
+        const currentPage = this.getMultiFileCurrentPage();
+        const perPage = this.getMultiFilePerPage();
+        const start = currentPage * perPage;
+        const end = Math.min(start + perPage, items.length);
+
+        let html = '';
+        for (let i = start; i < end; i++) {
+            const buffer = this.getFileBuffer(i);
+            const filename = this.getFileName(i);
+            const duration = buffer ? formatTime(buffer.duration) : '00:00';
+
+            html += `
+                <div class="node-preview-file-item" data-file-index="${i}">
+                    <div class="node-preview-file-info">
+                        <span class="node-preview-file-icon">📄</span>
+                        <span class="node-preview-file-name" title="${filename}">${filename}</span>
+                    </div>
+                    <div class="node-waveform" id="${waveformIdPrefix}-${i}"></div>
+                    <div class="node-playback">
+                        <button class="node-play-btn" data-action="${actionPrefix}-play" data-index="${i}">▶</button>
+                        <span class="node-time">
+                            <span class="${actionPrefix}-current-time" data-index="${i}">00:00</span> / <span class="${actionPrefix}-total-time">${duration}</span>
+                        </span>
+                        <button class="node-download-btn" data-action="${actionPrefix}-download-single" data-index="${i}" title="下載">⬇</button>
+                    </div>
+                </div>
+            `;
+        }
+        return html;
+    }
+
+    /**
+     * 渲染多檔案分頁控制
+     * @param {Object} options - 配置選項
+     * @param {string} options.actionPrefix - 動作前綴
+     */
+    renderMultiFilePagination(options = {}) {
+        const { actionPrefix = 'multi' } = options;
+
+        const totalItems = this.getMultiFileCount();
+        const perPage = this.getMultiFilePerPage();
+        const totalPages = Math.ceil(totalItems / perPage);
+        const currentPage = this.getMultiFileCurrentPage();
+
+        if (totalPages <= 1) return '';
+
+        return `
+            <div class="node-pagination">
+                <button class="node-page-btn" data-action="${actionPrefix}-prev-page" ${currentPage === 0 ? 'disabled' : ''}>
+                    ◀ 上一頁
+                </button>
+                <span class="node-page-info">第 ${currentPage + 1} 頁，共 ${totalPages} 頁</span>
+                <button class="node-page-btn" data-action="${actionPrefix}-next-page" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>
+                    下一頁 ▶
+                </button>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染完整的多檔案區塊
+     */
+    renderMultiFileSection(options = {}) {
+        const {
+            summaryIcon = '🎵',
+            summaryLabel = '個檔案',
+            actionPrefix = 'multi',
+            waveformIdPrefix = `waveform-${this.id}`,
+            containerClass = 'node-preview-multi'
+        } = options;
+
+        const isExpanded = this.isMultiFileExpanded();
+
+        return `
+            <div class="node-preview ${containerClass}">
+                ${this.renderMultiFileSummary({ summaryIcon, summaryLabel, actionPrefix })}
+                <div class="node-preview-files ${isExpanded ? 'expanded' : 'collapsed'}">
+                    ${this.renderMultiFileList({ waveformIdPrefix, actionPrefix })}
+                    ${this.renderMultiFilePagination({ actionPrefix })}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 綁定多檔案控制事件
+     * @param {HTMLElement} element - 要綁定事件的元素
+     * @param {Object} options - 配置選項
+     */
+    bindMultiFileEvents(element, options = {}) {
+        const { actionPrefix = 'multi' } = options;
+        if (!element) return;
+
+        // 頁簽切換
+        const toggleBtn = element.querySelector(`[data-action="${actionPrefix}-toggle"]`);
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => this.handleMultiFileToggle());
+        }
+
+        // 下載全部
+        const downloadAllBtn = element.querySelector(`[data-action="${actionPrefix}-download-all"]`);
+        if (downloadAllBtn) {
+            downloadAllBtn.addEventListener('click', () => this.handleMultiFileDownloadAll());
+        }
+
+        // 個別播放
+        const playBtns = element.querySelectorAll(`[data-action="${actionPrefix}-play"]`);
+        playBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                this.handleMultiFilePlay(index);
+            });
+        });
+
+        // 個別下載
+        const downloadBtns = element.querySelectorAll(`[data-action="${actionPrefix}-download-single"]`);
+        downloadBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                this.handleMultiFileDownloadSingle(index);
+            });
+        });
+
+        // 上一頁
+        const prevBtn = element.querySelector(`[data-action="${actionPrefix}-prev-page"]`);
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                const currentPage = this.getMultiFileCurrentPage();
+                this.handleMultiFilePageChange(currentPage - 1);
+            });
+        }
+
+        // 下一頁
+        const nextBtn = element.querySelector(`[data-action="${actionPrefix}-next-page"]`);
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const currentPage = this.getMultiFileCurrentPage();
+                this.handleMultiFilePageChange(currentPage + 1);
+            });
+        }
+    }
+
+    /**
+     * 處理頁簽切換
+     */
+    handleMultiFileToggle() {
+        this.setMultiFileExpanded(!this.isMultiFileExpanded());
+        // 同步到舊的預覽狀態（向下相容）
+        this.previewExpanded = this.isMultiFileExpanded();
+        this.refreshMultiFileUI();
+    }
+
+    /**
+     * 處理分頁切換
+     */
+    handleMultiFilePageChange(newPage) {
+        const totalItems = this.getMultiFileCount();
+        const perPage = this.getMultiFilePerPage();
+        const totalPages = Math.ceil(totalItems / perPage);
+
+        if (newPage < 0 || newPage >= totalPages) return;
+
+        // 銷毀當前頁面的 wavesurfers
+        this.destroyCurrentPageWaveSurfers();
+
+        this.setMultiFileCurrentPage(newPage);
+        // 同步到舊的預覽狀態（向下相容）
+        this.previewCurrentPage = newPage;
+        this.refreshMultiFileUI();
+    }
+
+    /**
+     * 處理播放/暫停
+     */
+    handleMultiFilePlay(index) {
+        const wavesurfer = this.getMultiFileWaveSurfer(index);
+        if (wavesurfer) {
+            wavesurfer.playPause();
+        }
+    }
+
+    /**
+     * 處理單檔下載
+     */
+    handleMultiFileDownloadSingle(index) {
+        const buffer = this.getFileBuffer(index);
+        if (!buffer) {
+            showToast('沒有音訊可下載', 'warning');
+            return;
+        }
+
+        try {
+            const wavData = audioBufferToWav(buffer);
+            const blob = new Blob([wavData], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+
+            const filename = this.getFileName(index);
+            const baseName = filename.replace(/\.[^.]+$/, '');
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${baseName}.wav`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('下載已開始', 'success');
+        } catch (error) {
+            showToast('下載失敗: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * 處理全部下載（ZIP）
+     */
+    async handleMultiFileDownloadAll() {
+        const items = this.getMultiFileItems();
+        if (!items || items.length === 0) {
+            showToast('沒有檔案可下載', 'warning');
+            return;
+        }
+
+        try {
+            showToast('正在打包檔案...', 'info');
+
+            const zip = new JSZip();
+            const prefix = this.getMultiFileDownloadPrefix();
+
+            for (let i = 0; i < items.length; i++) {
+                const buffer = this.getFileBuffer(i);
+                if (buffer) {
+                    const wavData = audioBufferToWav(buffer);
+                    const filename = this.getFileName(i);
+                    const baseName = filename.replace(/\.[^.]+$/, '');
+                    zip.file(`${baseName}.wav`, wavData);
+                }
+            }
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(zipBlob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${prefix}_${Date.now()}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast(`已下載 ${items.length} 個檔案`, 'success');
+        } catch (error) {
+            showToast(`打包下載失敗: ${error.message}`, 'error');
+            console.error('ZIP 下載失敗:', error);
+        }
+    }
+
+    /**
+     * 銷毀當前頁面的 wavesurfers
+     */
+    destroyCurrentPageWaveSurfers() {
+        const currentPage = this.getMultiFileCurrentPage();
+        const perPage = this.getMultiFilePerPage();
+        const start = currentPage * perPage;
+        const end = Math.min(start + perPage, this.files.wavesurfers.length);
+
+        for (let i = start; i < end; i++) {
+            const ws = this.getMultiFileWaveSurfer(i);
+            if (ws) {
+                try {
+                    ws.destroy();
+                } catch (e) { }
+                this.setMultiFileWaveSurfer(i, null);
+            }
+        }
+    }
+
+    /**
+     * 初始化當前頁面的 wavesurfers
+     * @param {Object} options - 配置選項
+     */
+    async initCurrentPageWaveSurfers(options = {}) {
+        const {
+            waveformIdPrefix = `waveform-${this.id}`,
+            actionPrefix = 'multi'
+        } = options;
+
+        const currentPage = this.getMultiFileCurrentPage();
+        const perPage = this.getMultiFilePerPage();
+        const totalItems = this.getMultiFileCount();
+        const start = currentPage * perPage;
+        const end = Math.min(start + perPage, totalItems);
+
+        for (let i = start; i < end; i++) {
+            await this.initSingleWaveSurfer(i, { waveformIdPrefix, actionPrefix });
+        }
+    }
+
+    /**
+     * 初始化單個 wavesurfer
+     */
+    async initSingleWaveSurfer(index, options = {}) {
+        const {
+            waveformIdPrefix = `waveform-${this.id}`,
+            actionPrefix = 'multi'
+        } = options;
+
+        const buffer = this.getFileBuffer(index);
+        if (!buffer) return;
+
+        const container = this.element.querySelector(`#${waveformIdPrefix}-${index}`);
+        if (!container) return;
+
+        // 銷毀舊的
+        const oldWs = this.getMultiFileWaveSurfer(index);
+        if (oldWs) {
+            try {
+                oldWs.destroy();
+            } catch (e) { }
+        }
+
+        try {
+            const wavesurfer = WaveSurfer.create({
+                container: container,
+                waveColor: 'hsl(242 68% 80% / 0.6)',
+                progressColor: 'hsl(242 68% 80%)',
+                cursorColor: 'hsl(58 40% 92%)',
+                height: 40,
+                barWidth: 2,
+                barGap: 1,
+                responsive: true,
+                normalize: true
+            });
+
+            const wavData = audioBufferToWav(buffer);
+            const blob = new Blob([wavData], { type: 'audio/wav' });
+            await wavesurfer.loadBlob(blob);
+
+            // 綁定事件
+            wavesurfer.on('timeupdate', (currentTime) => {
+                const timeEl = this.element.querySelector(`.${actionPrefix}-current-time[data-index="${index}"]`);
+                if (timeEl) timeEl.textContent = formatTime(currentTime);
+            });
+
+            wavesurfer.on('play', () => {
+                const btn = this.element.querySelector(`[data-action="${actionPrefix}-play"][data-index="${index}"]`);
+                if (btn) btn.textContent = '⏸';
+            });
+
+            wavesurfer.on('pause', () => {
+                const btn = this.element.querySelector(`[data-action="${actionPrefix}-play"][data-index="${index}"]`);
+                if (btn) btn.textContent = '▶';
+            });
+
+            wavesurfer.on('finish', () => {
+                const btn = this.element.querySelector(`[data-action="${actionPrefix}-play"][data-index="${index}"]`);
+                if (btn) btn.textContent = '▶';
+            });
+
+            this.setMultiFileWaveSurfer(index, wavesurfer);
+        } catch (error) {
+            console.error('WaveSurfer 載入失敗:', error);
+        }
+    }
+
+    /**
+     * 重新渲染多檔案 UI（子類別可覆寫以自訂）
+     */
+    refreshMultiFileUI() {
+        // 預設實作：更新預覽區塊
+        this.refreshPreviewUI();
+    }
+
+    // ========== 預覽功能（處理節點專用，使用統一多檔案系統）==========
 
     renderPreview() {
         // 只有處理節點才顯示預覽區域
         if (this.getNodeCategory() === 'input') return '';
 
+        // 同步 previewBuffers 到 files.items（確保資料一致）
+        this.syncPreviewToFiles();
+
         // 檢查是否有多個檔案
-        const fileCount = this.previewBuffers ? this.previewBuffers.length : 0;
-        const isSingleFile = fileCount <= 1;
+        const fileCount = this.getMultiFileCount();
 
         if (fileCount > 1) {
-            // 多檔案預覽模式
-            const shouldExpand = this.previewExpanded;
-            return `
-                <div class="node-preview node-preview-multi">
-                    <div class="node-preview-summary">
-                        <span class="node-preview-icon">🎵</span>
-                        <span class="node-preview-count">${fileCount} 個處理結果</span>
-                        <button class="node-download-all-btn" data-action="preview-download-all" title="下載全部 (ZIP)">📦</button>
-                        <button class="node-preview-toggle" data-action="toggle-multi-preview" title="${shouldExpand ? '收合預覽' : '展開預覽'}">
-                            ${shouldExpand ? '▼' : '▶'}
-                        </button>
-                    </div>
-                    <div class="node-preview-files ${shouldExpand ? 'expanded' : 'collapsed'}">
-                        ${this.renderMultiPreviewFiles()}
-                        ${this.renderPreviewPagination()}
-                    </div>
-                </div>
-            `;
+            // 使用統一的多檔案系統
+            return this.renderMultiFileSection({
+                summaryIcon: '🎵',
+                summaryLabel: '個處理結果',
+                actionPrefix: 'preview',
+                waveformIdPrefix: `preview-waveform-${this.id}`,
+                containerClass: 'node-preview-multi'
+            });
         }
 
         // 單檔案預覽（原有邏輯）
@@ -156,58 +654,23 @@ class BaseNode {
     }
 
     /**
-     * 渲染多檔案預覽列表
+     * 同步 previewBuffers 到統一的 files 結構
      */
-    renderMultiPreviewFiles() {
-        if (!this.previewBuffers || this.previewBuffers.length === 0) return '';
+    syncPreviewToFiles() {
+        if (!this.previewBuffers) return;
 
-        const start = this.previewCurrentPage * this.previewFilesPerPage;
-        const end = start + this.previewFilesPerPage;
-        const files = this.previewBuffers.slice(start, end);
-
-        return files.map((buffer, idx) => {
-            const globalIndex = start + idx;
-            const duration = buffer ? formatTime(buffer.duration) : '00:00';
-            const filename = this.previewFilenames ? this.previewFilenames[globalIndex] : `檔案 ${globalIndex + 1}`;
-
-            return `
-                <div class="node-preview-file-item" data-preview-index="${globalIndex}">
-                    <div class="node-preview-file-info">
-                        <span class="node-preview-file-icon">📄</span>
-                        <span class="node-preview-file-name" title="${filename}">${filename}</span>
-                    </div>
-                    <div class="node-waveform" id="preview-waveform-${this.id}-${globalIndex}"></div>
-                    <div class="node-playback">
-                        <button class="node-play-btn" data-action="preview-play-multi" data-index="${globalIndex}">▶</button>
-                        <span class="node-time">
-                            <span class="preview-current-time" data-index="${globalIndex}">00:00</span> / <span class="preview-total-time">${duration}</span>
-                        </span>
-                        <button class="node-download-btn" data-action="preview-download-single" data-index="${globalIndex}" title="下載">⬇</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        this.files.items = this.previewBuffers.map((buffer, index) => ({
+            buffer: buffer,
+            filename: this.previewFilenames ? this.previewFilenames[index] : `處理結果 ${index + 1}`
+        }));
     }
 
     /**
-     * 渲染預覽分頁控制
+     * 覆寫多檔案資料來源（預覽使用 previewBuffers）
      */
-    renderPreviewPagination() {
-        if (!this.previewBuffers) return '';
-        const totalPages = Math.ceil(this.previewBuffers.length / this.previewFilesPerPage);
-        if (totalPages <= 1) return '';
-
-        return `
-            <div class="node-pagination">
-                <button class="node-page-btn" data-action="preview-prev-page" ${this.previewCurrentPage === 0 ? 'disabled' : ''}>
-                    ◀ 上一頁
-                </button>
-                <span class="node-page-info">第 ${this.previewCurrentPage + 1} 頁，共 ${totalPages} 頁</span>
-                <button class="node-page-btn" data-action="preview-next-page" ${this.previewCurrentPage >= totalPages - 1 ? 'disabled' : ''}>
-                    下一頁 ▶
-                </button>
-            </div>
-        `;
+    getMultiFileItemsForPreview() {
+        this.syncPreviewToFiles();
+        return this.files.items;
     }
 
     bindPreviewEvents(node) {
@@ -227,85 +690,8 @@ class BaseNode {
             downloadBtn.addEventListener('click', () => this.downloadPreview());
         }
 
-        // 多檔案：頁簽切換
-        const toggleBtn = element.querySelector('[data-action="toggle-multi-preview"]');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => this.toggleMultiPreviewExpanded());
-        }
-
-        // 多檔案：下載全部
-        const downloadAllBtn = element.querySelector('[data-action="preview-download-all"]');
-        if (downloadAllBtn) {
-            downloadAllBtn.addEventListener('click', () => this.downloadAllPreviewAsZip());
-        }
-
-        // 多檔案：個別播放
-        const multiPlayBtns = element.querySelectorAll('[data-action="preview-play-multi"]');
-        multiPlayBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const index = parseInt(btn.dataset.index);
-                this.toggleMultiPreviewPlay(index);
-            });
-        });
-
-        // 多檔案：個別下載
-        const singleDownloadBtns = element.querySelectorAll('[data-action="preview-download-single"]');
-        singleDownloadBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const index = parseInt(btn.dataset.index);
-                this.downloadSinglePreview(index);
-            });
-        });
-
-        // 多檔案：分頁
-        const prevPageBtn = element.querySelector('[data-action="preview-prev-page"]');
-        if (prevPageBtn) {
-            prevPageBtn.addEventListener('click', () => this.goToPreviewPage(this.previewCurrentPage - 1));
-        }
-
-        const nextPageBtn = element.querySelector('[data-action="preview-next-page"]');
-        if (nextPageBtn) {
-            nextPageBtn.addEventListener('click', () => this.goToPreviewPage(this.previewCurrentPage + 1));
-        }
-    }
-
-    /**
-     * 切換多檔案預覽展開狀態
-     */
-    toggleMultiPreviewExpanded() {
-        this.previewExpanded = !this.previewExpanded;
-        this.refreshPreviewUI();
-    }
-
-    /**
-     * 切換預覽頁面
-     */
-    goToPreviewPage(page) {
-        const totalPages = Math.ceil((this.previewBuffers?.length || 0) / this.previewFilesPerPage);
-        if (page < 0 || page >= totalPages) return;
-
-        // 銷毀當前頁面的 wavesurfers
-        this.destroyCurrentPagePreviewWaveSurfers();
-
-        this.previewCurrentPage = page;
-        this.refreshPreviewUI();
-    }
-
-    /**
-     * 銷毀當前頁面的預覽 wavesurfers
-     */
-    destroyCurrentPagePreviewWaveSurfers() {
-        const start = this.previewCurrentPage * this.previewFilesPerPage;
-        const end = Math.min(start + this.previewFilesPerPage, this.previewWavesurfers.length);
-
-        for (let i = start; i < end; i++) {
-            if (this.previewWavesurfers[i]) {
-                try {
-                    this.previewWavesurfers[i].destroy();
-                } catch (e) { }
-                this.previewWavesurfers[i] = null;
-            }
-        }
+        // 多檔案：使用統一的事件綁定系統
+        this.bindMultiFileEvents(element, { actionPrefix: 'preview' });
     }
 
     /**
@@ -315,16 +701,30 @@ class BaseNode {
         const previewContainer = this.element.querySelector('.node-preview, .node-preview-multi');
         if (previewContainer) {
             const parent = previewContainer.parentNode;
-            const newPreview = document.createElement('div');
-            newPreview.innerHTML = this.renderPreview();
-            parent.replaceChild(newPreview.firstElementChild, previewContainer);
-            this.bindPreviewEvents(this.element);
+            const newPreviewHtml = this.renderPreview();
 
-            // 初始化 wavesurfers
-            if (this.previewExpanded && this.previewBuffers && this.previewBuffers.length > 1) {
-                requestAnimationFrame(() => {
-                    this.initMultiPreviewWaveSurfers();
-                });
+            // 如果 renderPreview 返回空字串，不進行替換
+            if (!newPreviewHtml || newPreviewHtml.trim() === '') {
+                return;
+            }
+
+            const newPreview = document.createElement('div');
+            newPreview.innerHTML = newPreviewHtml;
+
+            // 確保有新元素才進行替換
+            if (newPreview.firstElementChild) {
+                parent.replaceChild(newPreview.firstElementChild, previewContainer);
+                this.bindPreviewEvents(this.element);
+
+                // 初始化 wavesurfers（使用統一系統）
+                if (this.isMultiFileExpanded() && this.getMultiFileCount() > 1) {
+                    requestAnimationFrame(() => {
+                        this.initCurrentPageWaveSurfers({
+                            waveformIdPrefix: `preview-waveform-${this.id}`,
+                            actionPrefix: 'preview'
+                        });
+                    });
+                }
             }
         }
     }
@@ -348,6 +748,9 @@ class BaseNode {
                 this.previewFilenames = outputs.filenames || this.previewBuffers.map((_, i) => `檔案 ${i + 1}`);
                 this.previewBuffer = this.previewBuffers[0] || null;
 
+                // 同步到 files 結構
+                this.syncPreviewToFiles();
+
                 // 重新渲染 UI
                 this.refreshPreviewUI();
                 return;
@@ -356,7 +759,10 @@ class BaseNode {
             // 單檔案處理（向下相容）
             this.previewBuffer = outputs.audio;
             this.previewBuffers = outputs.audio ? [outputs.audio] : [];
-            this.previewFilenames = ['處理結果'];
+            this.previewFilenames = outputs.filenames || ['處理結果'];
+
+            // 同步到 files 結構
+            this.syncPreviewToFiles();
 
             if (!this.previewBuffer) {
                 // 沒有音訊時清空波形
@@ -478,164 +884,6 @@ class BaseNode {
             showToast('下載已開始', 'success');
         } catch (error) {
             showToast('下載失敗: ' + error.message, 'error');
-        }
-    }
-
-    // ========== 多檔案預覽方法 ==========
-
-    /**
-     * 初始化多檔案預覽的 wavesurfers
-     */
-    async initMultiPreviewWaveSurfers() {
-        const start = this.previewCurrentPage * this.previewFilesPerPage;
-        const end = Math.min(start + this.previewFilesPerPage, this.previewBuffers.length);
-
-        for (let i = start; i < end; i++) {
-            await this.initMultiPreviewWaveSurfer(i);
-        }
-    }
-
-    /**
-     * 初始化單個多檔案預覽的 wavesurfer
-     */
-    async initMultiPreviewWaveSurfer(index) {
-        const buffer = this.previewBuffers[index];
-        if (!buffer) return;
-
-        const container = this.element.querySelector(`#preview-waveform-${this.id}-${index}`);
-        if (!container) return;
-
-        // 銷毀舊的
-        if (this.previewWavesurfers[index]) {
-            try {
-                this.previewWavesurfers[index].destroy();
-            } catch (e) { }
-            this.previewWavesurfers[index] = null;
-        }
-
-        try {
-            const wavesurfer = WaveSurfer.create({
-                container: container,
-                waveColor: 'hsl(242 68% 80% / 0.6)',
-                progressColor: 'hsl(242 68% 80%)',
-                cursorColor: 'hsl(58 40% 92%)',
-                height: 40,
-                barWidth: 2,
-                barGap: 1,
-                responsive: true,
-                normalize: true
-            });
-
-            const wavData = audioBufferToWav(buffer);
-            const blob = new Blob([wavData], { type: 'audio/wav' });
-            await wavesurfer.loadBlob(blob);
-
-            wavesurfer.on('timeupdate', (currentTime) => {
-                const timeEl = this.element.querySelector(`.preview-current-time[data-index="${index}"]`);
-                if (timeEl) timeEl.textContent = formatTime(currentTime);
-            });
-
-            wavesurfer.on('play', () => {
-                const btn = this.element.querySelector(`[data-action="preview-play-multi"][data-index="${index}"]`);
-                if (btn) btn.textContent = '⏸';
-            });
-
-            wavesurfer.on('pause', () => {
-                const btn = this.element.querySelector(`[data-action="preview-play-multi"][data-index="${index}"]`);
-                if (btn) btn.textContent = '▶';
-            });
-
-            wavesurfer.on('finish', () => {
-                const btn = this.element.querySelector(`[data-action="preview-play-multi"][data-index="${index}"]`);
-                if (btn) btn.textContent = '▶';
-            });
-
-            this.previewWavesurfers[index] = wavesurfer;
-        } catch (error) {
-            console.error('多檔案預覽 WaveSurfer 載入失敗:', error);
-        }
-    }
-
-    /**
-     * 多檔案播放切換
-     */
-    toggleMultiPreviewPlay(index) {
-        if (this.previewWavesurfers[index]) {
-            this.previewWavesurfers[index].playPause();
-        }
-    }
-
-    /**
-     * 下載單個預覽檔案
-     */
-    downloadSinglePreview(index) {
-        const buffer = this.previewBuffers[index];
-        if (!buffer) {
-            showToast('沒有音訊可下載', 'warning');
-            return;
-        }
-
-        try {
-            const wavData = audioBufferToWav(buffer);
-            const blob = new Blob([wavData], { type: 'audio/wav' });
-            const url = URL.createObjectURL(blob);
-
-            const filename = this.previewFilenames ? this.previewFilenames[index] : `file_${index + 1}`;
-            const baseName = filename.replace(/\.[^.]+$/, '');
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${baseName}_processed.wav`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showToast('下載已開始', 'success');
-        } catch (error) {
-            showToast('下載失敗: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * 下載所有預覽檔案為 ZIP
-     */
-    async downloadAllPreviewAsZip() {
-        if (!this.previewBuffers || this.previewBuffers.length === 0) {
-            showToast('沒有檔案可下載', 'warning');
-            return;
-        }
-
-        try {
-            showToast('正在打包檔案...', 'info');
-
-            const zip = new JSZip();
-
-            for (let i = 0; i < this.previewBuffers.length; i++) {
-                const buffer = this.previewBuffers[i];
-                if (buffer) {
-                    const wavData = audioBufferToWav(buffer);
-                    const filename = this.previewFilenames ? this.previewFilenames[i] : `file_${i + 1}`;
-                    const baseName = filename.replace(/\.[^.]+$/, '');
-                    zip.file(`${baseName}_processed.wav`, wavData);
-                }
-            }
-
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-            const url = URL.createObjectURL(zipBlob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${this.title}_processed_${Date.now()}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showToast(`已下載 ${this.previewBuffers.length} 個檔案`, 'success');
-        } catch (error) {
-            showToast(`打包下載失敗: ${error.message}`, 'error');
-            console.error('ZIP 下載失敗:', error);
         }
     }
 
