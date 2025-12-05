@@ -18,7 +18,8 @@ class GraphEngine {
             'speed': SpeedNode,
             'pitch': PitchNode,
             'smart-pitch': SmartPitchNode,
-            'key-integration': KeyIntegrationNode
+            'key-integration': KeyIntegrationNode,
+            'combine': CombineNode
         };
 
         // 綁定畫布事件
@@ -256,6 +257,17 @@ class GraphEngine {
         // 加入畫布
         this.canvas.addLink(link);
 
+        // 如果是預覽輸出端口連線，更新連線狀態
+        if (sourcePort.isPreviewOutput) {
+            sourceNode.setPreviewOutputConnection(sourcePort.fileIndex, true);
+            sourceNode.refreshMultiFileUI();
+        }
+
+        // 如果目標節點是合併節點，更新其 UI
+        if (targetNode.type === 'combine') {
+            targetNode.updateContent();
+        }
+
         // 執行資料流
         this.executeFromNode(targetNode.id);
 
@@ -295,19 +307,52 @@ class GraphEngine {
     }
 
     onLinkDeleted(link) {
-        // 當連線被刪除時，清除目標節點的輸入資料
+        // 如果是預覽輸出端口連線，更新連線狀態
+        if (link.sourcePort && link.sourcePort.isPreviewOutput) {
+            const sourceNode = this.canvas.nodes.get(link.sourceNodeId);
+            if (sourceNode) {
+                sourceNode.setPreviewOutputConnection(link.sourcePort.fileIndex, false);
+                sourceNode.refreshMultiFileUI();
+            }
+        }
+
+        // 當連線被刪除時，更新目標節點的 UI
         const targetNode = this.canvas.nodes.get(link.targetNodeId);
+
         if (targetNode) {
-            // 如果是裁切節點，清除波形
-            if (targetNode.updateInputAudio) {
-                targetNode.updateInputAudio(null);
+            // 如果目標節點是合併節點，更新其 UI
+            if (targetNode.type === 'combine') {
+                targetNode.updateContent();
             }
-            if (targetNode.setAudioBuffer) {
-                targetNode.setAudioBuffer(null);
-            }
-            // 清除預覽
-            if (targetNode.clearPreview) {
-                targetNode.clearPreview();
+
+            // 重新執行目標節點及其下游節點以更新預覽
+            this.executeFromNode(targetNode.id);
+        }
+    }
+
+    /**
+     * 清除節點及其所有下游節點的預覽
+     */
+    clearNodeAndDownstream(node) {
+        // 清除當前節點
+        if (node.updateInputAudio) {
+            node.updateInputAudio(null);
+        }
+        if (node.setAudioBuffer) {
+            node.setAudioBuffer(null);
+        }
+        if (node.clearPreview) {
+            node.clearPreview();
+        }
+
+        // 找出所有從此節點輸出的連線，遞迴清除下游節點
+        for (const outputPort of node.outputPorts) {
+            const downstreamLinks = this.findLinksByOutputPort(node.id, outputPort.name);
+            for (const link of downstreamLinks) {
+                const downstreamNode = this.canvas.nodes.get(link.targetNodeId);
+                if (downstreamNode) {
+                    this.clearNodeAndDownstream(downstreamNode);
+                }
             }
         }
     }
@@ -320,6 +365,13 @@ class GraphEngine {
         if (!node) return {};
 
         const inputs = {};
+
+        // 為合併節點特別處理：為每個端口分別儲存檔名
+        const isCombineNode = node.type === 'combine';
+        if (isCombineNode) {
+            inputs._portFilenames = {};  // 儲存每個端口的檔名
+        }
+
         for (const port of node.inputPorts) {
             const link = this.findLinkByInputPort(nodeId, port.name);
             if (link) {
@@ -329,15 +381,46 @@ class GraphEngine {
                     const sourceInputs = await this.getNodeInputData(link.sourceNodeId);
                     const sourceOutput = await sourceNode.process(sourceInputs);
 
-                    // 傳遞主要端口資料
-                    inputs[port.name] = sourceOutput[link.sourcePort.name];
+                    // 檢查是否來自預覽輸出端口（單一檔案）
+                    if (link.sourcePort.isPreviewOutput) {
+                        const fileIndex = link.sourcePort.fileIndex;
+                        // 從多檔案中取得指定索引的單一檔案
+                        if (sourceOutput.audioFiles && sourceOutput.audioFiles[fileIndex]) {
+                            inputs[port.name] = sourceOutput.audioFiles[fileIndex];
 
-                    // 同時傳遞多檔案相關資料（如果存在）
-                    if (sourceOutput.audioFiles) {
-                        inputs.audioFiles = sourceOutput.audioFiles;
-                    }
-                    if (sourceOutput.filenames) {
-                        inputs.filenames = sourceOutput.filenames;
+                            // 為合併節點儲存每個端口的檔名
+                            if (isCombineNode) {
+                                inputs._portFilenames[port.name] = sourceOutput.filenames?.[fileIndex] || `檔案`;
+                            } else {
+                                inputs.audioFiles = [sourceOutput.audioFiles[fileIndex]];
+                                if (sourceOutput.filenames && sourceOutput.filenames[fileIndex]) {
+                                    inputs.filenames = [sourceOutput.filenames[fileIndex]];
+                                }
+                            }
+                        } else {
+                            inputs[port.name] = sourceOutput[link.sourcePort.name];
+                        }
+                    } else {
+                        // 傳遞主要端口資料
+                        inputs[port.name] = sourceOutput[link.sourcePort.name];
+
+                        // 為合併節點儲存每個端口的檔名
+                        if (isCombineNode) {
+                            // 取得來源的檔名（優先使用 filenames，否則使用預設）
+                            if (sourceOutput.filenames && sourceOutput.filenames.length > 0) {
+                                inputs._portFilenames[port.name] = sourceOutput.filenames;
+                            } else {
+                                inputs._portFilenames[port.name] = [`檔案`];
+                            }
+                        } else {
+                            // 同時傳遞多檔案相關資料（如果存在）
+                            if (sourceOutput.audioFiles) {
+                                inputs.audioFiles = sourceOutput.audioFiles;
+                            }
+                            if (sourceOutput.filenames) {
+                                inputs.filenames = sourceOutput.filenames;
+                            }
+                        }
                     }
                 }
             }
@@ -516,6 +599,11 @@ class GraphEngine {
         <span>新增智慧音高調整</span>
       </div>
       <div class="context-menu-divider"></div>
+      <div class="context-menu-item" data-action="add-combine">
+        <span class="context-menu-icon">🔗</span>
+        <span>新增合併節點</span>
+      </div>
+      <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="fit-view">
         <span class="context-menu-icon">⊞</span>
         <span>適應畫布</span>
@@ -589,7 +677,8 @@ class GraphEngine {
             'add-fade-out': 'fade-out',
             'add-speed': 'speed',
             'add-pitch': 'pitch',
-            'add-smart-pitch': 'smart-pitch'
+            'add-smart-pitch': 'smart-pitch',
+            'add-combine': 'combine'
         };
 
         if (nodeTypeMap[action]) {

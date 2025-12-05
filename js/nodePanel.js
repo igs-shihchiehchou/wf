@@ -13,7 +13,8 @@ class NodePanel {
                 name: '輸入',
                 icon: '📥',
                 nodes: [
-                    { type: 'audio-input', label: '音訊輸入', icon: '📁', description: '載入音訊檔案' }
+                    { type: 'audio-input', label: '音訊輸入', icon: '📁', description: '載入音訊檔案' },
+                    { type: 'combine', label: '合併節點', icon: '🔗', description: '合併多個音訊輸入為一個列表' }
                 ]
             },
             {

@@ -42,6 +42,10 @@ class BaseNode {
             expanded: false
         };
 
+        // 預覽區域單一檔案輸出連結點管理
+        this.previewOutputPorts = [];  // 每個檔案預覽項目的輸出端口
+        this.previewOutputConnections = new Map();  // fileIndex -> 連線數量
+
         // 預覽相關（向下相容）
         this.previewBuffer = null;
         this.previewBuffers = []; // 多檔案預覽
@@ -176,11 +180,46 @@ class BaseNode {
         // 預覽區域：單檔案時預設展開
         const fileCount = this.getMultiFileCount();
         if (fileCount === 1) return true;
+        // 有輸出連線時強制展開
+        if (this.hasPreviewOutputConnections()) return true;
         return this.files.expanded;
     }
 
     setMultiFileExpanded(expanded) {
         this.files.expanded = expanded;
+    }
+
+    /**
+     * 檢查是否有預覽輸出連線
+     */
+    hasPreviewOutputConnections() {
+        if (!this.previewOutputConnections) return false;
+        for (const [, count] of this.previewOutputConnections) {
+            if (count > 0) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 設定預覽輸出連線狀態
+     */
+    setPreviewOutputConnection(fileIndex, connected) {
+        if (!this.previewOutputConnections) {
+            this.previewOutputConnections = new Map();
+        }
+        const currentCount = this.previewOutputConnections.get(fileIndex) || 0;
+        if (connected) {
+            this.previewOutputConnections.set(fileIndex, currentCount + 1);
+        } else {
+            this.previewOutputConnections.set(fileIndex, Math.max(0, currentCount - 1));
+        }
+    }
+
+    /**
+     * 檢查是否可以收縮預覽區域
+     */
+    canCollapsePreview() {
+        return !this.hasPreviewOutputConnections();
     }
 
     /**
@@ -217,11 +256,16 @@ class BaseNode {
 
         const fileCount = this.getMultiFileCount();
         const isExpanded = this.isMultiFileExpanded();
+        const canCollapse = this.canCollapsePreview();
+        const isLocked = !canCollapse && fileCount > 1;
 
         return `
             <div class="node-preview-summary">
-                <button class="node-preview-toggle" data-action="${actionPrefix}-toggle" title="${isExpanded ? '收合預覽' : '展開預覽'}">
-                    ${isExpanded ? '▼' : '▶'}
+                <button class="node-preview-toggle ${isLocked ? 'locked' : ''}" 
+                        data-action="${actionPrefix}-toggle" 
+                        title="${isLocked ? '有輸出連線時無法收縮' : (isExpanded ? '收合預覽' : '展開預覽')}"
+                        ${isLocked ? 'disabled' : ''}>
+                    ${isLocked ? '🔒' : (isExpanded ? '▼' : '▶')}
                 </button>
                 <span class="node-preview-icon">${summaryIcon}</span>
                 <span class="node-preview-count">${fileCount} ${summaryLabel}</span>
@@ -235,11 +279,13 @@ class BaseNode {
      * @param {Object} options - 配置選項
      * @param {string} options.waveformIdPrefix - 波形容器 ID 前綴
      * @param {string} options.actionPrefix - 動作前綴
+     * @param {boolean} options.showOutputPort - 是否顯示輸出連結點（預設 true）
      */
     renderMultiFileList(options = {}) {
         const {
             waveformIdPrefix = `waveform-${this.id}`,
-            actionPrefix = 'multi'
+            actionPrefix = 'multi',
+            showOutputPort = true
         } = options;
 
         const items = this.getMultiFileItems();
@@ -255,12 +301,21 @@ class BaseNode {
             const buffer = this.getFileBuffer(i);
             const filename = this.getFileName(i);
             const duration = buffer ? formatTime(buffer.duration) : '00:00';
+            const hasConnection = this.previewOutputConnections?.get(i) > 0;
 
             html += `
-                <div class="node-preview-file-item" data-file-index="${i}">
+                <div class="node-preview-file-item ${hasConnection ? 'has-output-connection' : ''}" data-file-index="${i}">
                     <div class="node-preview-file-info">
                         <span class="node-preview-file-icon">📄</span>
                         <span class="node-preview-file-name" title="${filename}">${filename}</span>
+                        ${showOutputPort ? `
+                        <div class="node-port output preview-output-port ${hasConnection ? 'connected' : ''}" 
+                             data-port="preview-output-${i}" 
+                             data-type="output" 
+                             data-datatype="audio"
+                             data-file-index="${i}"
+                             title="輸出此檔案"></div>
+                        ` : ''}
                     </div>
                     <div class="node-waveform" id="${waveformIdPrefix}-${i}"></div>
                     <div class="node-playback">
@@ -385,12 +440,66 @@ class BaseNode {
                 this.handleMultiFilePageChange(currentPage + 1);
             });
         }
+
+        // 預覽輸出端口事件
+        this.bindPreviewOutputPortEvents(element);
+    }
+
+    /**
+     * 綁定預覽輸出端口事件
+     */
+    bindPreviewOutputPortEvents(element) {
+        const previewOutputPorts = element.querySelectorAll('.preview-output-port');
+        previewOutputPorts.forEach(portEl => {
+            const fileIndex = parseInt(portEl.dataset.fileIndex);
+            const portName = `preview-output-${fileIndex}`;
+
+            // 建立或取得端口物件
+            let port = this.previewOutputPorts.find(p => p.name === portName);
+            if (!port) {
+                port = {
+                    name: portName,
+                    label: `檔案 ${fileIndex + 1} 輸出`,
+                    dataType: 'audio',
+                    type: 'output',
+                    connected: this.previewOutputConnections?.get(fileIndex) > 0,
+                    element: portEl,
+                    nodeId: this.id,
+                    fileIndex: fileIndex,
+                    isPreviewOutput: true
+                };
+                this.previewOutputPorts.push(port);
+                this.ports.push(port);
+            } else {
+                port.element = portEl;
+            }
+
+            // 綁定拖拉事件
+            portEl.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                if (this.onPortDragStart) {
+                    this.onPortDragStart(port, this);
+                }
+            });
+        });
+    }
+
+    /**
+     * 取得預覽輸出端口
+     */
+    getPreviewOutputPort(fileIndex) {
+        return this.previewOutputPorts.find(p => p.fileIndex === fileIndex);
     }
 
     /**
      * 處理頁簽切換
      */
     handleMultiFileToggle() {
+        // 檢查是否可以收縮
+        if (!this.canCollapsePreview() && this.isMultiFileExpanded()) {
+            showToast('有輸出連線時無法收縮', 'warning');
+            return;
+        }
         this.setMultiFileExpanded(!this.isMultiFileExpanded());
         // 同步到舊的預覽狀態（向下相容）
         this.previewExpanded = this.isMultiFileExpanded();
@@ -1024,7 +1133,11 @@ class BaseNode {
     }
 
     getOutputPort(name) {
-        return this.outputPorts.find(p => p.name === name);
+        // 先搜尋主要輸出端口
+        const mainPort = this.outputPorts.find(p => p.name === name);
+        if (mainPort) return mainPort;
+        // 再搜尋預覽輸出端口
+        return this.previewOutputPorts?.find(p => p.name === name);
     }
 
     // ========== 位置 ==========
