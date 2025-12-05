@@ -30,6 +30,14 @@ class NodePanel {
                     { type: 'smart-pitch', label: '智慧音高調整', icon: '🎼', description: '音高偵測、轉調與頻譜分析' },
                     { type: 'key-integration', label: '調性整合', icon: '🎹', description: '分析多檔案調性，統一移調至目標調性' }
                 ]
+            },
+            {
+                name: '合成',
+                icon: '🔀',
+                nodes: [
+                    { type: 'join', label: '串接音訊', icon: '🔗', description: '將兩個音訊首尾相接成一個長音訊' },
+                    { type: 'mix', label: '混音', icon: '🎚️', description: '將兩個音訊混合疊加成一個音訊' }
+                ]
             }
         ];
 

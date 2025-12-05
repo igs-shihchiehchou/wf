@@ -19,7 +19,9 @@ class GraphEngine {
             'pitch': PitchNode,
             'smart-pitch': SmartPitchNode,
             'key-integration': KeyIntegrationNode,
-            'combine': CombineNode
+            'combine': CombineNode,
+            'join': JoinNode,
+            'mix': MixNode
         };
 
         // 綁定畫布事件
@@ -368,6 +370,9 @@ class GraphEngine {
 
         // 為合併節點特別處理：為每個端口分別儲存檔名
         const isCombineNode = node.type === 'combine';
+        // 為 Join 和 Mix 節點特別處理：需要分別傳遞兩個輸入的檔名
+        const isJoinOrMixNode = node.type === 'join' || node.type === 'mix';
+        
         if (isCombineNode) {
             inputs._portFilenames = {};  // 儲存每個端口的檔名
         }
@@ -391,6 +396,11 @@ class GraphEngine {
                             // 為合併節點儲存每個端口的檔名
                             if (isCombineNode) {
                                 inputs._portFilenames[port.name] = sourceOutput.filenames?.[fileIndex] || `檔案`;
+                            } else if (isJoinOrMixNode) {
+                                // 為 Join/Mix 節點儲存每個輸入端口的檔名和檔案陣列
+                                const portSuffix = port.name === 'audio1' ? '1' : '2';
+                                inputs[`audioFiles${portSuffix}`] = [sourceOutput.audioFiles[fileIndex]];
+                                inputs[`filenames${portSuffix}`] = [sourceOutput.filenames?.[fileIndex] || '檔案'];
                             } else {
                                 inputs.audioFiles = [sourceOutput.audioFiles[fileIndex]];
                                 if (sourceOutput.filenames && sourceOutput.filenames[fileIndex]) {
@@ -411,6 +421,17 @@ class GraphEngine {
                                 inputs._portFilenames[port.name] = sourceOutput.filenames;
                             } else {
                                 inputs._portFilenames[port.name] = [`檔案`];
+                            }
+                        } else if (isJoinOrMixNode) {
+                            // 為 Join/Mix 節點儲存每個輸入端口的檔名和檔案陣列
+                            const portSuffix = port.name === 'audio1' ? '1' : '2';
+                            if (sourceOutput.audioFiles) {
+                                inputs[`audioFiles${portSuffix}`] = sourceOutput.audioFiles;
+                            }
+                            if (sourceOutput.filenames && sourceOutput.filenames.length > 0) {
+                                inputs[`filenames${portSuffix}`] = sourceOutput.filenames;
+                            } else {
+                                inputs[`filenames${portSuffix}`] = ['檔案'];
                             }
                         } else {
                             // 同時傳遞多檔案相關資料（如果存在）
@@ -603,6 +624,14 @@ class GraphEngine {
         <span class="context-menu-icon">🔗</span>
         <span>新增合併節點</span>
       </div>
+      <div class="context-menu-item" data-action="add-join">
+        <span class="context-menu-icon">🔗</span>
+        <span>新增串接音訊</span>
+      </div>
+      <div class="context-menu-item" data-action="add-mix">
+        <span class="context-menu-icon">🎚️</span>
+        <span>新增混音</span>
+      </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="fit-view">
         <span class="context-menu-icon">⊞</span>
@@ -678,7 +707,9 @@ class GraphEngine {
             'add-speed': 'speed',
             'add-pitch': 'pitch',
             'add-smart-pitch': 'smart-pitch',
-            'add-combine': 'combine'
+            'add-combine': 'combine',
+            'add-join': 'join',
+            'add-mix': 'mix'
         };
 
         if (nodeTypeMap[action]) {
