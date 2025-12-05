@@ -1647,3 +1647,232 @@
     border-color: var(--border);
     color: var(--text-muted);
 }
+
+/* ===========================
+   串接音訊節點 (JoinNode) 樣式
+   =========================== */
+
+.graph-node.node-join {
+    min-width: 220px;
+}
+
+.graph-node.node-join .node-header {
+    background-color: hsl(200 40% 18%);
+}
+
+.join-inputs-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+}
+
+.join-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2);
+    background-color: var(--bg);
+    border: 1px solid var(--border-muted);
+    border-radius: 4px;
+    position: relative;
+}
+
+.join-input-row:hover {
+    border-color: var(--border);
+}
+
+.join-input-row .node-port.input {
+    position: relative !important;
+    left: auto !important;
+    transform: none !important;
+    flex-shrink: 0;
+}
+
+.join-input-label {
+    flex: 1;
+    font-size: var(--text-sm);
+    color: var(--text);
+}
+
+.join-input-status {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.join-input-status.connected {
+    color: var(--success);
+}
+
+.join-warning,
+.mix-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2);
+    background-color: hsla(45, 100%, 50%, 0.1);
+    border: 1px solid hsla(45, 100%, 50%, 0.3);
+    border-radius: 4px;
+    margin-top: var(--spacing-2);
+}
+
+.join-warning-icon,
+.mix-warning-icon {
+    font-size: var(--text-sm);
+    flex-shrink: 0;
+}
+
+.join-warning-text,
+.mix-warning-text {
+    font-size: var(--text-xs);
+    color: hsl(45, 100%, 70%);
+    line-height: 1.4;
+}
+
+.join-hint,
+.mix-hint {
+    text-align: center;
+    padding: var(--spacing-2);
+}
+
+/* 節點警告狀態 */
+.graph-node.has-warning {
+    border-color: hsla(45, 100%, 50%, 0.5);
+}
+
+.graph-node.has-warning .node-header {
+    background-color: hsla(45, 100%, 30%, 0.3);
+}
+
+/* ===========================
+   混音節點 (MixNode) 樣式
+   =========================== */
+
+.graph-node.node-mix {
+    min-width: 240px;
+}
+
+.graph-node.node-mix .node-header {
+    background-color: hsl(320 40% 18%);
+}
+
+.mix-inputs-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+}
+
+.mix-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2);
+    background-color: var(--bg);
+    border: 1px solid var(--border-muted);
+    border-radius: 4px;
+    position: relative;
+}
+
+.mix-input-row:hover {
+    border-color: var(--border);
+}
+
+.mix-input-row .node-port.input {
+    position: relative !important;
+    left: auto !important;
+    transform: none !important;
+    flex-shrink: 0;
+}
+
+.mix-input-label {
+    flex: 1;
+    font-size: var(--text-sm);
+    color: var(--text);
+}
+
+.mix-input-status {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.mix-input-status.connected {
+    color: var(--success);
+}
+
+/* 音量平衡滑桿 */
+.mix-balance-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-1);
+}
+
+.mix-balance-slider {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(to right, 
+        hsl(200 60% 50%) 0%, 
+        hsl(200 60% 50%) 50%, 
+        hsl(320 60% 50%) 50%, 
+        hsl(320 60% 50%) 100%);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.mix-balance-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.mix-balance-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.mix-balance-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.mix-balance-value {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    margin-top: var(--spacing-1);
+}
+
+/* 自動標準化核取方塊 */
+.node-checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    cursor: pointer;
+    padding: var(--spacing-1) 0;
+}
+
+.node-checkbox-container input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.node-checkbox-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}

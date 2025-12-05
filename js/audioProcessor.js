@@ -343,6 +343,178 @@ class AudioProcessor {
     source.start();
     return source;
   }
+
+  /**
+   * 串接兩個音訊（首尾相接）
+   * @param {AudioBuffer} buffer1 - 前段音訊
+   * @param {AudioBuffer} buffer2 - 後段音訊
+   * @returns {AudioBuffer} 串接後的音訊
+   */
+  joinAudio(buffer1, buffer2) {
+    // 取較高的取樣率
+    const sampleRate = Math.max(buffer1.sampleRate, buffer2.sampleRate);
+    
+    // 取較多的聲道數
+    const numChannels = Math.max(buffer1.numberOfChannels, buffer2.numberOfChannels);
+
+    // 如果取樣率不同，需要重新採樣
+    const resampled1 = buffer1.sampleRate !== sampleRate 
+      ? this.resampleBuffer(buffer1, sampleRate) 
+      : buffer1;
+    const resampled2 = buffer2.sampleRate !== sampleRate 
+      ? this.resampleBuffer(buffer2, sampleRate) 
+      : buffer2;
+
+    // 計算總長度
+    const totalLength = resampled1.length + resampled2.length;
+
+    // 建立新的 AudioBuffer
+    const newBuffer = this.audioContext.createBuffer(numChannels, totalLength, sampleRate);
+
+    // 複製資料
+    for (let channel = 0; channel < numChannels; channel++) {
+      const newData = newBuffer.getChannelData(channel);
+      
+      // 複製 buffer1 的資料（處理聲道數不匹配的情況）
+      const data1 = resampled1.getChannelData(Math.min(channel, resampled1.numberOfChannels - 1));
+      for (let i = 0; i < resampled1.length; i++) {
+        newData[i] = data1[i];
+      }
+
+      // 複製 buffer2 的資料（處理聲道數不匹配的情況）
+      const data2 = resampled2.getChannelData(Math.min(channel, resampled2.numberOfChannels - 1));
+      for (let i = 0; i < resampled2.length; i++) {
+        newData[resampled1.length + i] = data2[i];
+      }
+    }
+
+    return newBuffer;
+  }
+
+  /**
+   * 混合兩個音訊（疊加）
+   * @param {AudioBuffer} buffer1 - 音軌1
+   * @param {AudioBuffer} buffer2 - 音軌2
+   * @param {number} balance1 - 音軌1的音量比例（0.0-1.0）
+   * @param {number} balance2 - 音軌2的音量比例（0.0-1.0）
+   * @param {boolean} autoNormalize - 是否自動標準化防止削波
+   * @returns {Object} { buffer: AudioBuffer, normalized: boolean, clipped: boolean }
+   */
+  mixAudio(buffer1, buffer2, balance1 = 0.5, balance2 = 0.5, autoNormalize = true) {
+    // 取較高的取樣率
+    const sampleRate = Math.max(buffer1.sampleRate, buffer2.sampleRate);
+    
+    // 取較多的聲道數
+    const numChannels = Math.max(buffer1.numberOfChannels, buffer2.numberOfChannels);
+
+    // 如果取樣率不同，需要重新採樣
+    const resampled1 = buffer1.sampleRate !== sampleRate 
+      ? this.resampleBuffer(buffer1, sampleRate) 
+      : buffer1;
+    const resampled2 = buffer2.sampleRate !== sampleRate 
+      ? this.resampleBuffer(buffer2, sampleRate) 
+      : buffer2;
+
+    // 取較長的長度
+    const maxLength = Math.max(resampled1.length, resampled2.length);
+
+    // 建立新的 AudioBuffer
+    const newBuffer = this.audioContext.createBuffer(numChannels, maxLength, sampleRate);
+
+    let maxSample = 0;
+    let clipped = false;
+
+    // 混合資料
+    for (let channel = 0; channel < numChannels; channel++) {
+      const newData = newBuffer.getChannelData(channel);
+      
+      // 取得兩個來源的資料（處理聲道數不匹配的情況）
+      const data1 = resampled1.getChannelData(Math.min(channel, resampled1.numberOfChannels - 1));
+      const data2 = resampled2.getChannelData(Math.min(channel, resampled2.numberOfChannels - 1));
+
+      for (let i = 0; i < maxLength; i++) {
+        const sample1 = i < resampled1.length ? data1[i] * balance1 : 0;
+        const sample2 = i < resampled2.length ? data2[i] * balance2 : 0;
+        const mixed = sample1 + sample2;
+        
+        newData[i] = mixed;
+        
+        // 追蹤最大值以便標準化
+        if (Math.abs(mixed) > maxSample) {
+          maxSample = Math.abs(mixed);
+        }
+        
+        // 檢查是否有削波
+        if (Math.abs(mixed) > 1.0) {
+          clipped = true;
+        }
+      }
+    }
+
+    let normalized = false;
+
+    // 自動標準化
+    if (autoNormalize && maxSample > 1.0) {
+      const normalizeRatio = 0.99 / maxSample;  // 保留一點餘量
+      for (let channel = 0; channel < numChannels; channel++) {
+        const data = newBuffer.getChannelData(channel);
+        for (let i = 0; i < maxLength; i++) {
+          data[i] *= normalizeRatio;
+        }
+      }
+      normalized = true;
+      clipped = false;  // 標準化後不會有削波
+    } else if (!autoNormalize) {
+      // 不標準化時，直接限制在 -1 到 1 之間（硬削波）
+      for (let channel = 0; channel < numChannels; channel++) {
+        const data = newBuffer.getChannelData(channel);
+        for (let i = 0; i < maxLength; i++) {
+          data[i] = Math.max(-1, Math.min(1, data[i]));
+        }
+      }
+    }
+
+    return {
+      buffer: newBuffer,
+      normalized: normalized,
+      clipped: clipped
+    };
+  }
+
+  /**
+   * 重新採樣 AudioBuffer 到指定取樣率
+   * @param {AudioBuffer} buffer - 原始音訊
+   * @param {number} targetSampleRate - 目標取樣率
+   * @returns {AudioBuffer} 重新採樣後的音訊
+   */
+  resampleBuffer(buffer, targetSampleRate) {
+    if (buffer.sampleRate === targetSampleRate) {
+      return buffer;
+    }
+
+    const ratio = targetSampleRate / buffer.sampleRate;
+    const newLength = Math.round(buffer.length * ratio);
+    const numChannels = buffer.numberOfChannels;
+
+    const newBuffer = this.audioContext.createBuffer(numChannels, newLength, targetSampleRate);
+
+    for (let channel = 0; channel < numChannels; channel++) {
+      const inputData = buffer.getChannelData(channel);
+      const outputData = newBuffer.getChannelData(channel);
+
+      for (let i = 0; i < newLength; i++) {
+        const srcIndex = i / ratio;
+        const srcFloor = Math.floor(srcIndex);
+        const srcCeil = Math.min(srcFloor + 1, buffer.length - 1);
+        const fraction = srcIndex - srcFloor;
+
+        // 線性插值
+        outputData[i] = inputData[srcFloor] * (1 - fraction) + inputData[srcCeil] * fraction;
+      }
+    }
+
+    return newBuffer;
+  }
 }
 
 // 建立全域音訊處理器實例
