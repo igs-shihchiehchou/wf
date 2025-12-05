@@ -173,6 +173,9 @@ class BaseNode {
      * 取得/設定展開狀態
      */
     isMultiFileExpanded() {
+        // 預覽區域：單檔案時預設展開
+        const fileCount = this.getMultiFileCount();
+        if (fileCount === 1) return true;
         return this.files.expanded;
     }
 
@@ -624,30 +627,25 @@ class BaseNode {
         // 同步 previewBuffers 到 files.items（確保資料一致）
         this.syncPreviewToFiles();
 
-        // 檢查是否有多個檔案
+        // 檢查是否有檔案
         const fileCount = this.getMultiFileCount();
 
-        if (fileCount > 1) {
-            // 使用統一的多檔案系統
+        // 統一使用多檔案系統（包括單檔案）
+        if (fileCount > 0) {
             return this.renderMultiFileSection({
                 summaryIcon: '🎵',
                 summaryLabel: '個處理結果',
                 actionPrefix: 'preview',
                 waveformIdPrefix: `preview-waveform-${this.id}`,
-                containerClass: 'node-preview-multi'
+                containerClass: fileCount === 1 ? 'node-preview-single' : 'node-preview-multi'
             });
         }
 
-        // 單檔案預覽（原有邏輯）
+        // 無檔案時返回空預覽
         return `
-            <div class="node-preview">
-                <div class="node-waveform" id="preview-waveform-${this.id}"></div>
-                <div class="node-playback">
-                    <button class="node-play-btn" data-action="preview-play">▶</button>
-                    <span class="node-time">
-                        <span class="preview-current-time">00:00</span> / <span class="preview-total-time">00:00</span>
-                    </span>
-                    <button class="node-download-btn" data-action="preview-download" title="下載">⬇</button>
+            <div class="node-preview node-preview-empty">
+                <div class="node-preview-placeholder">
+                    <span style="color: var(--text-muted); font-size: var(--text-sm);">等待輸入...</span>
                 </div>
             </div>
         `;
@@ -678,19 +676,7 @@ class BaseNode {
         const element = node || this.element;
         if (!element) return;
 
-        // 單檔案播放按鈕
-        const playBtn = element.querySelector('[data-action="preview-play"]');
-        if (playBtn) {
-            playBtn.addEventListener('click', () => this.togglePreviewPlay());
-        }
-
-        // 單檔案下載按鈕
-        const downloadBtn = element.querySelector('[data-action="preview-download"]');
-        if (downloadBtn) {
-            downloadBtn.addEventListener('click', () => this.downloadPreview());
-        }
-
-        // 多檔案：使用統一的事件綁定系統
+        // 統一使用多檔案事件綁定系統（包括單檔案）
         this.bindMultiFileEvents(element, { actionPrefix: 'preview' });
     }
 
@@ -698,7 +684,7 @@ class BaseNode {
      * 重新渲染預覽 UI
      */
     refreshPreviewUI() {
-        const previewContainer = this.element.querySelector('.node-preview, .node-preview-multi');
+        const previewContainer = this.element.querySelector('.node-preview, .node-preview-multi, .node-preview-single, .node-preview-empty');
         if (previewContainer) {
             const parent = previewContainer.parentNode;
             const newPreviewHtml = this.renderPreview();
@@ -716,8 +702,8 @@ class BaseNode {
                 parent.replaceChild(newPreview.firstElementChild, previewContainer);
                 this.bindPreviewEvents(this.element);
 
-                // 初始化 wavesurfers（使用統一系統）
-                if (this.isMultiFileExpanded() && this.getMultiFileCount() > 1) {
+                // 初始化 wavesurfers（使用統一系統，包括單檔案）
+                if (this.isMultiFileExpanded() && this.getMultiFileCount() > 0) {
                     requestAnimationFrame(() => {
                         this.initCurrentPageWaveSurfers({
                             waveformIdPrefix: `preview-waveform-${this.id}`,
@@ -730,7 +716,7 @@ class BaseNode {
     }
 
     async updatePreview() {
-        const previewEl = this.element.querySelector('.node-preview, .node-preview-multi');
+        const previewEl = this.element.querySelector('.node-preview, .node-preview-multi, .node-preview-single, .node-preview-empty');
         if (!previewEl) return;
 
         // 標記預覽已開啟
@@ -747,41 +733,26 @@ class BaseNode {
                 this.previewBuffers = outputs.audioFiles.filter(b => b != null);
                 this.previewFilenames = outputs.filenames || this.previewBuffers.map((_, i) => `檔案 ${i + 1}`);
                 this.previewBuffer = this.previewBuffers[0] || null;
-
-                // 同步到 files 結構
-                this.syncPreviewToFiles();
-
-                // 重新渲染 UI
-                this.refreshPreviewUI();
-                return;
+            } else {
+                // 單檔案處理（向下相容）
+                this.previewBuffer = outputs.audio;
+                this.previewBuffers = outputs.audio ? [outputs.audio] : [];
+                this.previewFilenames = outputs.filenames || ['處理結果'];
             }
-
-            // 單檔案處理（向下相容）
-            this.previewBuffer = outputs.audio;
-            this.previewBuffers = outputs.audio ? [outputs.audio] : [];
-            this.previewFilenames = outputs.filenames || ['處理結果'];
 
             // 同步到 files 結構
             this.syncPreviewToFiles();
 
-            if (!this.previewBuffer) {
-                // 沒有音訊時清空波形
-                this.clearPreview();
-                return;
-            }
-
-            // 更新時間顯示
-            const totalTimeEl = this.element.querySelector('.preview-total-time');
-            if (totalTimeEl) {
-                totalTimeEl.textContent = formatTime(this.previewBuffer.duration);
-            }
-
-            // 初始化波形
-            await this.initPreviewWaveSurfer();
+            // 統一使用多檔案預覽系統（包括單檔案和無檔案）
+            this.refreshPreviewUI();
 
         } catch (error) {
             console.error('預覽更新失敗:', error);
-            this.clearPreview();
+            // 清空預覽資料
+            this.previewBuffer = null;
+            this.previewBuffers = [];
+            this.syncPreviewToFiles();
+            this.refreshPreviewUI();
         }
     }
 

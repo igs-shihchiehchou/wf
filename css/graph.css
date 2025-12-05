@@ -1432,12 +1432,22 @@
    多檔案預覽區域（處理節點）
    =========================== */
 
-.node-preview-multi {
+.node-preview-multi,
+.node-preview-single {
     margin-top: var(--spacing-3);
     padding: var(--spacing-2);
     background-color: var(--bg);
     border: 1px solid var(--border-muted);
     border-radius: 4px;
+}
+
+.node-preview-empty {
+    margin-top: var(--spacing-3);
+    padding: var(--spacing-3);
+    background-color: var(--bg-light);
+    border: 1px dashed var(--border-muted);
+    border-radius: 4px;
+    text-align: center;
 }
 
 .node-preview-summary {
