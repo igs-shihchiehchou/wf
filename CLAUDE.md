@@ -34,7 +34,7 @@ This project has no build process, package manager, or test framework. All depen
 ### Core Design Philosophy
 
 - **Zero Build** - Pure static HTML/CSS/JS, no build tools or npm
-- **CDN Dependencies** - All libraries loaded via CDN (Tone.js, WaveSurfer.js v7, Tailwind CSS)
+- **CDN Dependencies** - All libraries loaded via CDN (Tone.js, WaveSurfer.js v7)
 - **Node-Based Graph UI** - Visual node editor for connecting audio processing operations
 - **Browser-Only Processing** - All audio processing happens client-side using Web Audio API
 
