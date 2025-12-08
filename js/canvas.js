@@ -67,20 +67,25 @@ class GraphCanvas {
         this.container.appendChild(background);
         this.background = background;
 
+        // SVG 連線層 - 直接放在 container 下，不在 viewport 內
+        this.linksLayer = document.createElement('div');
+        this.linksLayer.className = 'canvas-links';
+        this.container.appendChild(this.linksLayer);
+
+        // 建立 SVG
+        this.svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        this.svgElement.setAttribute('width', '100%');
+        this.svgElement.setAttribute('height', '100%');
+        this.svgElement.style.overflow = 'visible';
+        this.svgElement.style.position = 'absolute';
+        this.svgElement.style.top = '0';
+        this.svgElement.style.left = '0';
+        this.linksLayer.appendChild(this.svgElement);
+
         // 視口容器
         this.viewport = document.createElement('div');
         this.viewport.className = 'canvas-viewport';
         this.container.appendChild(this.viewport);
-
-        // SVG 連線層
-        this.linksLayer = document.createElement('div');
-        this.linksLayer.className = 'canvas-links';
-        this.viewport.appendChild(this.linksLayer);
-
-        // 建立 SVG
-        this.svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        this.svgElement.style.overflow = 'visible';
-        this.linksLayer.appendChild(this.svgElement);
 
         // 節點層
         this.nodesLayer = document.createElement('div');
@@ -555,13 +560,13 @@ class GraphCanvas {
         const portElement = port.element;
         if (!portElement) return { x: node.x, y: node.y };
 
-        const nodeRect = node.element.getBoundingClientRect();
         const portRect = portElement.getBoundingClientRect();
         const containerRect = this.container.getBoundingClientRect();
 
+        // SVG 現在在 container 下，直接使用相對於 container 的座標
         return {
-            x: (portRect.left + portRect.width / 2 - containerRect.left - this.transform.x) / this.transform.scale,
-            y: (portRect.top + portRect.height / 2 - containerRect.top - this.transform.y) / this.transform.scale
+            x: portRect.left + portRect.width / 2 - containerRect.left,
+            y: portRect.top + portRect.height / 2 - containerRect.top
         };
     }
 
@@ -584,6 +589,13 @@ class GraphCanvas {
         // 建立暫時連線
         this.tempLink = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         this.tempLink.classList.add('graph-link', 'dragging');
+        // 直接設置 SVG 屬性以確保 Chrome/Edge 兼容性
+        this.tempLink.setAttribute('fill', 'none');
+        this.tempLink.setAttribute('stroke', '#bdae61'); // --primary 顏色
+        this.tempLink.setAttribute('stroke-width', '2');
+        this.tempLink.setAttribute('stroke-dasharray', '5, 5');
+        this.tempLink.setAttribute('opacity', '0.7');
+        this.tempLink.style.pointerEvents = 'none';
         this.svgElement.appendChild(this.tempLink);
 
         // 高亮相容的端口
@@ -594,7 +606,11 @@ class GraphCanvas {
         if (!this.tempLink || !this.dragLinkStart) return;
 
         const rect = this.container.getBoundingClientRect();
-        const endPos = this.screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
+        // SVG 現在在 container 下，直接使用相對座標
+        const endPos = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
 
         const startNode = this.dragLinkStart.node;
         const startPort = this.dragLinkStart.port;

@@ -23,6 +23,12 @@ class GraphLink {
         path.classList.add('graph-link');
         path.dataset.linkId = this.id;
 
+        // 直接設置 SVG 屬性以確保 Chrome/Edge 兼容性
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#bdae61'); // --primary 顏色 hsl(56, 38%, 57%)
+        path.setAttribute('stroke-width', '2');
+        path.style.pointerEvents = 'stroke';
+
         // 點擊選取
         path.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -46,16 +52,24 @@ class GraphLink {
     setSelected(selected) {
         if (selected) {
             this.element.classList.add('selected');
+            // 直接設置 SVG 屬性以確保 Chrome/Edge 兼容性
+            this.element.setAttribute('stroke', '#bbb4e8'); // --secondary 顏色 hsl(242, 68%, 80%)
+            this.element.setAttribute('stroke-width', '3');
         } else {
             this.element.classList.remove('selected');
+            this.element.setAttribute('stroke', '#bdae61'); // --primary 顏色
+            this.element.setAttribute('stroke-width', '2');
         }
     }
 
     setActive(active) {
         if (active) {
             this.element.classList.add('active');
+            // 直接設置 SVG 屬性以確保 Chrome/Edge 兼容性
+            this.element.setAttribute('stroke-dasharray', '10 5');
         } else {
             this.element.classList.remove('active');
+            this.element.setAttribute('stroke-dasharray', 'none');
         }
     }
 
