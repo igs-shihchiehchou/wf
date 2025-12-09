@@ -1824,11 +1824,11 @@
     height: 6px;
     -webkit-appearance: none;
     appearance: none;
-    background: linear-gradient(to right, 
-        hsl(200 60% 50%) 0%, 
-        hsl(200 60% 50%) 50%, 
-        hsl(320 60% 50%) 50%, 
-        hsl(320 60% 50%) 100%);
+    background: linear-gradient(to right,
+            hsl(200 60% 50%) 0%,
+            hsl(200 60% 50%) 50%,
+            hsl(320 60% 50%) 50%,
+            hsl(320 60% 50%) 100%);
     border-radius: 3px;
     cursor: pointer;
 }

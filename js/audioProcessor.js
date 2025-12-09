@@ -353,16 +353,16 @@ class AudioProcessor {
   joinAudio(buffer1, buffer2) {
     // 取較高的取樣率
     const sampleRate = Math.max(buffer1.sampleRate, buffer2.sampleRate);
-    
+
     // 取較多的聲道數
     const numChannels = Math.max(buffer1.numberOfChannels, buffer2.numberOfChannels);
 
     // 如果取樣率不同，需要重新採樣
-    const resampled1 = buffer1.sampleRate !== sampleRate 
-      ? this.resampleBuffer(buffer1, sampleRate) 
+    const resampled1 = buffer1.sampleRate !== sampleRate
+      ? this.resampleBuffer(buffer1, sampleRate)
       : buffer1;
-    const resampled2 = buffer2.sampleRate !== sampleRate 
-      ? this.resampleBuffer(buffer2, sampleRate) 
+    const resampled2 = buffer2.sampleRate !== sampleRate
+      ? this.resampleBuffer(buffer2, sampleRate)
       : buffer2;
 
     // 計算總長度
@@ -374,7 +374,7 @@ class AudioProcessor {
     // 複製資料
     for (let channel = 0; channel < numChannels; channel++) {
       const newData = newBuffer.getChannelData(channel);
-      
+
       // 複製 buffer1 的資料（處理聲道數不匹配的情況）
       const data1 = resampled1.getChannelData(Math.min(channel, resampled1.numberOfChannels - 1));
       for (let i = 0; i < resampled1.length; i++) {
@@ -403,16 +403,16 @@ class AudioProcessor {
   mixAudio(buffer1, buffer2, balance1 = 0.5, balance2 = 0.5, autoNormalize = true) {
     // 取較高的取樣率
     const sampleRate = Math.max(buffer1.sampleRate, buffer2.sampleRate);
-    
+
     // 取較多的聲道數
     const numChannels = Math.max(buffer1.numberOfChannels, buffer2.numberOfChannels);
 
     // 如果取樣率不同，需要重新採樣
-    const resampled1 = buffer1.sampleRate !== sampleRate 
-      ? this.resampleBuffer(buffer1, sampleRate) 
+    const resampled1 = buffer1.sampleRate !== sampleRate
+      ? this.resampleBuffer(buffer1, sampleRate)
       : buffer1;
-    const resampled2 = buffer2.sampleRate !== sampleRate 
-      ? this.resampleBuffer(buffer2, sampleRate) 
+    const resampled2 = buffer2.sampleRate !== sampleRate
+      ? this.resampleBuffer(buffer2, sampleRate)
       : buffer2;
 
     // 取較長的長度
@@ -427,7 +427,7 @@ class AudioProcessor {
     // 混合資料
     for (let channel = 0; channel < numChannels; channel++) {
       const newData = newBuffer.getChannelData(channel);
-      
+
       // 取得兩個來源的資料（處理聲道數不匹配的情況）
       const data1 = resampled1.getChannelData(Math.min(channel, resampled1.numberOfChannels - 1));
       const data2 = resampled2.getChannelData(Math.min(channel, resampled2.numberOfChannels - 1));
@@ -436,14 +436,14 @@ class AudioProcessor {
         const sample1 = i < resampled1.length ? data1[i] * balance1 : 0;
         const sample2 = i < resampled2.length ? data2[i] * balance2 : 0;
         const mixed = sample1 + sample2;
-        
+
         newData[i] = mixed;
-        
+
         // 追蹤最大值以便標準化
         if (Math.abs(mixed) > maxSample) {
           maxSample = Math.abs(mixed);
         }
-        
+
         // 檢查是否有削波
         if (Math.abs(mixed) > 1.0) {
           clipped = true;

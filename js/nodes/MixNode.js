@@ -160,7 +160,7 @@ class MixNode extends BaseNode {
         if (balanceSlider) {
             balanceSlider.addEventListener('input', (e) => {
                 this.data.balance = parseInt(e.target.value);
-                
+
                 // 更新顯示
                 const valueDisplay = this.element.querySelector('.mix-balance-value');
                 if (valueDisplay) {
