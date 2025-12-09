@@ -70,7 +70,7 @@ js/
 | `fade-out` | ◣ | Add fade-out effect |
 | `speed` | 🗲 | Adjust playback speed (changes pitch) |
 | `pitch` | ♪ | Adjust pitch without changing duration (Phase Vocoder) |
-| `smart-pitch` | ♬ | Smart pitch adjustment with detection and analysis |
+| `smart-pitch` | 𖦤 | Smart pitch adjustment with detection and analysis |
 | `key-integration` | ⚙ | Batch pitch adjustment to target key |
 | `join` | ⛓ | Join two audio files end-to-end |
 | `mix` | ⊗ | Mix two audio files together |

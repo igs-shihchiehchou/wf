@@ -19,6 +19,7 @@ class GraphEngine {
             'pitch': PitchNode,
             'smart-pitch': SmartPitchNode,
             'key-integration': KeyIntegrationNode,
+            'volume-sync': VolumeSyncNode,
             'combine': CombineNode,
             'join': JoinNode,
             'mix': MixNode
@@ -616,8 +617,12 @@ class GraphEngine {
         <span>新增音高調整</span>
       </div>
       <div class="context-menu-item" data-action="add-smart-pitch">
-        <span class="context-menu-icon">♬</span>
+        <span class="context-menu-icon">𖦤</span>
         <span>新增智慧調音</span>
+      </div>
+      <div class="context-menu-item" data-action="add-volume-sync">
+        <span class="context-menu-icon">⇋</span>
+        <span>新增音量整合</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="add-combine">
@@ -707,6 +712,7 @@ class GraphEngine {
             'add-speed': 'speed',
             'add-pitch': 'pitch',
             'add-smart-pitch': 'smart-pitch',
+            'add-volume-sync': 'volume-sync',
             'add-combine': 'combine',
             'add-join': 'join',
             'add-mix': 'mix'

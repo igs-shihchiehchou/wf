@@ -22,13 +22,14 @@ class NodePanel {
                 icon: '☰',
                 nodes: [
                     { type: 'volume', label: '音量調整', icon: '▲', description: '調整音量大小' },
-                    { type: 'crop', label: '裁切', icon: '✂', description: '裁切音效片段' },
+                    { type: 'crop', label: '裁切', icon: '✂', description: '裁切音訊片段' },
                     { type: 'fade-in', label: '淡入', icon: '◢', description: '添加淡入效果' },
                     { type: 'fade-out', label: '淡出', icon: '◣', description: '添加淡出效果' },
                     { type: 'speed', label: '速度調整', icon: '🗲', description: '調整播放速度' },
                     { type: 'pitch', label: '音高調整', icon: '♪', description: '調整音高（不改變速度）' },
-                    { type: 'smart-pitch', label: '智慧調音', icon: '♬', description: '音高偵測、轉調與頻譜分析' },
-                    { type: 'key-integration', label: '批量調音', icon: '⚙', description: '分析多檔案調性，統一移調至目標調性' }
+                    { type: 'smart-pitch', label: '智慧調音', icon: '𖦤', description: '音高偵測、轉調與頻譜分析' },
+                    { type: 'key-integration', label: '批量調音', icon: '⚙', description: '分析多檔案調性，統一移調至目標調性' },
+                    { type: 'volume-sync', label: '音量整合', icon: '⇋', description: '統一多個音訊的響度' }
                 ]
             },
             {
