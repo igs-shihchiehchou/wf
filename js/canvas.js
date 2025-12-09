@@ -160,6 +160,7 @@ class GraphCanvas {
 
             this.updateTransform();
             this.updateZoomDisplay();
+            this.updateLinks(); // 同步更新連線位置
         }
     }
 
@@ -195,6 +196,7 @@ class GraphCanvas {
             this.transform.x = e.clientX - this.panStart.x;
             this.transform.y = e.clientY - this.panStart.y;
             this.updateTransform();
+            this.updateLinks(); // 同步更新連線位置
         }
 
         if (this.isSelecting) {
@@ -968,12 +970,14 @@ class GraphCanvas {
 
         this.updateTransform();
         this.updateZoomDisplay();
+        this.updateLinks(); // 同步更新連線位置
     }
 
     resetView() {
         this.transform = { x: 0, y: 0, scale: 1 };
         this.updateTransform();
         this.updateZoomDisplay();
+        this.updateLinks(); // 同步更新連線位置
     }
 
     fitToContent() {
@@ -1008,6 +1012,7 @@ class GraphCanvas {
 
         this.updateTransform();
         this.updateZoomDisplay();
+        this.updateLinks(); // 同步更新連線位置
     }
 
     // ========== 序列化 ==========
