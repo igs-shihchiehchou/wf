@@ -195,6 +195,7 @@ class GraphCanvas {
             this.transform.x = e.clientX - this.panStart.x;
             this.transform.y = e.clientY - this.panStart.y;
             this.updateTransform();
+            this.updateLinks(); // 同步更新連線位置
         }
 
         if (this.isSelecting) {
