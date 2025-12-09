@@ -62,13 +62,18 @@ js/
 
 | Type | Icon | Description |
 |------|------|-------------|
-| `audio-input` | 📁 | Load audio files |
-| `volume` | 🎚️ | Adjust volume (0-200%) |
-| `crop` | ✂️ | Trim audio with visual waveform |
-| `fade-in` | 📈 | Add fade-in effect |
-| `fade-out` | 📉 | Add fade-out effect |
-| `speed` | ⏩ | Adjust playback speed (changes pitch) |
-| `pitch` | 🎵 | Adjust pitch without changing duration (Phase Vocoder) |
+| `audio-input` | ◎ | Load audio files |
+| `combine` | ⊕ | Combine multiple audio inputs into a list |
+| `volume` | ▲ | Adjust volume (0-200%) |
+| `crop` | ✂ | Trim audio with visual waveform |
+| `fade-in` | ◢ | Add fade-in effect |
+| `fade-out` | ◣ | Add fade-out effect |
+| `speed` | 🗲 | Adjust playback speed (changes pitch) |
+| `pitch` | ♪ | Adjust pitch without changing duration (Phase Vocoder) |
+| `smart-pitch` | ♬ | Smart pitch adjustment with detection and analysis |
+| `key-integration` | ⚙ | Batch pitch adjustment to target key |
+| `join` | ⛓ | Join two audio files end-to-end |
+| `mix` | ⊗ | Mix two audio files together |
 
 ### Data Flow
 

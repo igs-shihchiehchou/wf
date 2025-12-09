@@ -249,7 +249,7 @@ class BaseNode {
      */
     renderMultiFileSummary(options = {}) {
         const {
-            summaryIcon = '🎵',
+            summaryIcon = '♬',
             summaryLabel = '個檔案',
             actionPrefix = 'multi'
         } = options;
@@ -269,7 +269,7 @@ class BaseNode {
                 </button>
                 <span class="node-preview-icon">${summaryIcon}</span>
                 <span class="node-preview-count">${fileCount} ${summaryLabel}</span>
-                <button class="node-download-all-btn" data-action="${actionPrefix}-download-all" title="下載全部 (ZIP)">📦</button>
+                <button class="node-download-all-btn" data-action="${actionPrefix}-download-all" title="下載全部 (ZIP)">☐</button>
             </div>
         `;
     }
@@ -306,7 +306,7 @@ class BaseNode {
             html += `
                 <div class="node-preview-file-item ${hasConnection ? 'has-output-connection' : ''}" data-file-index="${i}">
                     <div class="node-preview-file-info">
-                        <span class="node-preview-file-icon">📄</span>
+                        <span class="node-preview-file-icon">▭</span>
                         <span class="node-preview-file-name" title="${filename}">${filename}</span>
                         ${showOutputPort ? `
                         <div class="node-port output preview-output-port ${hasConnection ? 'connected' : ''}" 
@@ -364,7 +364,7 @@ class BaseNode {
      */
     renderMultiFileSection(options = {}) {
         const {
-            summaryIcon = '🎵',
+            summaryIcon = '♬',
             summaryLabel = '個檔案',
             actionPrefix = 'multi',
             waveformIdPrefix = `waveform-${this.id}`,
@@ -474,13 +474,21 @@ class BaseNode {
                 port.element = portEl;
             }
 
-            // 綁定拖拉事件
+            // 桌面版：綁定拖拉事件
             portEl.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
                 if (this.onPortDragStart) {
                     this.onPortDragStart(port, this);
                 }
             });
+
+            // 手機版：綁定觸控拖拉事件
+            portEl.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                if (this.onPortDragStart) {
+                    this.onPortDragStart(port, this, e.touches[0]);
+                }
+            }, { passive: true });
         });
     }
 
@@ -742,7 +750,7 @@ class BaseNode {
         // 統一使用多檔案系統（包括單檔案）
         if (fileCount > 0) {
             return this.renderMultiFileSection({
-                summaryIcon: '🎵',
+                summaryIcon: '♬',
                 summaryLabel: '個處理結果',
                 actionPrefix: 'preview',
                 waveformIdPrefix: `preview-waveform-${this.id}`,

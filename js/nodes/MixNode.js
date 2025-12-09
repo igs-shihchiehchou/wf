@@ -11,7 +11,7 @@ class MixNode extends BaseNode {
             hasWarning: false,
             warningMessage: ''
         };
-        super(id, 'mix', '混音', '🎚️', options, defaultData);
+        super(id, 'mix', '混音', '⊗', options, defaultData);
     }
 
     setupPorts() {
@@ -145,6 +145,13 @@ class MixNode extends BaseNode {
                         this.onPortDragStart(port, this);
                     }
                 });
+
+                portEl.addEventListener('touchstart', (e) => {
+                    e.stopPropagation();
+                    if (this.onPortDragStart) {
+                        this.onPortDragStart(port, this, e.touches[0]);
+                    }
+                }, { passive: true });
             }
         });
 

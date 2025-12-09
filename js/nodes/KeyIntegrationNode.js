@@ -1,5 +1,5 @@
 /**
- * 調性整合節點（批量分析多檔案音高，移調至符合目標調性的最近音）
+ * 批量調音節點（批量分析多檔案音高，移調至符合目標調性的最近音）
  */
 class KeyIntegrationNode extends BaseNode {
     // 音名常數（不含八度）
@@ -28,7 +28,7 @@ class KeyIntegrationNode extends BaseNode {
             isAnalyzing: false,
             analysisProgress: 0
         };
-        super(id, 'key-integration', '調性整合', '🎹', options, defaultData);
+        super(id, 'key-integration', '批量調音', '⚙', options, defaultData);
 
         this.inputAudioBuffers = [];
         this.inputFilenames = [];
@@ -65,7 +65,7 @@ class KeyIntegrationNode extends BaseNode {
 
         return `
             <div class="node-control key-integration-control">
-                <label class="node-control-label">🎼 批量調性整合</label>
+                <label class="node-control-label">⚙ 批量調音</label>
                 
                 <!-- 目標調性選擇 -->
                 <div class="key-integration-target">
@@ -101,8 +101,8 @@ class KeyIntegrationNode extends BaseNode {
         if (fileAnalysis.length === 0 && !isAnalyzing) {
             return `
                 <div class="key-analysis-section key-analysis-empty">
-                    <span class="key-empty-icon">📭</span>
-                    <span class="key-empty-text">等待音訊輸入...</span>
+                    <span class="key-empty-icon">○</span>
+                    <span class="key-empty-text">等待音效輸入...</span>
                 </div>
             `;
         }
@@ -148,7 +148,7 @@ class KeyIntegrationNode extends BaseNode {
             listHtml += `
                 <div class="key-file-item" data-index="${i}">
                     <div class="key-file-info">
-                        <span class="key-file-icon">📄</span>
+                        <span class="key-file-icon">▭</span>
                         <span class="key-file-name" title="${item.filename}">${item.filename}</span>
                     </div>
                     <div class="key-file-analysis">
@@ -178,7 +178,7 @@ class KeyIntegrationNode extends BaseNode {
                     <button class="key-analysis-toggle" data-action="toggle-analysis">
                         ${this.analysisExpanded ? '▼' : '▶'}
                     </button>
-                    <span class="key-analysis-title">📊 調性分析結果</span>
+                    <span class="key-analysis-title">≡ 調性分析結果</span>
                     <span class="key-analysis-count">${fileAnalysis.length} 個檔案</span>
                 </div>
                 <div class="key-analysis-content ${this.analysisExpanded ? 'expanded' : 'collapsed'}">
@@ -571,7 +571,7 @@ class KeyIntegrationNode extends BaseNode {
     }
 
     /**
-     * 套用調性整合
+     * 套用批量調音
      */
     async applyKeyIntegration() {
         if (!this.data.targetKey || this.data.fileAnalysis.length === 0) {
@@ -585,7 +585,7 @@ class KeyIntegrationNode extends BaseNode {
         // 觸發預覽更新（會呼叫 process）
         this.schedulePreviewUpdate();
 
-        showToast(`已套用調性整合至 ${this.data.targetKey}`, 'success');
+        showToast(`已套用批量調音至 ${this.data.targetKey}`, 'success');
     }
 
     async process(inputs) {

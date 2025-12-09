@@ -7,7 +7,7 @@ class SpeedNode extends BaseNode {
         const defaultData = {
             speed: options.speed || 100
         };
-        super(id, 'speed', '速度調整', '⏩', options, defaultData);
+        super(id, 'speed', '速度調整', '🗲', options, defaultData);
     }
 
     setupPorts() {

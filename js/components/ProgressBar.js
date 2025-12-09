@@ -42,7 +42,7 @@ class ProgressBar {
 
     const icon = document.createElement('span');
     icon.className = 'progress-icon';
-    icon.textContent = '🔍';
+    icon.textContent = '◎';
 
     this.labelElement = document.createElement('span');
     this.labelElement.className = 'progress-label';
