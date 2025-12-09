@@ -7,6 +7,7 @@ class GraphEngine {
         this.canvas = canvas;
         this.nodeIdCounter = 0;
         this.linkIdCounter = 0;
+        this.isProcessingLinkDrop = false; // 防止重複處理連結拖放
 
         // 節點註冊表
         this.nodeTypes = {
@@ -49,9 +50,33 @@ class GraphEngine {
         this.canvas.onContextMenu = (e) => {
             this.showContextMenu(e);
         };
+
+        // 音訊檔案拖放
+        this.canvas.onAudioFileDrop = (files, x, y) => {
+            this.handleAudioFileDrop(files, x, y);
+        };
+
+        // 連結拖到空白處
+        this.canvas.onLinkDropOnCanvas = (data) => {
+            this.showLinkDropContextMenu(data);
+        };
     }
 
     // ========== 節點管理 ==========
+
+    /**
+     * 處理音訊檔案拖放到畫布
+     */
+    async handleAudioFileDrop(files, x, y) {
+        if (!files || files.length === 0) return;
+
+        // 建立新的音效輸入節點
+        const node = this.createNode('audio-input', x, y);
+        if (node) {
+            // 載入檔案到節點
+            await node.loadFiles(files);
+        }
+    }
 
     createNode(type, x, y) {
         const NodeClass = this.nodeTypes[type];
@@ -693,6 +718,158 @@ class GraphEngine {
         setTimeout(() => {
             document.addEventListener('click', this.hideContextMenu.bind(this), { once: true });
         }, 0);
+    }
+
+    /**
+     * 顯示連結拖到空白處的 Context Menu
+     */
+    showLinkDropContextMenu(data) {
+        const { screenX, screenY, canvasX, canvasY, sourceNode, sourcePort } = data;
+
+        // 防止重複顯示
+        if (this.contextMenu || this.isProcessingLinkDrop) {
+            return;
+        }
+
+        this.hideContextMenu();
+
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.left = screenX + 'px';
+        menu.style.top = screenY + 'px';
+
+        // 根據端口類型和方向決定可建立的節點類型
+        const nodeTypeMap = {
+            'add-audio-input': { type: 'audio-input', icon: '◎', label: '音效輸入', hasOutput: true },
+            'add-volume': { type: 'volume', icon: '▲', label: '音量調整', hasInput: true, hasOutput: true },
+            'add-crop': { type: 'crop', icon: '✂', label: '裁切', hasInput: true, hasOutput: true },
+            'add-fade-in': { type: 'fade-in', icon: '◢', label: '淡入', hasInput: true, hasOutput: true },
+            'add-fade-out': { type: 'fade-out', icon: '◣', label: '淡出', hasInput: true, hasOutput: true },
+            'add-speed': { type: 'speed', icon: '🗲', label: '速度調整', hasInput: true, hasOutput: true },
+            'add-pitch': { type: 'pitch', icon: '♪', label: '音高調整', hasInput: true, hasOutput: true },
+            'add-smart-pitch': { type: 'smart-pitch', icon: '𖦤', label: '智慧調音', hasInput: true, hasOutput: true },
+            'add-volume-sync': { type: 'volume-sync', icon: '⇋', label: '音量整合', hasInput: true, hasOutput: true },
+            'add-combine': { type: 'combine', icon: '⊕', label: '多路合併', hasInput: true, hasOutput: true },
+            'add-join': { type: 'join', icon: '⛓', label: '串接音效', hasInput: true, hasOutput: true },
+            'add-mix': { type: 'mix', icon: '⊗', label: '混音', hasInput: true, hasOutput: true }
+        };
+
+        // 根據來源端口類型過濾節點
+        let menuItems = '';
+        const isOutputPort = sourcePort.type === 'output';
+
+        for (const [action, info] of Object.entries(nodeTypeMap)) {
+            // 如果是從輸出端口拖出，只顯示有輸入端口的節點
+            // 如果是從輸入端口拖出，只顯示有輸出端口的節點
+            if ((isOutputPort && info.hasInput) || (!isOutputPort && info.hasOutput)) {
+                menuItems += `
+                    <div class="context-menu-item" data-action="${action}">
+                        <span class="context-menu-icon">${info.icon}</span>
+                        <span>${info.label}</span>
+                    </div>
+                `;
+            }
+        }
+
+        menu.innerHTML = menuItems;
+
+        // 保存當前的清理函數
+        let cleanupFn = null;
+
+        const cleanup = () => {
+            if (cleanupFn) {
+                cleanupFn();
+                cleanupFn = null;
+            }
+        };
+
+        // 綁定選單項目點擊事件
+        menu.querySelectorAll('.context-menu-item').forEach(item => {
+            const clickHandler = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+
+                // 防止重複處理
+                if (this.isProcessingLinkDrop) {
+                    return;
+                }
+                this.isProcessingLinkDrop = true;
+
+                const action = item.dataset.action;
+                const nodeInfo = nodeTypeMap[action];
+
+                // 立即清理
+                cleanup();
+                this.hideContextMenu();
+                this.canvas.cancelDraggingLink();
+
+                if (nodeInfo) {
+                    // 建立節點並自動連線
+                    this.createNodeAndConnect(nodeInfo.type, canvasX, canvasY, sourceNode, sourcePort);
+                }
+
+                // 重置標記
+                setTimeout(() => {
+                    this.isProcessingLinkDrop = false;
+                }, 100);
+            };
+
+            item.addEventListener('click', clickHandler, { once: true });
+        });
+
+        document.body.appendChild(menu);
+        this.contextMenu = menu;
+
+        // 設置清理函數
+        const clickOutsideHandler = (e) => {
+            if (!menu.contains(e.target)) {
+                cleanup();
+                this.hideContextMenu();
+                this.canvas.cancelDraggingLink();
+            }
+        };
+
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                cleanup();
+                this.hideContextMenu();
+                this.canvas.cancelDraggingLink();
+            }
+        };
+
+        cleanupFn = () => {
+            document.removeEventListener('click', clickOutsideHandler);
+            document.removeEventListener('keydown', escapeHandler);
+        };
+
+        // 延遲綁定以避免立即觸發
+        setTimeout(() => {
+            document.addEventListener('click', clickOutsideHandler);
+            document.addEventListener('keydown', escapeHandler);
+        }, 100);
+    }
+
+    /**
+     * 建立節點並自動連接
+     */
+    createNodeAndConnect(nodeType, x, y, sourceNode, sourcePort) {
+        const newNode = this.createNode(nodeType, x, y);
+        if (!newNode) return;
+
+        // 根據來源端口類型決定連接方式
+        if (sourcePort.type === 'output') {
+            // 從輸出端口拖出，連接到新節點的輸入
+            const targetPort = newNode.inputPorts[0]; // 使用第一個輸入端口
+            if (targetPort) {
+                this.createLink(sourceNode, sourcePort, newNode, targetPort);
+            }
+        } else {
+            // 從輸入端口拖出，連接到新節點的輸出
+            const outputPort = newNode.outputPorts[0]; // 使用第一個輸出端口
+            if (outputPort) {
+                this.createLink(newNode, outputPort, sourceNode, sourcePort);
+            }
+        }
     }
 
     hideContextMenu() {

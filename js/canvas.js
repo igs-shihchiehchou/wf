@@ -41,6 +41,7 @@ class GraphCanvas {
         this.isDraggingLink = false;
         this.dragLinkStart = null;
         this.tempLink = null;
+        this.isShowingLinkMenu = false; // 是否正在顯示連結選單
 
         // 事件回調
         this.onNodeSelect = null;
@@ -316,15 +317,48 @@ class GraphCanvas {
     handleDrop(e) {
         e.preventDefault();
 
-        const nodeType = e.dataTransfer.getData('nodeType');
-        if (!nodeType) return;
-
         const rect = this.container.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
         // 轉換為畫布座標
         const canvasPos = this.screenToCanvas(x, y);
+
+        // 檢查是否為音訊檔案拖放
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            // 過濾出音訊檔案
+            const audioFiles = Array.from(files).filter(f => f.type.startsWith('audio/'));
+
+            if (audioFiles.length > 0) {
+                // 檢查是否拖放到現有的 AudioInputNode 上
+                const targetElement = document.elementFromPoint(e.clientX, e.clientY);
+                const nodeElement = targetElement?.closest('.graph-node');
+
+                if (nodeElement) {
+                    const node = this.nodes.get(nodeElement.id);
+                    if (node && node.type === 'audio-input') {
+                        // 拖放到現有音效輸入節點，直接加入檔案
+                        node.loadFiles(audioFiles);
+                        return;
+                    }
+                }
+
+                // 拖放到空白處或其他節點，建立新的音效輸入節點
+                if (this.onAudioFileDrop) {
+                    this.onAudioFileDrop(audioFiles, canvasPos.x, canvasPos.y);
+                }
+                return;
+            } else if (files.length > 0) {
+                // 有檔案但不是音訊檔案
+                showToast('僅支援音訊檔案格式', 'warning');
+                return;
+            }
+        }
+
+        // 原有的節點類型拖放處理
+        const nodeType = e.dataTransfer.getData('nodeType');
+        if (!nodeType) return;
 
         // 發送建立節點事件
         if (this.onNodeCreate) {
@@ -715,6 +749,9 @@ class GraphCanvas {
     updateTempLink(e) {
         if (!this.tempLink || !this.dragLinkStart) return;
 
+        // 如果正在顯示選單，不更新虛線位置
+        if (this.isShowingLinkMenu) return;
+
         const rect = this.container.getBoundingClientRect();
         // SVG 現在在 container 下，直接使用相對座標
         const endPos = {
@@ -757,14 +794,65 @@ class GraphCanvas {
 
                 this.onLinkCreate(sourceNode, sourcePort, targetNode, targetPortObj);
             }
-        }
+            this.cancelDraggingLink();
+        } else {
+            // 沒有連接到有效端口，檢查是否真的放在空白處
+            const elements = document.elementsFromPoint(e.clientX, e.clientY);
+            let isOnCanvas = false;
 
-        this.cancelDraggingLink();
+            // 檢查是否點擊在畫布上（而不是節點或其他 UI 元素上）
+            for (const el of elements) {
+                // 如果點到節點、節點內容或其他 UI 元素，不顯示選單
+                if (el.classList.contains('graph-node') ||
+                    el.closest('.graph-node') ||
+                    el.classList.contains('node-port') ||
+                    el.closest('.node-port')) {
+                    this.cancelDraggingLink();
+                    return;
+                }
+                // 確認是在畫布區域
+                if (el === this.container ||
+                    el === this.background ||
+                    el.classList.contains('canvas-background') ||
+                    el === this.viewport ||
+                    el === this.nodesLayer) {
+                    isOnCanvas = true;
+                }
+            }
+
+            // 只有在真正的空白處才顯示選單
+            if (isOnCanvas) {
+                this.isShowingLinkMenu = true; // 標記正在顯示選單
+
+                const rect = this.container.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const canvasPos = this.screenToCanvas(x, y);
+
+                // 顯示 Context Menu 讓使用者選擇要建立的節點
+                if (this.onLinkDropOnCanvas) {
+                    this.onLinkDropOnCanvas({
+                        screenX: e.clientX,
+                        screenY: e.clientY,
+                        canvasX: canvasPos.x,
+                        canvasY: canvasPos.y,
+                        sourceNode: this.dragLinkStart.node,
+                        sourcePort: this.dragLinkStart.port
+                    });
+                } else {
+                    this.cancelDraggingLink();
+                }
+            } else {
+                // 不在空白處，取消連結
+                this.cancelDraggingLink();
+            }
+        }
     }
 
     cancelDraggingLink() {
         this.isDraggingLink = false;
         this.dragLinkStart = null;
+        this.isShowingLinkMenu = false; // 重置選單標記
 
         if (this.tempLink) {
             this.tempLink.remove();
