@@ -160,6 +160,7 @@ class GraphCanvas {
 
             this.updateTransform();
             this.updateZoomDisplay();
+            this.updateLinks(); // 同步更新連線位置
         }
     }
 
@@ -969,12 +970,14 @@ class GraphCanvas {
 
         this.updateTransform();
         this.updateZoomDisplay();
+        this.updateLinks(); // 同步更新連線位置
     }
 
     resetView() {
         this.transform = { x: 0, y: 0, scale: 1 };
         this.updateTransform();
         this.updateZoomDisplay();
+        this.updateLinks(); // 同步更新連線位置
     }
 
     fitToContent() {
@@ -1009,6 +1012,7 @@ class GraphCanvas {
 
         this.updateTransform();
         this.updateZoomDisplay();
+        this.updateLinks(); // 同步更新連線位置
     }
 
     // ========== 序列化 ==========
