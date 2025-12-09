@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>音效處理工具 - Graph UI</title>
+    <title>音效處理工具</title>
 
     <!-- Tone.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
@@ -29,52 +29,47 @@
         <div class="header-content">
             <div class="header-left">
                 <button class="btn-icon mobile-menu-btn" id="mobileMenuBtn" title="節點面板">☰</button>
-                <h1 class="title">🎵 音效處理工具</h1>
+                <h1 class="title">♬ 音效處理工具</h1>
             </div>
             <div class="header-actions">
-                <!-- 儲存下拉選單 -->
-                <div class="dropdown" id="saveDropdown">
-                    <button class="btn-icon dropdown-toggle" title="儲存">💾</button>
+                <!-- 檔案下拉選單 -->
+                <div class="dropdown" id="fileDropdown">
+                    <button class="btn-icon dropdown-toggle" title="檔案">🗁</button>
                     <div class="dropdown-menu">
+                        <!-- 儲存選項 -->
                         <button class="dropdown-item" id="quickSaveBtn">
-                            <span class="dropdown-icon">⚡</span>
+                            <span class="dropdown-icon">🗲</span>
                             <span>快速儲存</span>
                             <span class="dropdown-shortcut">Ctrl+S</span>
                         </button>
                         <button class="dropdown-item" id="saveAsBtn">
-                            <span class="dropdown-icon">📄</span>
+                            <span class="dropdown-icon">⎙</span>
                             <span>另存新檔...</span>
                             <span class="dropdown-shortcut">Ctrl+Shift+S</span>
                         </button>
-                        <div class="dropdown-divider"></div>
                         <button class="dropdown-item" id="saveSelectedBtn" disabled>
-                            <span class="dropdown-icon">✔️</span>
+                            <span class="dropdown-icon">☑</span>
                             <span>儲存選擇的工作流...</span>
                         </button>
-                    </div>
-                </div>
-                <!-- 載入下拉選單 -->
-                <div class="dropdown" id="loadDropdown">
-                    <button class="btn-icon dropdown-toggle" title="載入">📂</button>
-                    <div class="dropdown-menu">
+                        <div class="dropdown-divider"></div>
+                        <!-- 載入選項 -->
                         <button class="dropdown-item" id="quickLoadBtn">
-                            <span class="dropdown-icon">⚡</span>
+                            <span class="dropdown-icon">🗲</span>
                             <span>快速載入</span>
                             <span class="dropdown-shortcut">Ctrl+O</span>
                         </button>
                         <button class="dropdown-item" id="loadFileBtn">
-                            <span class="dropdown-icon">📁</span>
+                            <span class="dropdown-icon">🗀</span>
                             <span>從檔案載入...</span>
                             <span class="dropdown-shortcut">Ctrl+Shift+O</span>
                         </button>
-                        <div class="dropdown-divider"></div>
                         <button class="dropdown-item" id="appendFileBtn">
-                            <span class="dropdown-icon">➕</span>
+                            <span class="dropdown-icon">✚</span>
                             <span>從檔案加入...</span>
                         </button>
                     </div>
                 </div>
-                <button class="btn-icon" id="clearBtn" title="清除全部">🗑️</button>
+                <button class="btn-icon" id="clearBtn" title="清除全部">✕</button>
             </div>
         </div>
     </header>

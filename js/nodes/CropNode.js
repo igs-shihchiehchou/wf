@@ -44,7 +44,7 @@ class CropNode extends BaseNode {
           </div>
         </div>
         <div class="crop-no-input" id="crop-no-input-${this.id}">
-          <span>等待音訊輸入...</span>
+          <span>等待音效輸入...</span>
         </div>
       </div>
       <div class="crop-time-display">

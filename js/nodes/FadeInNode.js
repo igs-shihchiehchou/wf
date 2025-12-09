@@ -7,7 +7,7 @@ class FadeInNode extends BaseNode {
             duration: options.duration || 1.0,
             audioDuration: options.audioDuration || 10
         };
-        super(id, 'fade-in', '淡入', '📈', options, defaultData);
+        super(id, 'fade-in', '淡入', '◢', options, defaultData);
 
         this.wavesurfer = null;
         this.inputAudioBuffer = null;
@@ -38,7 +38,7 @@ class FadeInNode extends BaseNode {
           </div>
         </div>
         <div class="fade-no-input" id="fadein-no-input-${this.id}">
-          <span>等待音訊輸入...</span>
+          <span>等待音效輸入...</span>
         </div>
       </div>
       <div class="fade-time-display">

@@ -1,5 +1,5 @@
 /**
- * 音訊輸入節點 - 載入音訊檔案（支援多檔案）
+ * 音效輸入節點 - 載入音效檔案（支援多檔案）
  * 使用 BaseNode 的統一多檔案管理系統
  */
 
@@ -13,7 +13,7 @@ class AudioInputNode extends BaseNode {
         // 在 super() 之前初始化（因為 renderContent 會在 super 中被呼叫）
         // 這些屬性會在 super() 後被正式設定
 
-        super(id, 'audio-input', '音訊輸入', '📁', options, defaultData);
+        super(id, 'audio-input', '音效輸入', '◎', options, defaultData);
 
         // 多檔案音訊資料
         this.audioFiles = this.audioFiles || []; // [{filename, audioBuffer, wavesurfer}]
@@ -199,7 +199,7 @@ class AudioInputNode extends BaseNode {
             // 使用 BaseNode 的統一多檔案渲染系統
             return `
                 ${this.renderMultiFileSection({
-                summaryIcon: '📄',
+                summaryIcon: '▭',
                 summaryLabel: '個音訊檔案',
                 actionPrefix: 'input',
                 waveformIdPrefix: `waveform-${this.id}`,
@@ -246,7 +246,7 @@ class AudioInputNode extends BaseNode {
             html += `
                 <div class="node-preview-file-item ${hasConnection ? 'has-output-connection' : ''}" data-file-index="${i}">
                     <div class="node-preview-file-info">
-                        <span class="node-preview-file-icon">📄</span>
+                        <span class="node-preview-file-icon">▭</span>
                         <span class="node-preview-file-name" title="${filename}">${displayName}</span>
                         <button class="node-file-remove" data-action="remove-file" data-index="${i}" title="移除">×</button>
                         ${showOutputPort ? `

@@ -12,7 +12,7 @@ let clipboard = null; // 剪貼簿，存儲複製的節點資料
  * 應用程式初始化
  */
 function initApp() {
-  console.log('🎵 音效處理工具 (Graph UI) 啟動中...');
+  console.log('♬ 音效處理工具 (Graph UI) 啟動中...');
 
   // 檢查瀏覽器支援
   if (!window.AudioContext && !window.webkitAudioContext) {
@@ -174,6 +174,20 @@ function bindToolbarEvents() {
   if (mobileMenuBtn) {
     mobileMenuBtn.addEventListener('click', () => {
       nodePanel.toggle();
+    });
+  }
+
+  // 手機版：點擊畫布區域關閉節點面板
+  const canvasArea = document.getElementById('canvasArea');
+  if (canvasArea) {
+    canvasArea.addEventListener('click', (e) => {
+      // 只在手機版且面板開啟時處理
+      if (window.innerWidth <= 768 && nodePanel.isVisible()) {
+        // 確保點擊的是畫布區域本身，而不是節點或其他元素
+        if (e.target === canvasArea || e.target.classList.contains('graph-canvas')) {
+          nodePanel.hide();
+        }
+      }
     });
   }
 }
@@ -339,6 +353,32 @@ function bindKeyboardShortcuts() {
       graphEngine.createNode(nodeShortcuts[e.key], canvasPos.x - 100, canvasPos.y - 50);
     }
   });
+}
+
+// 處理視窗大小變化
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    handleResize();
+  }, 250);
+});
+
+function handleResize() {
+  const isMobile = window.innerWidth <= 768;
+  const nodePanelElement = document.getElementById('nodePanel');
+
+  if (!nodePanelElement) return;
+
+  // 從手機版切換到桌面版
+  if (!isMobile) {
+    // 清除手機版的 open 類別，恢復桌面版的顯示狀態
+    nodePanelElement.classList.remove('open');
+  } else {
+    // 從桌面版切換到手機版
+    // 手機版預設關閉（移除 open）
+    nodePanelElement.classList.remove('open');
+  }
 }
 
 // 當 DOM 載入完成後初始化

@@ -1,5 +1,5 @@
 /**
- * 智慧音高調整節點（含音高偵測、轉調、分析功能）
+ * 智慧調音節點（含音高偵測、轉調、分析功能）
  */
 class SmartPitchNode extends BaseNode {
     // 音名常數（不含八度）
@@ -12,7 +12,7 @@ class SmartPitchNode extends BaseNode {
             targetKey: null,            // 目標調性（音名，不含八度，如 'C', 'D#'）
             fileAnalysis: []            // 多檔案分析結果 [{ filename, detectedKey, semitones }]
         };
-        super(id, 'smart-pitch', '智慧音高調整', '🎼', options, defaultData);
+        super(id, 'smart-pitch', '智慧調音', '♬', options, defaultData);
 
         this.inputAudioBuffer = null;
         this.inputAudioBuffers = [];    // 多檔案音訊緩衝區
@@ -50,8 +50,8 @@ class SmartPitchNode extends BaseNode {
             <!-- 區域一：標題與目標調性 -->
             <div class="smart-pitch-header">
                 <div class="smart-pitch-title">
-                    <span class="smart-pitch-icon">🎹</span>
-                    <span class="smart-pitch-label">智慧音高調整</span>
+                    <span class="smart-pitch-icon">♬</span>
+                    <span class="smart-pitch-label">智慧調音</span>
                 </div>
                 <div class="smart-pitch-target">
                     <label class="smart-pitch-target-label">目標音:</label>
@@ -85,8 +85,8 @@ class SmartPitchNode extends BaseNode {
         if (fileAnalysis.length === 0) {
             return `
                 <div class="smart-pitch-empty">
-                    <span class="smart-pitch-empty-icon">📭</span>
-                    <span class="smart-pitch-empty-text">等待音訊輸入...</span>
+                    <span class="smart-pitch-empty-icon">○</span>
+                    <span class="smart-pitch-empty-text">等待音效輸入...</span>
                 </div>
             `;
         }
@@ -112,13 +112,13 @@ class SmartPitchNode extends BaseNode {
 
             // 分析狀態
             const isAnalyzed = item.detailAnalysis !== undefined;
-            const analyzeIcon = isAnalyzed ? '📊' : '🔍';
+            const analyzeIcon = isAnalyzed ? '≡' : '◎';
             const analyzeTitle = isAnalyzed ? '查看分析結果' : '點擊進行細部分析';
 
             return `
                 <div class="smart-pitch-file-item" data-index="${index}">
                     <div class="smart-pitch-file-info">
-                        <span class="smart-pitch-file-icon">📄</span>
+                        <span class="smart-pitch-file-icon">▭</span>
                         <span class="smart-pitch-file-name" title="${item.filename}">${item.filename}</span>
                     </div>
                     <div class="smart-pitch-file-analysis">
@@ -266,7 +266,7 @@ class SmartPitchNode extends BaseNode {
 
             // 更新按鈕狀態
             if (btn) {
-                btn.textContent = '📊';
+                btn.textContent = '≡';
                 btn.disabled = false;
             }
 
@@ -277,7 +277,7 @@ class SmartPitchNode extends BaseNode {
             console.error('檔案細部分析失敗:', error);
             showToast('分析失敗', 'error');
             if (btn) {
-                btn.textContent = '🔍';
+                btn.textContent = '◎';
                 btn.disabled = false;
             }
         }
@@ -324,7 +324,7 @@ class SmartPitchNode extends BaseNode {
         // 頭部（檔名與關閉按鈕）
         const headerHTML = `
             <div class="smart-pitch-detail-header">
-                <span class="smart-pitch-detail-title">📄 ${filename}</span>
+                <span class="smart-pitch-detail-title">▭ ${filename}</span>
                 <button class="smart-pitch-detail-close" title="關閉">×</button>
             </div>
         `;

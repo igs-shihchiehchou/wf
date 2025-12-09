@@ -102,7 +102,7 @@ class GraphCanvas {
         this.hint = document.createElement('div');
         this.hint.className = 'canvas-hint';
         this.hint.innerHTML = `
-      <div class="canvas-hint-icon">🎵</div>
+      <div class="canvas-hint-icon">♬</div>
       <div class="canvas-hint-text">從左側面板拖拉節點開始</div>
       <div class="canvas-hint-subtext">或右鍵點擊畫布新增節點</div>
     `;
@@ -118,6 +118,10 @@ class GraphCanvas {
         document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
 
+        // 觸控事件（手機版）
+        document.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+        document.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: true });
+
         // 右鍵選單
         this.container.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
 
@@ -127,6 +131,9 @@ class GraphCanvas {
         // 拖放事件（從節點面板）
         this.container.addEventListener('dragover', (e) => this.handleDragOver(e));
         this.container.addEventListener('drop', (e) => this.handleDrop(e));
+
+        // 手機版：觸控拖放事件
+        this.container.addEventListener('nodeDrop', (e) => this.handleTouchDrop(e));
     }
 
     // ========== 視口控制 ==========
@@ -231,6 +238,31 @@ class GraphCanvas {
         }
     }
 
+    handleTouchMove(e) {
+        if (this.isDraggingLink && e.touches.length > 0) {
+            const touch = e.touches[0];
+            // 創建一個類似滑鼠事件的物件
+            const fakeEvent = {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            };
+            this.updateTempLink(fakeEvent);
+            e.preventDefault();
+        }
+    }
+
+    handleTouchEnd(e) {
+        if (this.isDraggingLink) {
+            const touch = e.changedTouches[0];
+            // 創建一個類似滑鼠事件的物件
+            const fakeEvent = {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            };
+            this.finishDraggingLink(fakeEvent);
+        }
+    }
+
     handleContextMenu(e) {
         e.preventDefault();
 
@@ -300,6 +332,23 @@ class GraphCanvas {
         }
     }
 
+    handleTouchDrop(e) {
+        const { nodeType, x, y } = e.detail;
+        if (!nodeType) return;
+
+        const rect = this.container.getBoundingClientRect();
+        const localX = x - rect.left;
+        const localY = y - rect.top;
+
+        // 轉換為畫布座標
+        const canvasPos = this.screenToCanvas(localX, localY);
+
+        // 發送建立節點事件
+        if (this.onNodeCreate) {
+            this.onNodeCreate(nodeType, canvasPos.x, canvasPos.y);
+        }
+    }
+
     // ========== 座標轉換 ==========
 
     screenToCanvas(screenX, screenY) {
@@ -362,10 +411,19 @@ class GraphCanvas {
             }
         });
 
+        // 手機版：節點選取
+        node.element.addEventListener('touchstart', (e) => {
+            if (!this.selectedNodes.has(node.id)) {
+                this.clearSelection();
+            }
+            this.selectNode(node.id);
+        }, { passive: true });
+
         // 節點拖拉
         let isDragging = false;
         let dragOffset = { x: 0, y: 0 };
 
+        // 桌面版：節點拖拉
         header.addEventListener('mousedown', (e) => {
             if (e.button === 0 && e.target.closest('.node-header') && !e.target.closest('.node-action-btn')) {
                 isDragging = true;
@@ -381,6 +439,23 @@ class GraphCanvas {
             }
         });
 
+        // 手機版：節點拖拉
+        header.addEventListener('touchstart', (e) => {
+            if (e.target.closest('.node-header') && !e.target.closest('.node-action-btn')) {
+                isDragging = true;
+                const touch = e.touches[0];
+                const rect = node.element.getBoundingClientRect();
+
+                dragOffset = {
+                    x: touch.clientX - rect.left,
+                    y: touch.clientY - rect.top
+                };
+
+                e.stopPropagation();
+            }
+        }, { passive: true });
+
+        // 桌面版：拖拉移動
         document.addEventListener('mousemove', (e) => {
             if (isDragging) {
                 const rect = this.container.getBoundingClientRect();
@@ -412,6 +487,41 @@ class GraphCanvas {
         document.addEventListener('mouseup', () => {
             isDragging = false;
         });
+
+        // 手機版：拖拉移動
+        document.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                const touch = e.touches[0];
+                const rect = this.container.getBoundingClientRect();
+                const x = touch.clientX - rect.left - dragOffset.x;
+                const y = touch.clientY - rect.top - dragOffset.y;
+
+                // 轉換為畫布座標
+                const canvasPos = this.screenToCanvas(x, y);
+
+                // 移動所有選取的節點
+                if (this.selectedNodes.has(node.id)) {
+                    const dx = canvasPos.x - node.x;
+                    const dy = canvasPos.y - node.y;
+
+                    this.selectedNodes.forEach(id => {
+                        const n = this.nodes.get(id);
+                        if (n) {
+                            n.setPosition(n.x + dx, n.y + dy);
+                        }
+                    });
+                } else {
+                    node.setPosition(canvasPos.x, canvasPos.y);
+                }
+
+                this.updateLinks();
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+        }, { passive: true });
     }
 
     selectNode(nodeId) {

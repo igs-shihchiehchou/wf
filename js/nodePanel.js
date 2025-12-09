@@ -11,32 +11,32 @@ class NodePanel {
         this.nodeCategories = [
             {
                 name: '輸入',
-                icon: '📥',
+                icon: '▼',
                 nodes: [
-                    { type: 'audio-input', label: '音訊輸入', icon: '📁', description: '載入音訊檔案' },
-                    { type: 'combine', label: '合併節點', icon: '🔗', description: '合併多個音訊輸入為一個列表' }
+                    { type: 'audio-input', label: '音效輸入', icon: '◎', description: '載入音效檔案' },
+                    { type: 'combine', label: '多路合併', icon: '⊕', description: '合併多個音效輸入為一個列表' }
                 ]
             },
             {
                 name: '處理',
-                icon: '🎛️',
+                icon: '☰',
                 nodes: [
-                    { type: 'volume', label: '音量調整', icon: '🎚️', description: '調整音量大小' },
-                    { type: 'crop', label: '裁切', icon: '✂️', description: '裁切音訊片段' },
-                    { type: 'fade-in', label: '淡入', icon: '📈', description: '添加淡入效果' },
-                    { type: 'fade-out', label: '淡出', icon: '📉', description: '添加淡出效果' },
-                    { type: 'speed', label: '速度調整', icon: '⏩', description: '調整播放速度' },
-                    { type: 'pitch', label: '音高調整', icon: '🎵', description: '調整音高（不改變速度）' },
-                    { type: 'smart-pitch', label: '智慧音高調整', icon: '🎼', description: '音高偵測、轉調與頻譜分析' },
-                    { type: 'key-integration', label: '調性整合', icon: '🎹', description: '分析多檔案調性，統一移調至目標調性' }
+                    { type: 'volume', label: '音量調整', icon: '▲', description: '調整音量大小' },
+                    { type: 'crop', label: '裁切', icon: '✂', description: '裁切音效片段' },
+                    { type: 'fade-in', label: '淡入', icon: '◢', description: '添加淡入效果' },
+                    { type: 'fade-out', label: '淡出', icon: '◣', description: '添加淡出效果' },
+                    { type: 'speed', label: '速度調整', icon: '🗲', description: '調整播放速度' },
+                    { type: 'pitch', label: '音高調整', icon: '♪', description: '調整音高（不改變速度）' },
+                    { type: 'smart-pitch', label: '智慧調音', icon: '♬', description: '音高偵測、轉調與頻譜分析' },
+                    { type: 'key-integration', label: '批量調音', icon: '⚙', description: '分析多檔案調性，統一移調至目標調性' }
                 ]
             },
             {
                 name: '合成',
-                icon: '🔀',
+                icon: '⊕',
                 nodes: [
-                    { type: 'join', label: '串接音訊', icon: '🔗', description: '將兩個音訊首尾相接成一個長音訊' },
-                    { type: 'mix', label: '混音', icon: '🎚️', description: '將兩個音訊混合疊加成一個音訊' }
+                    { type: 'join', label: '串接音效', icon: '⛓', description: '將兩個音效首尾相接成一個長音效' },
+                    { type: 'mix', label: '混音', icon: '⊗', description: '將兩個音效混合疊加成一個音效' }
                 ]
             }
         ];
@@ -48,7 +48,7 @@ class NodePanel {
     render() {
         this.container.innerHTML = `
       <div class="node-panel-header">
-        <span class="node-panel-title">📦 節點</span>
+        <span class="node-panel-title">☐ 節點</span>
       </div>
       <div class="node-panel-search">
         <input type="text" placeholder="搜尋節點..." class="node-search-input">
@@ -107,6 +107,7 @@ class NodePanel {
         const nodeItems = this.container.querySelectorAll('.node-item');
 
         nodeItems.forEach(item => {
+            // 桌面版：滑鼠拖拉
             item.addEventListener('dragstart', (e) => {
                 const type = item.dataset.type;
                 e.dataTransfer.setData('nodeType', type);
@@ -116,6 +117,90 @@ class NodePanel {
 
             item.addEventListener('dragend', () => {
                 item.classList.remove('dragging');
+            });
+
+            // 手機版：觸控拖拉
+            let touchStarted = false;
+            let dragElement = null;
+
+            item.addEventListener('touchstart', (e) => {
+                touchStarted = true;
+                const type = item.dataset.type;
+                const touch = e.touches[0];
+
+                // 創建拖拉視覺回饋元素
+                dragElement = item.cloneNode(true);
+                dragElement.style.position = 'fixed';
+                dragElement.style.left = touch.clientX - 40 + 'px';
+                dragElement.style.top = touch.clientY - 20 + 'px';
+                dragElement.style.opacity = '0.7';
+                dragElement.style.pointerEvents = 'none';
+                dragElement.style.zIndex = '10000';
+                dragElement.style.width = item.offsetWidth + 'px';
+                document.body.appendChild(dragElement);
+
+                item.classList.add('dragging');
+
+                // 儲存節點類型到全域變數供 canvas 使用
+                window.__draggedNodeType = type;
+            }, { passive: false });
+
+            item.addEventListener('touchmove', (e) => {
+                if (!touchStarted || !dragElement) return;
+
+                e.preventDefault();
+                const touch = e.touches[0];
+
+                // 更新拖拉元素位置
+                dragElement.style.left = touch.clientX - 40 + 'px';
+                dragElement.style.top = touch.clientY - 20 + 'px';
+            }, { passive: false });
+
+            item.addEventListener('touchend', (e) => {
+                if (!touchStarted) return;
+
+                touchStarted = false;
+                item.classList.remove('dragging');
+
+                // 移除拖拉視覺元素
+                if (dragElement && dragElement.parentNode) {
+                    dragElement.parentNode.removeChild(dragElement);
+                }
+                dragElement = null;
+
+                // 獲取觸控結束位置
+                const touch = e.changedTouches[0];
+                const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+
+                // 觸發畫布的放置事件
+                if (targetElement) {
+                    const canvasArea = targetElement.closest('.canvas-area');
+                    if (canvasArea && window.__draggedNodeType) {
+                        // 創建自訂事件通知 canvas
+                        const dropEvent = new CustomEvent('nodeDrop', {
+                            detail: {
+                                nodeType: window.__draggedNodeType,
+                                x: touch.clientX,
+                                y: touch.clientY
+                            }
+                        });
+                        canvasArea.dispatchEvent(dropEvent);
+                    }
+                }
+
+                // 清除全域變數
+                delete window.__draggedNodeType;
+            }, { passive: false });
+
+            item.addEventListener('touchcancel', () => {
+                touchStarted = false;
+                item.classList.remove('dragging');
+
+                if (dragElement && dragElement.parentNode) {
+                    dragElement.parentNode.removeChild(dragElement);
+                }
+                dragElement = null;
+                delete window.__draggedNodeType;
             });
         });
     }
@@ -130,25 +215,46 @@ class NodePanel {
 
     // 響應式：切換顯示/隱藏
     toggle() {
-        this.container.classList.toggle('hidden');
-        // 同時處理手機版的 open 類別
-        if (this.container.classList.contains('hidden')) {
-            this.container.classList.remove('open');
+        // 檢查是否為手機版（寬度 <= 768px）
+        const isMobile = window.innerWidth <= 768;
+
+        if (isMobile) {
+            // 手機版：切換 open 類別
+            this.container.classList.toggle('open');
+        } else {
+            // 桌面版：切換 hidden 類別
+            this.container.classList.toggle('hidden');
         }
     }
 
     show() {
-        this.container.classList.remove('hidden');
-        this.container.classList.add('open');
+        const isMobile = window.innerWidth <= 768;
+
+        if (isMobile) {
+            this.container.classList.add('open');
+        } else {
+            this.container.classList.remove('hidden');
+        }
     }
 
     hide() {
-        this.container.classList.add('hidden');
-        this.container.classList.remove('open');
+        const isMobile = window.innerWidth <= 768;
+
+        if (isMobile) {
+            this.container.classList.remove('open');
+        } else {
+            this.container.classList.add('hidden');
+        }
     }
 
     isVisible() {
-        return !this.container.classList.contains('hidden');
+        const isMobile = window.innerWidth <= 768;
+
+        if (isMobile) {
+            return this.container.classList.contains('open');
+        } else {
+            return !this.container.classList.contains('hidden');
+        }
     }
 }
 

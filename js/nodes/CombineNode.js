@@ -1,5 +1,5 @@
 /**
- * 合併節點 - 將多個音訊輸入合併成一個列表
+ * 多路合併節點 - 將多個音效輸入合併成一個列表
  * 支援動態新增/移除輸入點
  */
 
@@ -13,7 +13,7 @@ class CombineNode extends BaseNode {
         // 在 super() 之前初始化（因為 renderContent 會在 super 中被呼叫）
         // 這些屬性會在 super() 後被正式設定
 
-        super(id, 'combine', '合併節點', '🔗', options, defaultData);
+        super(id, 'combine', '多路合併', '⊕', options, defaultData);
 
         // 初始化動態輸入端口（如果尚未初始化）
         if (!this.dynamicInputPorts || this.dynamicInputPorts.length === 0) {
@@ -55,7 +55,7 @@ class CombineNode extends BaseNode {
         const portName = `audio-${index}`;
         const port = {
             name: portName,
-            label: `音訊輸入 ${index + 1}`,
+            label: `音效輸入 ${index + 1}`,
             dataType: 'audio',
             type: 'input',
             connected: false,
@@ -132,7 +132,7 @@ class CombineNode extends BaseNode {
                          data-type="input" 
                          data-datatype="audio" 
                          data-index="${i}"
-                         title="音訊輸入 ${i + 1}">
+                         title="音效輸入 ${i + 1}">
                     </div>
                     <span class="combine-input-label">輸入 ${i + 1}</span>
                     <span class="combine-input-status ${port?.connected ? 'connected' : ''}">${port?.connected ? '✓' : '○'}</span>
@@ -192,6 +192,13 @@ class CombineNode extends BaseNode {
                         this.onPortDragStart(port, this);
                     }
                 });
+
+                portEl.addEventListener('touchstart', (e) => {
+                    e.stopPropagation();
+                    if (this.onPortDragStart) {
+                        this.onPortDragStart(port, this, e.touches[0]);
+                    }
+                }, { passive: true });
             }
         });
     }

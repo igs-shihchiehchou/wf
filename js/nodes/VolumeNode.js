@@ -8,7 +8,7 @@ class VolumeNode extends BaseNode {
         const defaultData = {
             volume: options.volume || 100
         };
-        super(id, 'volume', '音量調整', '🎚️', options, defaultData);
+        super(id, 'volume', '音量調整', '▲', options, defaultData);
     }
 
     setupPorts() {

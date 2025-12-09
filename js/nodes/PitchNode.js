@@ -6,7 +6,7 @@ class PitchNode extends BaseNode {
         const defaultData = {
             pitch: options.pitch || 0  // 半音數，範圍 -12 到 +12
         };
-        super(id, 'pitch', '音高調整', '🎵', options, defaultData);
+        super(id, 'pitch', '音高調整', '♪', options, defaultData);
     }
 
     setupPorts() {

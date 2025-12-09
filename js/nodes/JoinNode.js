@@ -1,5 +1,5 @@
 /**
- * 串接音訊節點 - 將兩個音訊首尾相接成一個長音訊
+ * 串接音效節點 - 將兩個音效首尾相接成一個長音效
  * 輸出長度 = 輸入1長度 + 輸入2長度
  */
 
@@ -9,7 +9,7 @@ class JoinNode extends BaseNode {
             hasWarning: false,
             warningMessage: ''
         };
-        super(id, 'join', '串接音訊', '🔗', options, defaultData);
+        super(id, 'join', '串接音效', '⛓', options, defaultData);
     }
 
     setupPorts() {
@@ -120,6 +120,13 @@ class JoinNode extends BaseNode {
                         this.onPortDragStart(port, this);
                     }
                 });
+
+                portEl.addEventListener('touchstart', (e) => {
+                    e.stopPropagation();
+                    if (this.onPortDragStart) {
+                        this.onPortDragStart(port, this, e.touches[0]);
+                    }
+                }, { passive: true });
             }
         });
     }
@@ -142,7 +149,7 @@ class JoinNode extends BaseNode {
         }
 
         if (hasWarning) {
-            warningMessage = '串接音訊節點僅支援單一檔案輸入，請確保輸入來源只有一個檔案';
+            warningMessage = '串接音效節點僅支援單一檔案輸入，請確保輸入來源只有一個檔案';
             showToast(warningMessage, 'warning');
         }
 
@@ -222,8 +229,8 @@ class JoinNode extends BaseNode {
                 filenames: [outputFilename]
             };
         } catch (error) {
-            console.error('串接音訊失敗:', error);
-            showToast('串接音訊失敗: ' + error.message, 'error');
+            console.error('串接音效失敗:', error);
+            showToast('串接音效失敗: ' + error.message, 'error');
             return { audio: null, audioFiles: [], filenames: [] };
         }
     }

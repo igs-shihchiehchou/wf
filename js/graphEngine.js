@@ -372,7 +372,7 @@ class GraphEngine {
         const isCombineNode = node.type === 'combine';
         // 為 Join 和 Mix 節點特別處理：需要分別傳遞兩個輸入的檔名
         const isJoinOrMixNode = node.type === 'join' || node.type === 'mix';
-        
+
         if (isCombineNode) {
             inputs._portFilenames = {};  // 儲存每個端口的檔名
         }
@@ -587,49 +587,49 @@ class GraphEngine {
 
         menu.innerHTML = `
       <div class="context-menu-item" data-action="add-audio-input">
-        <span class="context-menu-icon">📁</span>
-        <span>新增音訊輸入</span>
+        <span class="context-menu-icon">◎</span>
+        <span>新增音效輸入</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="add-volume">
-        <span class="context-menu-icon">🎚️</span>
+        <span class="context-menu-icon">▲</span>
         <span>新增音量調整</span>
       </div>
       <div class="context-menu-item" data-action="add-crop">
-        <span class="context-menu-icon">✂️</span>
+        <span class="context-menu-icon">✂</span>
         <span>新增裁切</span>
       </div>
       <div class="context-menu-item" data-action="add-fade-in">
-        <span class="context-menu-icon">📈</span>
+        <span class="context-menu-icon">◢</span>
         <span>新增淡入</span>
       </div>
       <div class="context-menu-item" data-action="add-fade-out">
-        <span class="context-menu-icon">📉</span>
+        <span class="context-menu-icon">◣</span>
         <span>新增淡出</span>
       </div>
       <div class="context-menu-item" data-action="add-speed">
-        <span class="context-menu-icon">⏩</span>
+        <span class="context-menu-icon">🗲</span>
         <span>新增速度調整</span>
       </div>
       <div class="context-menu-item" data-action="add-pitch">
-        <span class="context-menu-icon">🎵</span>
+        <span class="context-menu-icon">♪</span>
         <span>新增音高調整</span>
       </div>
       <div class="context-menu-item" data-action="add-smart-pitch">
-        <span class="context-menu-icon">🎼</span>
-        <span>新增智慧音高調整</span>
+        <span class="context-menu-icon">♬</span>
+        <span>新增智慧調音</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="add-combine">
-        <span class="context-menu-icon">🔗</span>
-        <span>新增合併節點</span>
+        <span class="context-menu-icon">⊕</span>
+        <span>新增多路合併</span>
       </div>
       <div class="context-menu-item" data-action="add-join">
-        <span class="context-menu-icon">🔗</span>
-        <span>新增串接音訊</span>
+        <span class="context-menu-icon">⛓</span>
+        <span>新增串接音效</span>
       </div>
       <div class="context-menu-item" data-action="add-mix">
-        <span class="context-menu-icon">🎚️</span>
+        <span class="context-menu-icon">⊗</span>
         <span>新增混音</span>
       </div>
       <div class="context-menu-divider"></div>
@@ -671,7 +671,7 @@ class GraphEngine {
 
         menu.innerHTML = `
       <div class="context-menu-item danger" data-action="delete-link">
-        <span class="context-menu-icon">🗑️</span>
+        <span class="context-menu-icon">✕</span>
         <span>刪除連線</span>
       </div>
     `;

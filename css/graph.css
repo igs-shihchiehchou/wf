@@ -1075,17 +1075,30 @@
 
 @media (max-width: 768px) {
     .node-panel {
-        position: absolute;
+        position: fixed;
         left: 0;
-        top: 0;
+        top: 60px; /* 避開 header 高度 */
         bottom: 0;
         z-index: 100;
         transform: translateX(-100%);
-        transition: transform 0.3s;
+        transition: transform 0.3s ease-in-out;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
     }
 
     .node-panel.open {
         transform: translateX(0);
+    }
+
+    /* 手機版背景遮罩 */
+    .node-panel.open::after {
+        content: '';
+        position: fixed;
+        left: 240px;
+        top: 60px;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: -1;
     }
 
     .graph-node {
