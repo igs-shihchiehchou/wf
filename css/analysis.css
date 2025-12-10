@@ -2070,3 +2070,776 @@
   left: 0;
   transform: none;
 }
+
+/* ===========================
+   節拍整合節點樣式 (BeatSyncNode)
+   =========================== */
+
+/* 標題區域 */
+.beat-sync-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--bg-dark);
+  border-radius: 6px;
+  margin-bottom: var(--spacing-2);
+}
+
+.beat-sync-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.beat-sync-icon {
+  font-size: var(--text-lg);
+}
+
+.beat-sync-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* BPM 摘要標籤 */
+.beat-sync-summary-tag {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: var(--text-xs);
+}
+
+.beat-sync-summary-tag.empty,
+.beat-sync-summary-tag.analyzing {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.summary-bpm-range {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* 設定區域 */
+.beat-sync-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: var(--spacing-2);
+}
+
+.beat-sync-mode-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.beat-sync-mode-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.beat-sync-mode-select {
+  flex: 1;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-dark);
+  color: var(--text);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.beat-sync-mode-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 自訂 BPM 滑桿 */
+.beat-sync-custom-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.beat-sync-bpm-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.beat-sync-bpm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: hsl(242, 68%, 70%);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+}
+
+.beat-sync-bpm-input {
+  width: 60px;
+  padding: var(--spacing-1);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-dark);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
+.beat-sync-bpm-unit {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* 快速 BPM 按鈕 */
+.beat-sync-quick-bpm {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-wrap: wrap;
+}
+
+.beat-sync-quick-btn {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-dark);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.beat-sync-quick-btn:hover:not(:disabled) {
+  border-color: hsl(242, 68%, 70%);
+  color: var(--text);
+}
+
+.beat-sync-quick-btn.active {
+  background: hsl(242, 68%, 70%);
+  border-color: hsl(242, 68%, 70%);
+  color: var(--bg-dark);
+  font-weight: 600;
+}
+
+.beat-sync-quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 選項區 */
+.beat-sync-options {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.beat-sync-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.beat-sync-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.beat-sync-quality {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.beat-sync-quality-select {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-dark);
+  color: var(--text);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+/* 執行按鈕區 */
+.beat-sync-actions {
+  margin-bottom: var(--spacing-2);
+}
+
+.beat-sync-execute-btn {
+  width: 100%;
+  padding: var(--spacing-2);
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, hsl(242, 68%, 70%), hsl(280, 60%, 65%));
+  color: var(--bg-dark);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.beat-sync-execute-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px hsla(242, 68%, 70%, 0.3);
+}
+
+.beat-sync-execute-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 檔案列表區 */
+.beat-sync-files {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.beat-sync-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4);
+  gap: var(--spacing-2);
+  color: var(--text-muted);
+}
+
+.beat-sync-empty-icon {
+  font-size: var(--text-2xl);
+  opacity: 0.5;
+}
+
+.beat-sync-empty-text {
+  font-size: var(--text-sm);
+}
+
+.beat-sync-file-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.beat-sync-file-item {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2);
+  border-bottom: 1px solid var(--border-muted);
+  gap: var(--spacing-1);
+}
+
+.beat-sync-file-item:last-child {
+  border-bottom: none;
+}
+
+.beat-sync-file-item:hover {
+  background: var(--highlight);
+}
+
+.beat-sync-file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.beat-sync-file-icon {
+  font-size: var(--text-sm);
+}
+
+.beat-sync-file-name {
+  font-size: var(--text-xs);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.beat-sync-file-analysis {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+/* BPM 顯示 */
+.beat-sync-bpm {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: 4px;
+  background: var(--bg-dark);
+}
+
+.beat-sync-bpm.high-confidence {
+  color: hsl(242, 68%, 70%);
+}
+
+.beat-sync-bpm.medium-confidence {
+  color: hsl(40, 80%, 55%);
+}
+
+.beat-sync-bpm.low-confidence {
+  color: hsl(9, 60%, 60%);
+}
+
+.beat-sync-warning {
+  color: hsl(40, 80%, 55%);
+  font-size: var(--text-xs);
+  cursor: help;
+}
+
+/* 估算值的警告樣式 - 使用橙黃色 */
+.beat-sync-warning.estimated-warning {
+  color: hsl(35, 85%, 55%);
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.beat-sync-error {
+  color: hsl(9, 60%, 60%);
+  font-size: var(--text-xs);
+}
+
+.beat-sync-analyzing,
+.beat-sync-pending {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.beat-sync-duration {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.beat-sync-adjustment {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.beat-sync-adjustment.faster {
+  color: hsl(146, 40%, 50%);
+  background: hsla(146, 40%, 50%, 0.1);
+}
+
+.beat-sync-adjustment.slower {
+  color: hsl(9, 60%, 60%);
+  background: hsla(9, 60%, 60%, 0.1);
+}
+
+.beat-sync-adjustment.same {
+  color: var(--text-muted);
+  background: var(--bg-dark);
+}
+
+.beat-sync-analyze-btn {
+  background: none;
+  border: none;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.beat-sync-analyze-btn:hover {
+  background: var(--highlight);
+  transform: scale(1.1);
+}
+
+/* BPM 修正區域 */
+.beat-sync-bpm-adjust {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-muted);
+}
+
+/* BPM 修正標籤 */
+.beat-sync-bpm-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* 手動輸入 BPM 欄位 */
+.beat-sync-bpm-edit {
+  width: 60px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-dark);
+  color: var(--text);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.beat-sync-bpm-edit:focus {
+  outline: none;
+  border-color: hsl(242, 68%, 70%);
+  box-shadow: 0 0 0 2px hsla(242, 68%, 70%, 0.2);
+}
+
+.beat-sync-bpm-edit::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* 可編輯的 BPM 標籤 */
+.beat-sync-bpm.editable,
+.beat-sync-error.editable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.beat-sync-bpm.editable:hover {
+  background: hsla(242, 68%, 70%, 0.2);
+  transform: scale(1.05);
+}
+
+.beat-sync-error.editable:hover {
+  background: hsla(9, 60%, 60%, 0.2);
+}
+
+/* 已手動修正標記 */
+.beat-sync-manual-tag {
+  font-size: 9px;
+  color: hsl(146, 40%, 50%);
+  background: hsla(146, 40%, 50%, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+/* 時長計算標籤 - 顯示用音訊長度計算 BPM */
+.beat-sync-duration-calc {
+  font-size: 9px;
+  color: hsl(35, 70%, 55%);
+  background: hsla(35, 70%, 55%, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  cursor: help;
+  font-family: var(--font-mono);
+}
+
+/* 估算值的 BPM 顯示樣式 */
+.beat-sync-bpm.estimated {
+  border-style: dashed;
+  border-color: hsl(35, 70%, 55%);
+  color: hsl(35, 70%, 65%);
+}
+
+/* 手動輸入提示 */
+.beat-sync-manual-input-hint {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.beat-sync-half-btn,
+.beat-sync-double-btn,
+.beat-sync-reset-btn {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-dark);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.beat-sync-half-btn:hover:not(:disabled),
+.beat-sync-double-btn:hover:not(:disabled) {
+  border-color: hsl(242, 68%, 70%);
+  color: var(--text);
+}
+
+/* 重設按鈕特殊樣式 */
+.beat-sync-reset-btn:hover:not(:disabled) {
+  border-color: hsl(35, 70%, 55%);
+  color: hsl(35, 70%, 65%);
+  background: hsla(35, 70%, 55%, 0.1);
+}
+
+.beat-sync-half-btn:disabled,
+.beat-sync-double-btn:disabled,
+.beat-sync-reset-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 進度條 */
+.beat-sync-progress {
+  padding: var(--spacing-2);
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: var(--spacing-2);
+}
+
+.beat-sync-progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.beat-sync-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, hsl(242, 68%, 70%), hsl(280, 60%, 65%));
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.beat-sync-progress-text {
+  display: block;
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--spacing-1);
+}
+
+/* 細部分析面板 */
+.beat-sync-detail-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: var(--spacing-2);
+  overflow: hidden;
+}
+
+.beat-sync-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg-dark);
+  border-bottom: 1px solid var(--border);
+}
+
+.beat-sync-detail-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.beat-sync-detail-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.beat-sync-detail-close:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.beat-sync-detail-content {
+  padding: var(--spacing-3);
+}
+
+.beat-sync-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+.beat-sync-detail-item {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--spacing-2);
+  text-align: center;
+}
+
+.beat-sync-detail-item.main {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, hsla(242, 68%, 70%, 0.1), hsla(280, 60%, 65%, 0.1));
+  border-color: hsl(242, 68%, 70%);
+}
+
+.beat-sync-detail-item .detail-label {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-1);
+}
+
+.beat-sync-detail-item .detail-value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.beat-sync-detail-item .detail-value.large {
+  font-size: var(--text-xl);
+  color: hsl(242, 68%, 70%);
+}
+
+.beat-sync-detail-item .detail-value small {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* 信心度條 */
+.confidence-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: var(--spacing-1);
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  background: linear-gradient(90deg, hsl(242, 68%, 70%), hsl(280, 60%, 65%));
+  border-radius: 2px;
+}
+
+/* BPM 對照長條圖 */
+.bpm-comparison-chart {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--spacing-2);
+}
+
+.bpm-chart-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--spacing-2);
+}
+
+.bpm-chart-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+}
+
+.bpm-bar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.bpm-bar-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 60px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bpm-bar {
+  flex: 1;
+  height: 12px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.bpm-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.bpm-bar-fill.normal {
+  background: hsl(242, 68%, 70%);
+}
+
+.bpm-bar-fill.fast {
+  background: hsl(9, 60%, 60%);
+}
+
+.bpm-bar-fill.slow {
+  background: hsl(210, 60%, 60%);
+}
+
+.bpm-bar-value {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--bg-dark);
+}
+
+.bpm-chart-summary {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding-top: var(--spacing-1);
+  border-top: 1px solid var(--border);
+}
