@@ -9,10 +9,65 @@ let nodePanel = null;
 let clipboard = null; // 剪貼簿，存儲複製的節點資料
 
 /**
+ * 主題管理
+ */
+const ThemeManager = {
+  STORAGE_KEY: 'audio-webtool-theme',
+
+  init() {
+    // 載入儲存的主題或使用系統偏好
+    const savedTheme = localStorage.getItem(this.STORAGE_KEY);
+    if (savedTheme) {
+      this.setTheme(savedTheme);
+    } else {
+      // 檢測系統主題偏好
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      this.setTheme(prefersDark ? 'dark' : 'light');
+    }
+
+    // 監聽系統主題變化
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem(this.STORAGE_KEY)) {
+        this.setTheme(e.matches ? 'dark' : 'light');
+      }
+    });
+
+    // 綁定切換按鈕
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => this.toggle());
+    }
+  },
+
+  setTheme(theme) {
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  },
+
+  getTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  },
+
+  toggle() {
+    const currentTheme = this.getTheme();
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    this.setTheme(newTheme);
+    localStorage.setItem(this.STORAGE_KEY, newTheme);
+    showToast(`已切換至${newTheme === 'dark' ? '深色' : '淺色'}主題`, 'info');
+  }
+};
+
+/**
  * 應用程式初始化
  */
 function initApp() {
   console.log('♬ 音效處理工具 (Graph UI) 啟動中...');
+
+  // 初始化主題
+  ThemeManager.init();
 
   // 檢查瀏覽器支援
   if (!window.AudioContext && !window.webkitAudioContext) {

@@ -276,6 +276,12 @@
     position: relative;
 }
 
+/* Light theme 節點標題背景調整 */
+[data-theme="light"] .node-header {
+    background-color: var(--bg) !important;
+    border-bottom: 1px solid var(--border-muted);
+}
+
 .node-header-left {
     display: flex;
     align-items: center;
@@ -1077,7 +1083,8 @@
     .node-panel {
         position: fixed;
         left: 0;
-        top: 60px; /* 避開 header 高度 */
+        top: 60px;
+        /* 避開 header 高度 */
         bottom: 0;
         z-index: 100;
         transform: translateX(-100%);
