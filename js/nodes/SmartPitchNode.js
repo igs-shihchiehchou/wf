@@ -4,6 +4,35 @@
 class SmartPitchNode extends BaseNode {
     // 音名常數（不含八度）
     static NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    // 大調與小調選項
+    static KEY_OPTIONS = [
+        // 大調
+        { value: 'C', label: 'C 大調', type: 'major' },
+        { value: 'C#', label: 'C# 大調', type: 'major' },
+        { value: 'D', label: 'D 大調', type: 'major' },
+        { value: 'D#', label: 'D# 大調', type: 'major' },
+        { value: 'E', label: 'E 大調', type: 'major' },
+        { value: 'F', label: 'F 大調', type: 'major' },
+        { value: 'F#', label: 'F# 大調', type: 'major' },
+        { value: 'G', label: 'G 大調', type: 'major' },
+        { value: 'G#', label: 'G# 大調', type: 'major' },
+        { value: 'A', label: 'A 大調', type: 'major' },
+        { value: 'A#', label: 'A# 大調', type: 'major' },
+        { value: 'B', label: 'B 大調', type: 'major' },
+        // 小調
+        { value: 'Cm', label: 'C 小調', type: 'minor' },
+        { value: 'C#m', label: 'C# 小調', type: 'minor' },
+        { value: 'Dm', label: 'D 小調', type: 'minor' },
+        { value: 'D#m', label: 'D# 小調', type: 'minor' },
+        { value: 'Em', label: 'E 小調', type: 'minor' },
+        { value: 'Fm', label: 'F 小調', type: 'minor' },
+        { value: 'F#m', label: 'F# 小調', type: 'minor' },
+        { value: 'Gm', label: 'G 小調', type: 'minor' },
+        { value: 'G#m', label: 'G# 小調', type: 'minor' },
+        { value: 'Am', label: 'A 小調', type: 'minor' },
+        { value: 'A#m', label: 'A# 小調', type: 'minor' },
+        { value: 'Bm', label: 'B 小調', type: 'minor' }
+    ];
 
     constructor(id, options = {}) {
         const defaultData = {
@@ -42,11 +71,20 @@ class SmartPitchNode extends BaseNode {
         const fileAnalysis = this.data.fileAnalysis || [];
         const hasFiles = fileAnalysis.length > 0;
 
-        // 生成目標調性選項
-        const keyOptions = SmartPitchNode.NOTE_NAMES.map(note => {
-            const selected = targetKey === note ? 'selected' : '';
-            return `<option value="${note}" ${selected}>${note}</option>`;
-        }).join('');
+        // 生成目標調性選項（分組顯示大調與小調）
+        const majorOptions = SmartPitchNode.KEY_OPTIONS
+            .filter(k => k.type === 'major')
+            .map(k => {
+                const selected = targetKey === k.value ? 'selected' : '';
+                return `<option value="${k.value}" ${selected}>${k.label}</option>`;
+            }).join('');
+        const minorOptions = SmartPitchNode.KEY_OPTIONS
+            .filter(k => k.type === 'minor')
+            .map(k => {
+                const selected = targetKey === k.value ? 'selected' : '';
+                return `<option value="${k.value}" ${selected}>${k.label}</option>`;
+            }).join('');
+        const keyOptions = `<optgroup label="大調">${majorOptions}</optgroup><optgroup label="小調">${minorOptions}</optgroup>`;
 
         // 計算是否可以套用
         const canApply = targetKey && hasFiles;
@@ -200,7 +238,8 @@ class SmartPitchNode extends BaseNode {
         const detectedNoteName = this.data.detectedKey.noteName;
         // 從音名中提取不含八度的部分（如 'A4' -> 'A', 'C#3' -> 'C#'）
         const detectedNote = detectedNoteName.replace(/\d+$/, '');
-        const targetNote = this.data.targetKey;
+        // 從目標調性中提取音名（移除小調標記 'm'）
+        const targetNote = this.data.targetKey.replace(/m$/, '');
 
         const detectedIndex = SmartPitchNode.NOTE_NAMES.indexOf(detectedNote);
         const targetIndex = SmartPitchNode.NOTE_NAMES.indexOf(targetNote);
@@ -695,7 +734,8 @@ class SmartPitchNode extends BaseNode {
 
         const detectedNoteName = this.data.detectedKey.noteName;
         const detectedNote = detectedNoteName.replace(/\d+$/, '');
-        const targetNote = this.data.targetKey;
+        // 從目標調性中提取音名（移除小調標記 'm'）
+        const targetNote = this.data.targetKey.replace(/m$/, '');
 
         const detectedIndex = SmartPitchNode.NOTE_NAMES.indexOf(detectedNote);
         const targetIndex = SmartPitchNode.NOTE_NAMES.indexOf(targetNote);
@@ -1033,7 +1073,9 @@ class SmartPitchNode extends BaseNode {
             return;
         }
 
-        const targetIndex = SmartPitchNode.NOTE_NAMES.indexOf(this.data.targetKey);
+        // 從目標調性中提取音名（移除小調標記 'm'）
+        const targetNote = this.data.targetKey.replace(/m$/, '');
+        const targetIndex = SmartPitchNode.NOTE_NAMES.indexOf(targetNote);
         if (targetIndex === -1) return;
 
         this.data.fileAnalysis.forEach(item => {
@@ -1060,8 +1102,9 @@ class SmartPitchNode extends BaseNode {
             if (semitones < -6) semitones += 12;
 
             item.semitones = semitones;
-            // 計算目標音名（與批量調音一致）
+            // 計算目標音名（顯示完整調性，包含大/小調）
             item.targetNote = this.data.targetKey;
+            item.targetKeyType = this.data.targetKey.endsWith('m') ? 'minor' : 'major';
         });
 
         // 更新第一個檔案的 pitch（用於向下相容）

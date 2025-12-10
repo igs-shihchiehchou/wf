@@ -1138,7 +1138,8 @@
 .graph-node.node-fade-in .node-header,
 .graph-node.node-fade-out .node-header,
 .graph-node.node-speed .node-header,
-.graph-node.node-pitch .node-header {
+.graph-node.node-pitch .node-header,
+.graph-node.node-soften .node-header {
     background-color: hsl(217 28% 15%);
 }
 
@@ -1895,4 +1896,50 @@
 .node-checkbox-label {
     font-size: var(--text-xs);
     color: var(--text-muted);
+}
+
+/* ===========================
+   柔化節點 (SoftenNode)
+   =========================== */
+
+.soften-presets {
+    margin-top: var(--spacing-2);
+}
+
+.soften-presets .preset-buttons {
+    display: flex;
+    gap: var(--spacing-1);
+    margin-top: var(--spacing-2);
+    flex-wrap: wrap;
+}
+
+.soften-presets .preset-btn {
+    flex: 1;
+    min-width: 45px;
+    padding: var(--spacing-1) var(--spacing-2);
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.soften-presets .preset-btn:hover {
+    background-color: var(--highlight);
+    border-color: var(--primary);
+    color: var(--text);
+}
+
+.soften-presets .preset-btn:active {
+    background-color: var(--primary);
+    color: white;
+}
+
+.node-control-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: var(--spacing-1);
+    font-style: italic;
 }

@@ -322,29 +322,33 @@ class AudioInputNode extends BaseNode {
             });
         });
 
-        // 拖放事件
-        this.element.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.element.classList.add('drag-over');
-        });
+        // 拖放事件 - 只綁定一次（使用標記避免重複綁定）
+        if (!this._dropEventsBound) {
+            this._dropEventsBound = true;
 
-        this.element.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.element.classList.remove('drag-over');
-        });
+            this.element.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.element.classList.add('drag-over');
+            });
 
-        this.element.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.element.classList.remove('drag-over');
+            this.element.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.element.classList.remove('drag-over');
+            });
 
-            const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('audio/'));
-            if (files.length > 0) {
-                this.loadFiles(files);
-            }
-        });
+            this.element.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.element.classList.remove('drag-over');
+
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('audio/'));
+                if (files.length > 0) {
+                    this.loadFiles(files);
+                }
+            });
+        }
 
         // 初始化波形（當預覽展開時）
         if (this.audioFiles.length > 0 && this.isMultiFileExpanded()) {
