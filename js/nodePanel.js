@@ -29,7 +29,8 @@ class NodePanel {
                     { type: 'pitch', label: '音高調整', icon: '♪', description: '調整音高（不改變速度）' },
                     { type: 'smart-pitch', label: '智慧調音', icon: '𖦤', description: '音高偵測、轉調與頻譜分析' },
                     { type: 'key-integration', label: '批量調音', icon: '⚙', description: '分析多檔案調性，統一移調至目標調性' },
-                    { type: 'volume-sync', label: '音量整合', icon: '⇋', description: '統一多個音訊的響度' }
+                    { type: 'volume-sync', label: '音量整合', icon: '⇋', description: '統一多個音訊的響度' },
+                    { type: 'beat-sync', label: '節拍整合', icon: '♩', description: '統一多個音訊的 BPM，保持音高不變' }
                 ]
             },
             {

@@ -21,6 +21,7 @@ class GraphEngine {
             'smart-pitch': SmartPitchNode,
             'key-integration': KeyIntegrationNode,
             'volume-sync': VolumeSyncNode,
+            'beat-sync': BeatSyncNode,
             'combine': CombineNode,
             'join': JoinNode,
             'mix': MixNode
@@ -649,6 +650,10 @@ class GraphEngine {
         <span class="context-menu-icon">⇋</span>
         <span>新增音量整合</span>
       </div>
+      <div class="context-menu-item" data-action="add-beat-sync">
+        <span class="context-menu-icon">♩</span>
+        <span>新增節拍整合</span>
+      </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="add-combine">
         <span class="context-menu-icon">⊕</span>
@@ -750,6 +755,7 @@ class GraphEngine {
             'add-smart-pitch': { type: 'smart-pitch', icon: '𖦤', label: '智慧調音', hasInput: true, hasOutput: true },
             'add-key-integration': { type: 'key-integration', icon: '⚙', label: '批量調音', hasInput: true, hasOutput: true },
             'add-volume-sync': { type: 'volume-sync', icon: '⇋', label: '音量整合', hasInput: true, hasOutput: true },
+            'add-beat-sync': { type: 'beat-sync', icon: '♩', label: '節拍整合', hasInput: true, hasOutput: true },
             'add-combine': { type: 'combine', icon: '⊕', label: '多路合併', hasInput: true, hasOutput: true },
             'add-join': { type: 'join', icon: '⛓', label: '串接音效', hasInput: true, hasOutput: true },
             'add-mix': { type: 'mix', icon: '⊗', label: '混音', hasInput: true, hasOutput: true }
@@ -891,6 +897,7 @@ class GraphEngine {
             'add-pitch': 'pitch',
             'add-smart-pitch': 'smart-pitch',
             'add-volume-sync': 'volume-sync',
+            'add-beat-sync': 'beat-sync',
             'add-combine': 'combine',
             'add-join': 'join',
             'add-mix': 'mix'

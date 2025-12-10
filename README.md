@@ -43,5 +43,4 @@ http://localhost:8000
 
 - [Tone.js](https://tonejs.github.io/) - 音訊處理函式庫
 - [WaveSurfer.js](https://wavesurfer-js.org/) - 波形視覺化
-- [Tailwind CSS](https://tailwindcss.com/) - CSS 框架
 
