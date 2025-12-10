@@ -656,7 +656,7 @@
 }
 
 /* ===========================
-   調性整合節點樣式 (.key-integration)
+    批量調音節點樣式 (.key-integration)
    =========================== */
 
 .key-integration-control {
@@ -1317,14 +1317,67 @@
   font-size: var(--text-xs);
 }
 
+/* 列表區塊（含展開/收合、分頁） */
+.smart-pitch-list-section {
+  background: var(--bg-dark);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.smart-pitch-list-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.smart-pitch-list-header:hover {
+  background: var(--highlight);
+}
+
+.smart-pitch-list-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.smart-pitch-list-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.smart-pitch-list-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.smart-pitch-list-content {
+  transition: max-height 0.3s ease;
+  overflow: hidden;
+}
+
+.smart-pitch-list-content.collapsed {
+  max-height: 0;
+}
+
+.smart-pitch-list-content.expanded {
+  max-height: none;
+}
+
 .smart-pitch-file-list {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  max-height: 200px;
-  overflow-y: auto;
-  background: var(--bg-dark);
-  border-radius: 8px;
   padding: var(--spacing-2);
 }
 
@@ -1382,6 +1435,12 @@
   border-radius: 4px;
 }
 
+.smart-pitch-confidence {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
 .smart-pitch-unknown {
   font-size: var(--text-xs);
   color: hsl(38, 70%, 50%);
@@ -1389,6 +1448,19 @@
   padding: 2px 6px;
   border-radius: 4px;
   cursor: help;
+}
+
+.smart-pitch-transpose-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.smart-pitch-target-note {
+  font-weight: 600;
+  color: hsl(210, 60%, 55%);
 }
 
 .smart-pitch-semitones {
@@ -1437,6 +1509,43 @@
 .smart-pitch-analyze-btn:disabled {
   opacity: 0.5;
   cursor: wait;
+}
+
+/* 分頁控制 */
+.smart-pitch-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.smart-pitch-page-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: var(--text-xs);
+  padding: var(--spacing-1) var(--spacing-2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.smart-pitch-page-btn:hover:not(:disabled) {
+  background: var(--highlight);
+  border-color: var(--primary);
+}
+
+.smart-pitch-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.smart-pitch-page-info {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 /* 進度條 */

@@ -21,6 +21,11 @@ class SmartPitchNode extends BaseNode {
         this.analysisResult = null;
         this.progressBar = null;
         this.spectrogramRenderer = null;
+
+        // 分頁控制（與批量調音一致）
+        this.currentPage = 0;
+        this.perPage = 5;
+        this.listExpanded = true;
     }
 
     setupPorts() {
@@ -77,7 +82,7 @@ class SmartPitchNode extends BaseNode {
     }
 
     /**
-     * 渲染檔案列表
+     * 渲染檔案列表（含分頁功能，與批量調音一致）
      */
     renderFilesList() {
         const fileAnalysis = this.data.fileAnalysis || [];
@@ -91,23 +96,44 @@ class SmartPitchNode extends BaseNode {
             `;
         }
 
-        const listHtml = fileAnalysis.map((item, index) => {
-            // 偵測音高顯示
-            let pitchDisplay;
+        // 分頁計算
+        const totalPages = Math.ceil(fileAnalysis.length / this.perPage);
+        const start = this.currentPage * this.perPage;
+        const end = Math.min(start + this.perPage, fileAnalysis.length);
+
+        // 檔案分析列表（只顯示當前頁）
+        let listHtml = '';
+        for (let i = start; i < end; i++) {
+            const item = fileAnalysis[i];
+            if (!item) continue;
+
+            // 偵測音高顯示（與批量調音一致）
+            let pitchDisplay, confidenceDisplay, transposeDisplay;
+
             if (item.detectedKey) {
                 pitchDisplay = `<span class="smart-pitch-detected">${item.detectedKey.noteName}</span>`;
-            } else {
-                pitchDisplay = `<span class="smart-pitch-unknown" title="可能原因：音效過短、噪音、打擊樂或環境音等">⚠️ 無法偵測</span>`;
-            }
+                // 顯示信心度百分比
+                confidenceDisplay = item.detectedKey.confidence
+                    ? `<span class="smart-pitch-confidence">${Math.round(item.detectedKey.confidence * 100)}%</span>`
+                    : '';
 
-            // 轉調資訊
-            let transposeDisplay = '';
-            if (this.data.targetKey && item.semitones !== null && item.semitones !== undefined) {
-                const semitoneClass = item.semitones > 0 ? 'up' : item.semitones < 0 ? 'down' : 'same';
-                const semitoneText = item.semitones === 0 ? '±0' : (item.semitones > 0 ? `+${item.semitones}` : `${item.semitones}`);
-                transposeDisplay = `<span class="smart-pitch-semitones ${semitoneClass}">${semitoneText}</span>`;
-            } else if (this.data.targetKey && !item.detectedKey) {
-                transposeDisplay = `<span class="smart-pitch-skip">不移調</span>`;
+                // 顯示移調資訊（包含目標音）
+                if (this.data.targetKey && item.semitones !== null && item.semitones !== undefined) {
+                    const arrow = item.semitones === 0 ? '=' : '→';
+                    const targetDisplay = item.targetNote ? `<span class="smart-pitch-target-note">${item.targetNote}</span>` : '';
+                    const semitoneClass = item.semitones > 0 ? 'up' : item.semitones < 0 ? 'down' : 'same';
+                    const semitoneText = item.semitones === 0 ? '±0' : (item.semitones > 0 ? `+${item.semitones}` : `${item.semitones}`);
+                    transposeDisplay = `<span class="smart-pitch-transpose-info">${arrow} ${targetDisplay} <span class="smart-pitch-semitones ${semitoneClass}">(${semitoneText})</span></span>`;
+                } else {
+                    transposeDisplay = '';
+                }
+            } else {
+                // 無法偵測音高時顯示更明確的提示
+                pitchDisplay = `<span class="smart-pitch-unknown" title="可能原因：音效過短、噪音、打擊樂或環境音等">⚠️ 無法偵測</span>`;
+                confidenceDisplay = '';
+                transposeDisplay = this.data.targetKey
+                    ? `<span class="smart-pitch-skip" title="此檔案將保持原樣不移調">不移調</span>`
+                    : '';
             }
 
             // 分析狀態
@@ -115,22 +141,51 @@ class SmartPitchNode extends BaseNode {
             const analyzeIcon = isAnalyzed ? '≡' : '◎';
             const analyzeTitle = isAnalyzed ? '查看分析結果' : '點擊進行細部分析';
 
-            return `
-                <div class="smart-pitch-file-item" data-index="${index}">
+            listHtml += `
+                <div class="smart-pitch-file-item" data-index="${i}">
                     <div class="smart-pitch-file-info">
                         <span class="smart-pitch-file-icon">▭</span>
                         <span class="smart-pitch-file-name" title="${item.filename}">${item.filename}</span>
                     </div>
                     <div class="smart-pitch-file-analysis">
                         ${pitchDisplay}
+                        ${confidenceDisplay}
                         ${transposeDisplay}
-                        <button class="smart-pitch-analyze-btn" data-index="${index}" title="${analyzeTitle}">${analyzeIcon}</button>
+                        <button class="smart-pitch-analyze-btn" data-index="${i}" title="${analyzeTitle}">${analyzeIcon}</button>
                     </div>
                 </div>
             `;
-        }).join('');
+        }
 
-        return `<div class="smart-pitch-file-list">${listHtml}</div>`;
+        // 分頁控制
+        let paginationHtml = '';
+        if (totalPages > 1) {
+            paginationHtml = `
+                <div class="smart-pitch-pagination">
+                    <button class="smart-pitch-page-btn" data-action="prev" ${this.currentPage === 0 ? 'disabled' : ''}>◀</button>
+                    <span class="smart-pitch-page-info">${this.currentPage + 1} / ${totalPages}</span>
+                    <button class="smart-pitch-page-btn" data-action="next" ${this.currentPage >= totalPages - 1 ? 'disabled' : ''}>▶</button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="smart-pitch-list-section">
+                <div class="smart-pitch-list-header">
+                    <button class="smart-pitch-list-toggle" data-action="toggle-list">
+                        ${this.listExpanded ? '▼' : '▶'}
+                    </button>
+                    <span class="smart-pitch-list-title">≡ 音高分析結果</span>
+                    <span class="smart-pitch-list-count">${fileAnalysis.length} 個檔案</span>
+                </div>
+                <div class="smart-pitch-list-content ${this.listExpanded ? 'expanded' : 'collapsed'}">
+                    <div class="smart-pitch-file-list">
+                        ${listHtml}
+                    </div>
+                    ${paginationHtml}
+                </div>
+            </div>
+        `;
     }
 
     /**
@@ -191,6 +246,46 @@ class SmartPitchNode extends BaseNode {
         }
 
         // 檔案分析按鈕
+        this.bindFileListEvents();
+
+        // 列表展開/收合
+        const toggleBtn = this.element.querySelector('[data-action="toggle-list"]');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                this.listExpanded = !this.listExpanded;
+                this.updateFilesListUI();
+            });
+        }
+
+        // 分頁按鈕
+        const prevBtn = this.element.querySelector('[data-action="prev"]');
+        const nextBtn = this.element.querySelector('[data-action="next"]');
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (this.currentPage > 0) {
+                    this.currentPage--;
+                    this.updateFilesListUI();
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const totalPages = Math.ceil((this.data.fileAnalysis || []).length / this.perPage);
+                if (this.currentPage < totalPages - 1) {
+                    this.currentPage++;
+                    this.updateFilesListUI();
+                }
+            });
+        }
+    }
+
+    /**
+     * 綁定檔案列表事件（分析按鈕、分頁等）
+     */
+    bindFileListEvents() {
+        // 檔案分析按鈕
         this.element.querySelectorAll('.smart-pitch-analyze-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -198,6 +293,38 @@ class SmartPitchNode extends BaseNode {
                 this.analyzeFileDetail(index);
             });
         });
+
+        // 分頁按鈕
+        const prevBtn = this.element.querySelector('[data-action="prev"]');
+        const nextBtn = this.element.querySelector('[data-action="next"]');
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (this.currentPage > 0) {
+                    this.currentPage--;
+                    this.updateFilesListUI();
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const totalPages = Math.ceil((this.data.fileAnalysis || []).length / this.perPage);
+                if (this.currentPage < totalPages - 1) {
+                    this.currentPage++;
+                    this.updateFilesListUI();
+                }
+            });
+        }
+
+        // 列表展開/收合
+        const toggleBtn = this.element.querySelector('[data-action="toggle-list"]');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                this.listExpanded = !this.listExpanded;
+                this.updateFilesListUI();
+            });
+        }
     }
 
     /**
@@ -207,14 +334,8 @@ class SmartPitchNode extends BaseNode {
         const filesContainer = this.element.querySelector('.smart-pitch-files');
         if (filesContainer) {
             filesContainer.innerHTML = this.renderFilesList();
-            // 重新綁定分析按鈕事件
-            this.element.querySelectorAll('.smart-pitch-analyze-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const index = parseInt(btn.dataset.index, 10);
-                    this.analyzeFileDetail(index);
-                });
-            });
+            // 重新綁定事件
+            this.bindFileListEvents();
         }
     }
 
@@ -701,29 +822,55 @@ class SmartPitchNode extends BaseNode {
     }
 
     /**
-     * 快速偵測音高（只用 YIN 演算法）
+     * 快速偵測音高（使用滑動窗口 + 眾數法，與批量調音一致）
      */
     async detectPitchOnly(audioBuffer) {
+        if (!audioBuffer) return null;
+
         try {
-            const channelData = audioBuffer.getChannelData(0);
             const sampleRate = audioBuffer.sampleRate;
+            const channelData = audioBuffer.getChannelData(0);
 
-            // 使用 YIN 演算法偵測音高
-            const pitchResult = this.detectPitchYIN(channelData, sampleRate);
-
-            if (pitchResult && pitchResult.frequency > 0) {
-                const midiNote = 12 * Math.log2(pitchResult.frequency / 440) + 69;
-                const noteIndex = Math.round(midiNote) % 12;
-                const octave = Math.floor(Math.round(midiNote) / 12) - 1;
-                const noteName = SmartPitchNode.NOTE_NAMES[noteIndex] + octave;
-
-                return {
-                    noteName,
-                    midiNote: Math.round(midiNote),
-                    confidence: pitchResult.confidence,
-                    frequency: pitchResult.frequency
-                };
+            // 動態調整窗口大小（優化短音效處理）
+            const audioDurationMs = (channelData.length / sampleRate) * 1000;
+            let windowMs = 100;
+            if (audioDurationMs < 100) {
+                windowMs = 25;
+            } else if (audioDurationMs < 200) {
+                windowMs = 50;
             }
+
+            const windowSize = Math.floor((windowMs / 1000) * sampleRate);
+            const hopSize = Math.floor(windowSize / 2); // 50% 重疊
+
+            const totalHops = Math.ceil((channelData.length - windowSize) / hopSize) + 1;
+            const pitchCurve = [];
+
+            for (let hopIndex = 0; hopIndex < totalHops; hopIndex++) {
+                const windowStart = hopIndex * hopSize;
+                const windowEnd = Math.min(windowStart + windowSize, channelData.length);
+
+                if (windowEnd - windowStart < windowSize / 2) break;
+
+                const windowSamples = channelData.slice(windowStart, windowEnd);
+                const pitchResult = this.detectPitchYIN(windowSamples, sampleRate);
+
+                if (pitchResult) {
+                    pitchCurve.push({
+                        frequency: pitchResult.frequency,
+                        confidence: pitchResult.confidence
+                    });
+                }
+
+                // 每 5 個讓出控制權
+                if (hopIndex % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+
+            // 使用眾數法找出主要音高
+            return this.detectDominantPitch(pitchCurve);
+
         } catch (error) {
             console.error('音高偵測失敗:', error);
         }
@@ -732,72 +879,145 @@ class SmartPitchNode extends BaseNode {
     }
 
     /**
-     * YIN 演算法偵測音高
+     * 眾數法偵測主要音高
      */
-    detectPitchYIN(channelData, sampleRate) {
-        const bufferSize = Math.min(4096, channelData.length);
-        const yinBuffer = new Float32Array(bufferSize / 2);
-
-        // 差分函數
-        for (let tau = 0; tau < yinBuffer.length; tau++) {
-            yinBuffer[tau] = 0;
-            for (let i = 0; i < yinBuffer.length; i++) {
-                const delta = channelData[i] - channelData[i + tau];
-                yinBuffer[tau] += delta * delta;
-            }
-        }
-
-        // 累積平均正規化差分函數
-        yinBuffer[0] = 1;
-        let runningSum = 0;
-        for (let tau = 1; tau < yinBuffer.length; tau++) {
-            runningSum += yinBuffer[tau];
-            yinBuffer[tau] *= tau / runningSum;
-        }
-
-        // 找絕對閾值
-        const threshold = 0.1;
-        let tauEstimate = -1;
-        for (let tau = 2; tau < yinBuffer.length; tau++) {
-            if (yinBuffer[tau] < threshold) {
-                while (tau + 1 < yinBuffer.length && yinBuffer[tau + 1] < yinBuffer[tau]) {
-                    tau++;
-                }
-                tauEstimate = tau;
-                break;
-            }
-        }
-
-        if (tauEstimate === -1) {
-            // 找最小值
-            let minVal = yinBuffer[0];
-            let minTau = 0;
-            for (let tau = 1; tau < yinBuffer.length; tau++) {
-                if (yinBuffer[tau] < minVal) {
-                    minVal = yinBuffer[tau];
-                    minTau = tau;
-                }
-            }
-            tauEstimate = minTau;
-        }
-
-        // 拋物線插值
-        let betterTau = tauEstimate;
-        if (tauEstimate > 0 && tauEstimate < yinBuffer.length - 1) {
-            const s0 = yinBuffer[tauEstimate - 1];
-            const s1 = yinBuffer[tauEstimate];
-            const s2 = yinBuffer[tauEstimate + 1];
-            betterTau = tauEstimate + (s2 - s0) / (2 * (2 * s1 - s2 - s0));
-        }
-
-        const frequency = sampleRate / betterTau;
-        const confidence = 1 - yinBuffer[tauEstimate];
-
-        // 過濾不合理的頻率
-        if (frequency < 50 || frequency > 2000 || confidence < 0.5) {
+    detectDominantPitch(pitchCurve) {
+        if (!pitchCurve || pitchCurve.length === 0) {
             return null;
         }
 
+        // 降低閾值以提高偵測成功率（與批量調音一致）
+        const CONFIDENCE_THRESHOLD = 0.35;
+        const validPitches = pitchCurve.filter(p => p.confidence > CONFIDENCE_THRESHOLD && p.frequency > 0);
+
+        if (validPitches.length === 0) {
+            return null;
+        }
+
+        const noteCounts = new Map();
+
+        for (const pitch of validPitches) {
+            const midiNote = Math.round(69 + 12 * Math.log2(pitch.frequency / 440));
+            if (midiNote < 21 || midiNote > 127) continue;
+            const count = noteCounts.get(midiNote) || 0;
+            noteCounts.set(midiNote, count + 1);
+        }
+
+        let dominantMidiNote = 0;
+        let maxCount = 0;
+
+        for (const [midiNote, count] of noteCounts) {
+            if (count > maxCount) {
+                maxCount = count;
+                dominantMidiNote = midiNote;
+            }
+        }
+
+        if (dominantMidiNote === 0 || maxCount === 0) {
+            return null;
+        }
+
+        const confidence = maxCount / validPitches.length;
+        const standardFrequency = 440 * Math.pow(2, (dominantMidiNote - 69) / 12);
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const octave = Math.floor(dominantMidiNote / 12) - 1;
+        const noteIndex = dominantMidiNote % 12;
+        const noteName = noteNames[noteIndex] + octave;
+
+        return {
+            noteName,
+            frequency: standardFrequency,
+            confidence,
+            midiNote: dominantMidiNote
+        };
+    }
+
+    /**
+     * YIN 演算法偵測單一窗口音高
+     */
+    detectPitchYIN(audioData, sampleRate) {
+        if (!audioData || audioData.length === 0) {
+            return null;
+        }
+
+        // ========== 音量門檻過濾 ==========
+        let sumSquaresForRMS = 0;
+        for (let i = 0; i < audioData.length; i++) {
+            sumSquaresForRMS += audioData[i] * audioData[i];
+        }
+        const rms = Math.sqrt(sumSquaresForRMS / audioData.length);
+        const RMS_THRESHOLD = 0.01;
+        if (rms < RMS_THRESHOLD) {
+            return null;
+        }
+
+        const THRESHOLD = 0.15;
+        const MIN_FREQUENCY = 50;
+        const MAX_FREQUENCY = 2000;
+        const MAX_LAG = Math.floor(sampleRate / MIN_FREQUENCY);
+        const MIN_LAG = Math.floor(sampleRate / MAX_FREQUENCY);
+        const FRAME_LENGTH = audioData.length;
+
+        if (MIN_LAG < 1 || MAX_LAG > FRAME_LENGTH) {
+            return null;
+        }
+
+        // 差異函數
+        const differenceFunction = new Float32Array(FRAME_LENGTH);
+        for (let lag = 0; lag < FRAME_LENGTH; lag++) {
+            let sum = 0;
+            for (let i = 0; i < FRAME_LENGTH - lag; i++) {
+                const diff = audioData[i] - audioData[i + lag];
+                sum += diff * diff;
+            }
+            differenceFunction[lag] = sum;
+        }
+
+        // CMNDF
+        const cmndf = new Float32Array(FRAME_LENGTH);
+        cmndf[0] = 1;
+        let runningMean = 0;
+
+        for (let lag = 1; lag < FRAME_LENGTH; lag++) {
+            runningMean += differenceFunction[lag];
+            cmndf[lag] = (differenceFunction[lag] * lag) / (runningMean + 1e-10);
+        }
+
+        // 找閾值點
+        let foundLag = 0;
+        let minCmndf = Infinity;
+
+        for (let lag = MIN_LAG; lag <= MAX_LAG; lag++) {
+            if (cmndf[lag] < THRESHOLD) {
+                foundLag = lag;
+                minCmndf = cmndf[lag];
+                break;
+            }
+            if (cmndf[lag] < minCmndf) {
+                minCmndf = cmndf[lag];
+                foundLag = lag;
+            }
+        }
+
+        // 拋物線插值
+        let refinedLag = foundLag;
+        if (foundLag > 0 && foundLag < FRAME_LENGTH - 1) {
+            const y1 = cmndf[foundLag - 1];
+            const y0 = cmndf[foundLag];
+            const y2 = cmndf[foundLag + 1];
+            const a = (y1 - 2 * y0 + y2) / 2;
+            const b = (y2 - y1) / 2;
+            if (Math.abs(a) > 1e-10) {
+                refinedLag = foundLag + (-b / (2 * a));
+            }
+        }
+
+        let frequency = refinedLag > 0 ? sampleRate / refinedLag : 0;
+        if (frequency > MAX_FREQUENCY * 10 || frequency < MIN_FREQUENCY / 10) {
+            return null;
+        }
+
+        const confidence = Math.max(0, Math.min(1, 1 - minCmndf));
         return { frequency, confidence };
     }
 
@@ -808,6 +1028,7 @@ class SmartPitchNode extends BaseNode {
         if (!this.data.targetKey) {
             this.data.fileAnalysis.forEach(item => {
                 item.semitones = null;
+                item.targetNote = null;
             });
             return;
         }
@@ -818,6 +1039,7 @@ class SmartPitchNode extends BaseNode {
         this.data.fileAnalysis.forEach(item => {
             if (!item.detectedKey || !item.detectedKey.noteName) {
                 item.semitones = null;
+                item.targetNote = null;
                 return;
             }
 
@@ -826,6 +1048,7 @@ class SmartPitchNode extends BaseNode {
 
             if (detectedIndex === -1) {
                 item.semitones = null;
+                item.targetNote = null;
                 return;
             }
 
@@ -837,6 +1060,8 @@ class SmartPitchNode extends BaseNode {
             if (semitones < -6) semitones += 12;
 
             item.semitones = semitones;
+            // 計算目標音名（與批量調音一致）
+            item.targetNote = this.data.targetKey;
         });
 
         // 更新第一個檔案的 pitch（用於向下相容）

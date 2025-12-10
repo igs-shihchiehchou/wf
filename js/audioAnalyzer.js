@@ -498,7 +498,8 @@ class AudioAnalyzer {
     }
 
     // 步驟 1: 過濾出高置信度的音高點
-    const CONFIDENCE_THRESHOLD = 0.5;
+    // 降低閾值以提高偵測成功率（原為 0.5，對複雜音效過於嚴格）
+    const CONFIDENCE_THRESHOLD = 0.35;
     const validPitches = pitchCurve.filter(p => p.confidence > CONFIDENCE_THRESHOLD && p.frequency > 0);
 
     if (validPitches.length === 0) {
@@ -613,10 +614,26 @@ class AudioAnalyzer {
       return { frequency: 0, confidence: 0 };
     }
 
+    // ========== 音量門檻過濾 ==========
+    // 計算 RMS (Root Mean Square) 能量，過濾掉靜音或極低音量的段落
+    // 這可以避免在靜音段落產生錯誤的音高偵測
+    let sumSquaresForRMS = 0;
+    for (let i = 0; i < audioData.length; i++) {
+      sumSquaresForRMS += audioData[i] * audioData[i];
+    }
+    const rms = Math.sqrt(sumSquaresForRMS / audioData.length);
+
+    // RMS 門檻：約 -40dB（0.01）以下視為靜音
+    // 對於正規化的音訊（範圍 -1 到 1），0.01 是非常低的音量
+    const RMS_THRESHOLD = 0.01;
+    if (rms < RMS_THRESHOLD) {
+      return { frequency: 0, confidence: 0 };
+    }
+
     // YIN 算法的關鍵參數
     const THRESHOLD = 0.15;           // 絕對閾值：CMNDF 値 < 0.15 表示找到週期
-    const MIN_FREQUENCY = 80;          // 最低頻率 (Hz)
-    const MAX_FREQUENCY = 1000;        // 最高頻率 (Hz)
+    const MIN_FREQUENCY = 50;          // 最低頻率 (Hz) - 擴大範圍以涵蓋更多低音
+    const MAX_FREQUENCY = 2000;        // 最高頻率 (Hz) - 擴大範圍以涵蓋更多高音
     const MAX_LAG = Math.floor(sampleRate / MIN_FREQUENCY);      // 對應最低頻率的最大 lag
     const MIN_LAG = Math.floor(sampleRate / MAX_FREQUENCY);      // 對應最高頻率的最小 lag
     const FRAME_LENGTH = audioData.length;
@@ -794,11 +811,24 @@ class AudioAnalyzer {
       const channelData = audioBuffer.getChannelData(0);
 
       // ========== 參數設置 ==========
-      // 100ms 窗口大小（0.1 * sampleRate 個樣本）
-      const windowSize = Math.floor(0.1 * sampleRate);
+      // 計算音訊長度（毫秒）
+      const audioDurationMs = (channelData.length / sampleRate) * 1000;
 
-      // 50ms hop 大小（50% 重疊），導致每個窗口之間間隔 50ms
-      const hopSize = Math.floor(0.05 * sampleRate);
+      // 動態調整窗口大小：
+      // - 正常音效（>= 200ms）：使用 100ms 窗口
+      // - 短音效（< 200ms）：使用 50ms 窗口以獲得更多分析點
+      // - 極短音效（< 100ms）：使用 25ms 窗口
+      let windowMs = 100;
+      if (audioDurationMs < 100) {
+        windowMs = 25;
+      } else if (audioDurationMs < 200) {
+        windowMs = 50;
+      }
+
+      const windowSize = Math.floor((windowMs / 1000) * sampleRate);
+
+      // hop 大小為窗口的 50%（50% 重疊）
+      const hopSize = Math.floor(windowSize / 2);
 
       // 計算總 hop 數（整個音訊將被分成多個 hop）
       const totalHops = Math.ceil((channelData.length - windowSize) / hopSize) + 1;
@@ -876,8 +906,9 @@ class AudioAnalyzer {
       }
 
       // ========== 音高統計計算 ==========
-      // 過濾出高置信度的音高點（置信度 > 0.5）用於統計
-      const validPitches = pitchCurve.filter(p => p.confidence > 0.5);
+      // 過濾出高置信度的音高點（置信度 > 0.35）用於統計
+      // 降低閾值以提高偵測成功率（原為 0.5，對複雜音效過於嚴格）
+      const validPitches = pitchCurve.filter(p => p.confidence > 0.35);
 
       // 初始化統計變量
       let averagePitch = 0;
@@ -896,9 +927,10 @@ class AudioAnalyzer {
         maxPitch = Math.max(...validPitches.map(p => p.frequency));
 
         // 判斷是否為有音高的聲音
-        // 如果有效音高點數佔總點數的 30% 以上，則認為是有音高的聲音
+        // 如果有效音高點數佔總點數的 20% 以上，則認為是有音高的聲音
+        // 降低閾值以提高偵測成功率（原為 0.3，對短音效或複雜音效過於嚴格）
         const pitchedRatio = validPitches.length / pitchCurve.length;
-        isPitched = pitchedRatio >= 0.3;
+        isPitched = pitchedRatio >= 0.2;
       }
 
       // ========== 生成頻譜圖 (Task 4.1) ==========

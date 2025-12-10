@@ -325,9 +325,17 @@ class KeyIntegrationNode extends BaseNode {
             const sampleRate = audioBuffer.sampleRate;
             const channelData = audioBuffer.getChannelData(0);
 
-            // 使用較大的窗口和 hop 來加速分析
-            const windowSize = Math.floor(0.1 * sampleRate);
-            const hopSize = Math.floor(0.1 * sampleRate); // 不重疊，更快
+            // 動態調整窗口大小（優化短音效處理）
+            const audioDurationMs = (channelData.length / sampleRate) * 1000;
+            let windowMs = 100;
+            if (audioDurationMs < 100) {
+                windowMs = 25;
+            } else if (audioDurationMs < 200) {
+                windowMs = 50;
+            }
+
+            const windowSize = Math.floor((windowMs / 1000) * sampleRate);
+            const hopSize = Math.floor(windowSize / 2); // 50% 重疊，提高準確度
 
             const totalHops = Math.ceil((channelData.length - windowSize) / hopSize) + 1;
             const pitchCurve = [];
@@ -369,9 +377,21 @@ class KeyIntegrationNode extends BaseNode {
             return { frequency: 0, confidence: 0 };
         }
 
+        // ========== 音量門檻過濾 ==========
+        // 計算 RMS 能量，過濾掉靜音段落
+        let sumSquaresForRMS = 0;
+        for (let i = 0; i < audioData.length; i++) {
+            sumSquaresForRMS += audioData[i] * audioData[i];
+        }
+        const rms = Math.sqrt(sumSquaresForRMS / audioData.length);
+        const RMS_THRESHOLD = 0.01;
+        if (rms < RMS_THRESHOLD) {
+            return { frequency: 0, confidence: 0 };
+        }
+
         const THRESHOLD = 0.15;
-        const MIN_FREQUENCY = 80;
-        const MAX_FREQUENCY = 1000;
+        const MIN_FREQUENCY = 50;   // 擴大範圍以涵蓋更多低音
+        const MAX_FREQUENCY = 2000; // 擴大範圍以涵蓋更多高音
         const MAX_LAG = Math.floor(sampleRate / MIN_FREQUENCY);
         const MIN_LAG = Math.floor(sampleRate / MAX_FREQUENCY);
         const FRAME_LENGTH = audioData.length;
@@ -447,7 +467,8 @@ class KeyIntegrationNode extends BaseNode {
             return null;
         }
 
-        const CONFIDENCE_THRESHOLD = 0.5;
+        // 降低閾值以提高偵測成功率（原為 0.5，對複雜音效過於嚴格）
+        const CONFIDENCE_THRESHOLD = 0.35;
         const validPitches = pitchCurve.filter(p => p.confidence > CONFIDENCE_THRESHOLD && p.frequency > 0);
 
         if (validPitches.length === 0) {
