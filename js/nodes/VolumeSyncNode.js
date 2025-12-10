@@ -29,6 +29,11 @@ class VolumeSyncNode extends BaseNode {
         this.isAnalyzing = false;
         this.isProcessing = false;
         this.currentDetailIndex = null;
+
+        // 檔案列表分頁與展開狀態
+        this.fileListExpanded = true;
+        this.fileListCurrentPage = 0;
+        this.fileListPerPage = 5; // 每頁顯示數量
     }
 
     setupPorts() {
@@ -169,7 +174,33 @@ class VolumeSyncNode extends BaseNode {
             `;
         }
 
-        const listHtml = fileAnalysis.map((item, index) => {
+        const totalItems = fileAnalysis.length;
+        const totalPages = Math.ceil(totalItems / this.fileListPerPage);
+        const isExpanded = this.fileListExpanded;
+
+        // 渲染摘要區塊
+        const summaryHtml = `
+            <div class="volume-sync-files-summary">
+                <button class="volume-sync-files-toggle" data-action="files-toggle" title="${isExpanded ? '收合列表' : '展開列表'}">
+                    ${isExpanded ? '▼' : '▶'}
+                </button>
+                <span class="volume-sync-files-icon">📄</span>
+                <span class="volume-sync-files-count">${totalItems} 個檔案</span>
+            </div>
+        `;
+
+        // 如果收合狀態，只顯示摘要
+        if (!isExpanded) {
+            return `<div class="volume-sync-files-section collapsed">${summaryHtml}</div>`;
+        }
+
+        // 計算分頁範圍
+        const start = this.fileListCurrentPage * this.fileListPerPage;
+        const end = Math.min(start + this.fileListPerPage, totalItems);
+
+        // 渲染檔案項目
+        const listHtml = fileAnalysis.slice(start, end).map((item, pageIndex) => {
+            const index = start + pageIndex;
             // 峰值顯示
             let statusDisplay;
             if (item.peak !== null && item.peak !== undefined) {
@@ -214,7 +245,31 @@ class VolumeSyncNode extends BaseNode {
             `;
         }).join('');
 
-        return `<div class="volume-sync-file-list">${listHtml}</div>`;
+        // 渲染分頁控制
+        let paginationHtml = '';
+        if (totalPages > 1) {
+            paginationHtml = `
+                <div class="volume-sync-pagination">
+                    <button class="volume-sync-page-btn" data-action="files-prev-page" ${this.fileListCurrentPage === 0 ? 'disabled' : ''}>
+                        ◀ 上一頁
+                    </button>
+                    <span class="volume-sync-page-info">第 ${this.fileListCurrentPage + 1} 頁，共 ${totalPages} 頁</span>
+                    <button class="volume-sync-page-btn" data-action="files-next-page" ${this.fileListCurrentPage >= totalPages - 1 ? 'disabled' : ''}>
+                        下一頁 ▶
+                    </button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="volume-sync-files-section expanded">
+                ${summaryHtml}
+                <div class="volume-sync-files-content">
+                    <div class="volume-sync-file-list">${listHtml}</div>
+                    ${paginationHtml}
+                </div>
+            </div>
+        `;
     }
 
     /**
@@ -279,6 +334,9 @@ class VolumeSyncNode extends BaseNode {
 
         // 檔案分析按鈕
         this.bindAnalyzeButtons();
+
+        // 檔案列表控制
+        this.bindFileListEvents();
     }
 
     /**
@@ -295,12 +353,53 @@ class VolumeSyncNode extends BaseNode {
     }
 
     /**
+     * 綁定檔案列表控制事件
+     */
+    bindFileListEvents() {
+        // 展開/收合切換
+        const toggleBtn = this.element.querySelector('[data-action="files-toggle"]');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                this.fileListExpanded = !this.fileListExpanded;
+                this.updateContent();
+            });
+        }
+
+        // 上一頁
+        const prevBtn = this.element.querySelector('[data-action="files-prev-page"]');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (this.fileListCurrentPage > 0) {
+                    this.fileListCurrentPage--;
+                    this.updateContent();
+                }
+            });
+        }
+
+        // 下一頁
+        const nextBtn = this.element.querySelector('[data-action="files-next-page"]');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const totalItems = (this.data.fileAnalysis || []).length;
+                const totalPages = Math.ceil(totalItems / this.fileListPerPage);
+                if (this.fileListCurrentPage < totalPages - 1) {
+                    this.fileListCurrentPage++;
+                    this.updateContent();
+                }
+            });
+        }
+    }
+
+    /**
      * 更新輸入音訊（支援多檔案）
      */
     async updateInputAudio(audioBuffer, audioFiles = null, filenames = null) {
         // 標記為未處理
         this.data.processed = false;
         this.processedBuffers = [];
+
+        // 重設分頁索引
+        this.fileListCurrentPage = 0;
 
         if (audioFiles && audioFiles.length > 0) {
             this.inputAudioBuffers = audioFiles;

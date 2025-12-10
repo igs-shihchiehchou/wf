@@ -45,6 +45,11 @@ class BeatSyncNode extends BaseNode {
         this.isAnalyzing = false;
         this.isProcessing = false;
         this.currentDetailIndex = null;
+
+        // 檔案列表分頁與展開狀態
+        this.fileListExpanded = true;
+        this.fileListCurrentPage = 0;
+        this.fileListPerPage = 5; // 每頁顯示數量
     }
 
     setupPorts() {
@@ -213,118 +218,175 @@ class BeatSyncNode extends BaseNode {
             `;
         }
 
-        const listHtml = fileAnalysis.map((item, index) => {
-            // BPM 顯示（可點擊編輯）
-            let bpmDisplay;
-            if (item.bpm !== null && item.bpm > 0) {
-                const manualTag = item.manuallyAdjusted ? '<span class="beat-sync-manual-tag">已修正</span>' : '';
+        const totalItems = fileAnalysis.length;
+        const totalPages = Math.ceil(totalItems / this.fileListPerPage);
+        const isExpanded = this.fileListExpanded;
 
-                if (item.estimated) {
-                    // 估算值：顯示時長計算方式，無信心度
-                    const durationText = item.duration ? item.duration.toFixed(2) : '?';
-                    bpmDisplay = `
-                        <span class="beat-sync-bpm estimated editable" 
-                              data-index="${index}" 
-                              title="以音訊長度（${durationText}秒）作為一拍計算&#10;點擊以手動修正 BPM">
-                            ${Math.round(item.bpm)} BPM
-                        </span>
-                        <span class="beat-sync-duration-calc" title="音訊長度 ${durationText} 秒 = 一拍">⏱${durationText}s</span>
-                        ${manualTag}
-                        <span class="beat-sync-warning estimated-warning" title="音訊過短，無法偵測節拍&#10;BPM 以音訊長度作為一拍計算&#10;建議手動確認或修正">⚠</span>
-                    `;
-                } else {
-                    // 正常偵測值：顯示信心度
-                    const confidenceClass = this.getConfidenceClass(item.confidence);
-                    const confidencePercent = Math.round((item.confidence || 0) * 100);
-                    bpmDisplay = `
-                        <span class="beat-sync-bpm ${confidenceClass} editable" 
-                              data-index="${index}" 
-                              title="信心度: ${confidencePercent}%&#10;點擊以手動修正 BPM">
-                            ${Math.round(item.bpm)} BPM
-                        </span>
-                        ${manualTag}
-                    `;
+        // 渲染摘要區塊
+        const summaryHtml = `
+            <div class="beat-sync-files-summary">
+                <button class="beat-sync-files-toggle" data-action="files-toggle" title="${isExpanded ? '收合列表' : '展開列表'}">
+                    ${isExpanded ? '▼' : '▶'}
+                </button>
+                <span class="beat-sync-files-icon">📄</span>
+                <span class="beat-sync-files-count">${totalItems} 個檔案</span>
+            </div>
+        `;
 
-                    // 低信心度警告
-                    if (item.confidence < 0.6) {
-                        bpmDisplay += `<span class="beat-sync-warning" title="低信心度，建議手動確認">⚠</span>`;
-                    }
-                }
-            } else if (item.analyzing) {
-                bpmDisplay = `<span class="beat-sync-analyzing">⏳</span>`;
-            } else if (item.error) {
-                // 無法偵測時也提供手動輸入
-                bpmDisplay = `
-                    <span class="beat-sync-error editable" data-index="${index}" title="${item.error}&#10;點擊以手動輸入 BPM">⚠️ 無法偵測</span>
-                    <span class="beat-sync-manual-input-hint">點擊輸入</span>
-                `;
-            } else {
-                bpmDisplay = `<span class="beat-sync-pending">--</span>`;
-            }
+        // 如果收合狀態，只顯示摘要
+        if (!isExpanded) {
+            return `<div class="beat-sync-files-section collapsed">${summaryHtml}</div>`;
+        }
 
-            // 調整量顯示
-            let adjustDisplay = '';
-            if (this.data.processed && item.speedRatio !== undefined) {
-                const percentChange = ((item.speedRatio - 1) * 100).toFixed(1);
-                const adjustClass = item.speedRatio > 1 ? 'faster' : item.speedRatio < 1 ? 'slower' : 'same';
-                const sign = item.speedRatio > 1 ? '+' : '';
-                adjustDisplay = `<span class="beat-sync-adjustment ${adjustClass}">${sign}${percentChange}%</span>`;
-            }
+        // 計算分頁範圍
+        const start = this.fileListCurrentPage * this.fileListPerPage;
+        const end = Math.min(start + this.fileListPerPage, totalItems);
 
-            // 時長變化顯示
-            let durationDisplay = '';
-            if (item.duration) {
-                const originalDuration = item.duration.toFixed(2);
-                if (this.data.processed && item.newDuration) {
-                    durationDisplay = `<span class="beat-sync-duration">${originalDuration}s → ${item.newDuration.toFixed(2)}s</span>`;
-                } else {
-                    durationDisplay = `<span class="beat-sync-duration">${originalDuration}s</span>`;
-                }
-            }
-
-            // 分析按鈕
-            const hasDetail = item.detailAnalysis !== undefined;
-            const analyzeIcon = hasDetail ? '⇋' : '🔍';
-            const analyzeTitle = hasDetail ? '查看分析結果' : '點擊進行細部分析';
-
-            // 判斷是否顯示修正按鈕區域（有 BPM 或偵測失敗都可以手動輸入）
-            const showAdjustArea = item.bpm > 0 || item.error;
-            // 判斷是否已手動修改（可以重設）
-            const canReset = item.manuallyAdjusted && item.originalBPM !== null && item.originalBPM !== undefined;
-
-            return `
-                <div class="beat-sync-file-item" data-index="${index}">
-                    <div class="beat-sync-file-info">
-                        <span class="beat-sync-file-icon">📄</span>
-                        <span class="beat-sync-file-name" title="${item.filename}">${item.filename}</span>
-                    </div>
-                    <div class="beat-sync-file-analysis">
-                        ${bpmDisplay}
-                        ${adjustDisplay}
-                        ${durationDisplay}
-                        <button class="beat-sync-analyze-btn" data-index="${index}" title="${analyzeTitle}">${analyzeIcon}</button>
-                    </div>
-                    <!-- BPM 修正區域 -->
-                    ${showAdjustArea ? `
-                    <div class="beat-sync-bpm-adjust">
-                        <label class="beat-sync-bpm-label" title="手動修正此音訊的 BPM 值&#10;若自動偵測不準確，可在此輸入正確的 BPM">修正 BPM:</label>
-                        <input type="number" class="beat-sync-bpm-edit" data-index="${index}" 
-                               min="40" max="240" step="1" 
-                               value="${item.bpm > 0 ? Math.round(item.bpm) : ''}"
-                               placeholder="輸入 BPM"
-                               title="手動輸入此音訊的 BPM 值（範圍 40-240）&#10;按 Enter 確認修改">
-                        <button class="beat-sync-half-btn" data-index="${index}" title="將目前 BPM 除以 2&#10;適用於偵測值偏高時修正" ${!item.bpm ? 'disabled' : ''}>÷2</button>
-                        <button class="beat-sync-double-btn" data-index="${index}" title="將目前 BPM 乘以 2&#10;適用於偵測值偏低時修正" ${!item.bpm ? 'disabled' : ''}>×2</button>
-                        <button class="beat-sync-reset-btn" data-index="${index}" 
-                                title="重設為原始偵測值：${item.originalBPM ? Math.round(item.originalBPM) + ' BPM' : '無'}" 
-                                ${!canReset ? 'disabled' : ''}>↺</button>
-                    </div>
-                    ` : ''}
-                </div>
-            `;
+        // 渲染檔案項目
+        const listHtml = fileAnalysis.slice(start, end).map((item, pageIndex) => {
+            const index = start + pageIndex;
+            return this.renderFileItem(item, index);
         }).join('');
 
-        return `<div class="beat-sync-file-list">${listHtml}</div>`;
+        // 渲染分頁控制
+        let paginationHtml = '';
+        if (totalPages > 1) {
+            paginationHtml = `
+                <div class="beat-sync-pagination">
+                    <button class="beat-sync-page-btn" data-action="files-prev-page" ${this.fileListCurrentPage === 0 ? 'disabled' : ''}>
+                        ◀ 上一頁
+                    </button>
+                    <span class="beat-sync-page-info">第 ${this.fileListCurrentPage + 1} 頁，共 ${totalPages} 頁</span>
+                    <button class="beat-sync-page-btn" data-action="files-next-page" ${this.fileListCurrentPage >= totalPages - 1 ? 'disabled' : ''}>
+                        下一頁 ▶
+                    </button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="beat-sync-files-section expanded">
+                ${summaryHtml}
+                <div class="beat-sync-files-content">
+                    <div class="beat-sync-file-list">${listHtml}</div>
+                    ${paginationHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * 渲染單一檔案項目
+     */
+    renderFileItem(item, index) {
+        // BPM 顯示（可點擊編輯）
+        let bpmDisplay;
+        if (item.bpm !== null && item.bpm > 0) {
+            const manualTag = item.manuallyAdjusted ? '<span class="beat-sync-manual-tag">已修正</span>' : '';
+
+            if (item.estimated) {
+                // 估算值：顯示時長計算方式，無信心度
+                const durationText = item.duration ? item.duration.toFixed(2) : '?';
+                bpmDisplay = `
+                    <span class="beat-sync-bpm estimated editable" 
+                          data-index="${index}" 
+                          title="以音訊長度（${durationText}秒）作為一拍計算&#10;點擊以手動修正 BPM">
+                        ${Math.round(item.bpm)} BPM
+                    </span>
+                    <span class="beat-sync-duration-calc" title="音訊長度 ${durationText} 秒 = 一拍">⏱${durationText}s</span>
+                    ${manualTag}
+                    <span class="beat-sync-warning estimated-warning" title="音訊過短，無法偵測節拍&#10;BPM 以音訊長度作為一拍計算&#10;建議手動確認或修正">⚠</span>
+                `;
+            } else {
+                // 正常偵測值：顯示信心度
+                const confidenceClass = this.getConfidenceClass(item.confidence);
+                const confidencePercent = Math.round((item.confidence || 0) * 100);
+                bpmDisplay = `
+                    <span class="beat-sync-bpm ${confidenceClass} editable" 
+                          data-index="${index}" 
+                          title="信心度: ${confidencePercent}%&#10;點擊以手動修正 BPM">
+                        ${Math.round(item.bpm)} BPM
+                    </span>
+                    ${manualTag}
+                `;
+
+                // 低信心度警告
+                if (item.confidence < 0.6) {
+                    bpmDisplay += `<span class="beat-sync-warning" title="低信心度，建議手動確認">⚠</span>`;
+                }
+            }
+        } else if (item.analyzing) {
+            bpmDisplay = `<span class="beat-sync-analyzing">⏳</span>`;
+        } else if (item.error) {
+            // 無法偵測時也提供手動輸入
+            bpmDisplay = `
+                <span class="beat-sync-error editable" data-index="${index}" title="${item.error}&#10;點擊以手動輸入 BPM">⚠️ 無法偵測</span>
+                <span class="beat-sync-manual-input-hint">點擊輸入</span>
+            `;
+        } else {
+            bpmDisplay = `<span class="beat-sync-pending">--</span>`;
+        }
+
+        // 調整量顯示
+        let adjustDisplay = '';
+        if (this.data.processed && item.speedRatio !== undefined) {
+            const percentChange = ((item.speedRatio - 1) * 100).toFixed(1);
+            const adjustClass = item.speedRatio > 1 ? 'faster' : item.speedRatio < 1 ? 'slower' : 'same';
+            const sign = item.speedRatio > 1 ? '+' : '';
+            adjustDisplay = `<span class="beat-sync-adjustment ${adjustClass}">${sign}${percentChange}%</span>`;
+        }
+
+        // 時長變化顯示
+        let durationDisplay = '';
+        if (item.duration) {
+            const originalDuration = item.duration.toFixed(2);
+            if (this.data.processed && item.newDuration) {
+                durationDisplay = `<span class="beat-sync-duration">${originalDuration}s → ${item.newDuration.toFixed(2)}s</span>`;
+            } else {
+                durationDisplay = `<span class="beat-sync-duration">${originalDuration}s</span>`;
+            }
+        }
+
+        // 分析按鈕
+        const hasDetail = item.detailAnalysis !== undefined;
+        const analyzeIcon = hasDetail ? '⇋' : '🔍';
+        const analyzeTitle = hasDetail ? '查看分析結果' : '點擊進行細部分析';
+
+        // 判斷是否顯示修正按鈕區域（有 BPM 或偵測失敗都可以手動輸入）
+        const showAdjustArea = item.bpm > 0 || item.error;
+        // 判斷是否已手動修改（可以重設）
+        const canReset = item.manuallyAdjusted && item.originalBPM !== null && item.originalBPM !== undefined;
+
+        return `
+            <div class="beat-sync-file-item" data-index="${index}">
+                <div class="beat-sync-file-info">
+                    <span class="beat-sync-file-icon">📄</span>
+                    <span class="beat-sync-file-name" title="${item.filename}">${item.filename}</span>
+                </div>
+                <div class="beat-sync-file-analysis">
+                    ${bpmDisplay}
+                    ${adjustDisplay}
+                    ${durationDisplay}
+                    <button class="beat-sync-analyze-btn" data-index="${index}" title="${analyzeTitle}">${analyzeIcon}</button>
+                </div>
+                <!-- BPM 修正區域 -->
+                ${showAdjustArea ? `
+                <div class="beat-sync-bpm-adjust">
+                    <label class="beat-sync-bpm-label" title="手動修正此音訊的 BPM 值&#10;若自動偵測不準確，可在此輸入正確的 BPM">修正 BPM:</label>
+                    <input type="number" class="beat-sync-bpm-edit" data-index="${index}" 
+                           min="40" max="240" step="1" 
+                           value="${item.bpm > 0 ? Math.round(item.bpm) : ''}"
+                           placeholder="輸入 BPM"
+                           title="手動輸入此音訊的 BPM 值（範圍 40-240）&#10;按 Enter 確認修改">
+                    <button class="beat-sync-half-btn" data-index="${index}" title="將目前 BPM 除以 2&#10;適用於偵測值偏高時修正" ${!item.bpm ? 'disabled' : ''}>÷2</button>
+                    <button class="beat-sync-double-btn" data-index="${index}" title="將目前 BPM 乘以 2&#10;適用於偵測值偏低時修正" ${!item.bpm ? 'disabled' : ''}>×2</button>
+                    <button class="beat-sync-reset-btn" data-index="${index}" 
+                            title="重設為原始偵測值：${item.originalBPM ? Math.round(item.originalBPM) + ' BPM' : '無'}" 
+                            ${!canReset ? 'disabled' : ''}>↺</button>
+                </div>
+                ` : ''}
+            </div>
+        `;
     }
 
     /**
@@ -411,6 +473,47 @@ class BeatSyncNode extends BaseNode {
 
         // 分析按鈕
         this.bindAnalyzeButtons();
+
+        // 檔案列表控制
+        this.bindFileListEvents();
+    }
+
+    /**
+     * 綁定檔案列表控制事件
+     */
+    bindFileListEvents() {
+        // 展開/收合切換
+        const toggleBtn = this.element.querySelector('[data-action="files-toggle"]');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                this.fileListExpanded = !this.fileListExpanded;
+                this.updateContent();
+            });
+        }
+
+        // 上一頁
+        const prevBtn = this.element.querySelector('[data-action="files-prev-page"]');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (this.fileListCurrentPage > 0) {
+                    this.fileListCurrentPage--;
+                    this.updateContent();
+                }
+            });
+        }
+
+        // 下一頁
+        const nextBtn = this.element.querySelector('[data-action="files-next-page"]');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const totalItems = (this.data.fileAnalysis || []).length;
+                const totalPages = Math.ceil(totalItems / this.fileListPerPage);
+                if (this.fileListCurrentPage < totalPages - 1) {
+                    this.fileListCurrentPage++;
+                    this.updateContent();
+                }
+            });
+        }
     }
 
     /**
@@ -620,6 +723,9 @@ class BeatSyncNode extends BaseNode {
      * 更新輸入音訊（支援多檔案）
      */
     async updateInputAudio(audioBuffer, audioFiles = null, filenames = null) {
+        // 重設分頁索引
+        this.fileListCurrentPage = 0;
+
         // 處理多檔案輸入
         if (audioFiles && audioFiles.length > 0) {
             this.inputAudioBuffers = audioFiles;
