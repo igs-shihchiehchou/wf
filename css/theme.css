@@ -60,6 +60,38 @@
 }
 
 /* ===========================
+   Light Theme
+   =========================== */
+
+[data-theme="light"] {
+  /* 背景色階 */
+  --bg-dark: hsl(58 13% 88%);
+  --bg: hsl(58 24% 94%);
+  --bg-light: hsl(58 100% 99%);
+
+  /* 文字色階 */
+  --text: hsl(55 57% 3%);
+  --text-muted: hsl(57 10% 26%);
+
+  /* 互動元素 */
+  --highlight: hsl(58 100% 98%);
+
+  /* 邊框 */
+  --border: hsl(58 6% 48%);
+  --border-muted: hsl(58 7% 60%);
+
+  /* 主題色 */
+  --primary: hsl(56 100% 12%);
+  --secondary: hsl(245 33% 36%);
+
+  /* 語義色彩 */
+  --danger: hsl(9 21% 41%);
+  --warning: hsl(52 23% 34%);
+  --success: hsl(147 19% 36%);
+  --info: hsl(217 22% 41%);
+}
+
+/* ===========================
    基礎樣式
    =========================== */
 
@@ -445,6 +477,33 @@ button {
 .btn-icon:hover {
   background-color: var(--highlight);
   color: var(--text);
+}
+
+/* 主題切換按鈕 */
+.theme-toggle {
+  position: relative;
+}
+
+.theme-toggle .theme-icon {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+[data-theme="light"] .theme-toggle .theme-icon-dark {
+  opacity: 1;
+}
+
+[data-theme="light"] .theme-toggle .theme-icon-light {
+  opacity: 0;
+  position: absolute;
+}
+
+.theme-toggle .theme-icon-dark {
+  opacity: 0;
+  position: absolute;
+}
+
+.theme-toggle .theme-icon-light {
+  opacity: 1;
 }
 
 .btn-reset {

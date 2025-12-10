@@ -5,8 +5,39 @@ class KeyIntegrationNode extends BaseNode {
     // 音名常數（不含八度）
     static NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
+    // 大調與小調選項
+    static KEY_OPTIONS = [
+        // 大調
+        { value: 'C', label: 'C 大調', type: 'major' },
+        { value: 'C#', label: 'C# 大調', type: 'major' },
+        { value: 'D', label: 'D 大調', type: 'major' },
+        { value: 'D#', label: 'D# 大調', type: 'major' },
+        { value: 'E', label: 'E 大調', type: 'major' },
+        { value: 'F', label: 'F 大調', type: 'major' },
+        { value: 'F#', label: 'F# 大調', type: 'major' },
+        { value: 'G', label: 'G 大調', type: 'major' },
+        { value: 'G#', label: 'G# 大調', type: 'major' },
+        { value: 'A', label: 'A 大調', type: 'major' },
+        { value: 'A#', label: 'A# 大調', type: 'major' },
+        { value: 'B', label: 'B 大調', type: 'major' },
+        // 小調
+        { value: 'Cm', label: 'C 小調', type: 'minor' },
+        { value: 'C#m', label: 'C# 小調', type: 'minor' },
+        { value: 'Dm', label: 'D 小調', type: 'minor' },
+        { value: 'D#m', label: 'D# 小調', type: 'minor' },
+        { value: 'Em', label: 'E 小調', type: 'minor' },
+        { value: 'Fm', label: 'F 小調', type: 'minor' },
+        { value: 'F#m', label: 'F# 小調', type: 'minor' },
+        { value: 'Gm', label: 'G 小調', type: 'minor' },
+        { value: 'G#m', label: 'G# 小調', type: 'minor' },
+        { value: 'Am', label: 'A 小調', type: 'minor' },
+        { value: 'A#m', label: 'A# 小調', type: 'minor' },
+        { value: 'Bm', label: 'B 小調', type: 'minor' }
+    ];
+
     // 各調性的調內音（自然大調音階）
     static SCALE_NOTES = {
+        // 大調（自然大調音階：全全半全全全半）
         'C': [0, 2, 4, 5, 7, 9, 11],  // C D E F G A B
         'C#': [1, 3, 5, 6, 8, 10, 0],  // C# D# F F# G# A# C
         'D': [2, 4, 6, 7, 9, 11, 1],  // D E F# G A B C#
@@ -18,7 +49,20 @@ class KeyIntegrationNode extends BaseNode {
         'G#': [8, 10, 0, 1, 3, 5, 7],  // G# A# C C# D# F G
         'A': [9, 11, 1, 2, 4, 6, 8],  // A B C# D E F# G#
         'A#': [10, 0, 2, 3, 5, 7, 9],  // A# C D D# F G A
-        'B': [11, 1, 3, 4, 6, 8, 10]  // B C# D# E F# G# A#
+        'B': [11, 1, 3, 4, 6, 8, 10], // B C# D# E F# G# A#
+        // 小調（自然小調音階：全半全全半全全）
+        'Cm': [0, 2, 3, 5, 7, 8, 10],  // C D Eb F G Ab Bb
+        'C#m': [1, 3, 4, 6, 8, 9, 11], // C# D# E F# G# A B
+        'Dm': [2, 4, 5, 7, 9, 10, 0],  // D E F G A Bb C
+        'D#m': [3, 5, 6, 8, 10, 11, 1], // D# F F# G# A# B C#
+        'Em': [4, 6, 7, 9, 11, 0, 2],  // E F# G A B C D
+        'Fm': [5, 7, 8, 10, 0, 1, 3],  // F G Ab Bb C Db Eb
+        'F#m': [6, 8, 9, 11, 1, 2, 4], // F# G# A B C# D E
+        'Gm': [7, 9, 10, 0, 2, 3, 5],  // G A Bb C D Eb F
+        'G#m': [8, 10, 11, 1, 3, 4, 6], // G# A# B C# D# E F#
+        'Am': [9, 11, 0, 2, 4, 5, 7],  // A B C D E F G
+        'A#m': [10, 0, 1, 3, 5, 6, 8], // A# C C# D# F F# G#
+        'Bm': [11, 1, 2, 4, 6, 7, 9]   // B C# D E F# G A
     };
 
     constructor(id, options = {}) {
@@ -54,11 +98,20 @@ class KeyIntegrationNode extends BaseNode {
         const fileAnalysis = this.data.fileAnalysis || [];
         const isAnalyzing = this.data.isAnalyzing;
 
-        // 生成目標調性選項
-        const keyOptions = KeyIntegrationNode.NOTE_NAMES.map(note => {
-            const selected = targetKey === note ? 'selected' : '';
-            return `<option value="${note}" ${selected}>${note}</option>`;
-        }).join('');
+        // 生成目標調性選項（分組顯示大調與小調）
+        const majorOptions = KeyIntegrationNode.KEY_OPTIONS
+            .filter(k => k.type === 'major')
+            .map(k => {
+                const selected = targetKey === k.value ? 'selected' : '';
+                return `<option value="${k.value}" ${selected}>${k.label}</option>`;
+            }).join('');
+        const minorOptions = KeyIntegrationNode.KEY_OPTIONS
+            .filter(k => k.type === 'minor')
+            .map(k => {
+                const selected = targetKey === k.value ? 'selected' : '';
+                return `<option value="${k.value}" ${selected}>${k.label}</option>`;
+            }).join('');
+        const keyOptions = `<optgroup label="大調">${majorOptions}</optgroup><optgroup label="小調">${minorOptions}</optgroup>`;
 
         // 計算是否可以套用
         const canApply = targetKey && fileAnalysis.length > 0 && !isAnalyzing;

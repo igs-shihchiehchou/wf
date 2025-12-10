@@ -288,8 +288,8 @@ class BeatSyncNode extends BaseNode {
                 // 估算值：顯示時長計算方式，無信心度
                 const durationText = item.duration ? item.duration.toFixed(2) : '?';
                 bpmDisplay = `
-                    <span class="beat-sync-bpm estimated editable" 
-                          data-index="${index}" 
+                    <span class="beat-sync-bpm estimated editable"
+                          data-index="${index}"
                           title="以音訊長度（${durationText}秒）作為一拍計算&#10;點擊以手動修正 BPM">
                         ${Math.round(item.bpm)} BPM
                     </span>
@@ -302,8 +302,8 @@ class BeatSyncNode extends BaseNode {
                 const confidenceClass = this.getConfidenceClass(item.confidence);
                 const confidencePercent = Math.round((item.confidence || 0) * 100);
                 bpmDisplay = `
-                    <span class="beat-sync-bpm ${confidenceClass} editable" 
-                          data-index="${index}" 
+                    <span class="beat-sync-bpm ${confidenceClass} editable"
+                          data-index="${index}"
                           title="信心度: ${confidencePercent}%&#10;點擊以手動修正 BPM">
                         ${Math.round(item.bpm)} BPM
                     </span>
@@ -373,15 +373,15 @@ class BeatSyncNode extends BaseNode {
                 ${showAdjustArea ? `
                 <div class="beat-sync-bpm-adjust">
                     <label class="beat-sync-bpm-label" title="手動修正此音訊的 BPM 值&#10;若自動偵測不準確，可在此輸入正確的 BPM">修正 BPM:</label>
-                    <input type="number" class="beat-sync-bpm-edit" data-index="${index}" 
-                           min="40" max="240" step="1" 
+                    <input type="number" class="beat-sync-bpm-edit" data-index="${index}"
+                           min="40" max="240" step="1"
                            value="${item.bpm > 0 ? Math.round(item.bpm) : ''}"
                            placeholder="輸入 BPM"
                            title="手動輸入此音訊的 BPM 值（範圍 40-240）&#10;按 Enter 確認修改">
                     <button class="beat-sync-half-btn" data-index="${index}" title="將目前 BPM 除以 2&#10;適用於偵測值偏高時修正" ${!item.bpm ? 'disabled' : ''}>÷2</button>
                     <button class="beat-sync-double-btn" data-index="${index}" title="將目前 BPM 乘以 2&#10;適用於偵測值偏低時修正" ${!item.bpm ? 'disabled' : ''}>×2</button>
-                    <button class="beat-sync-reset-btn" data-index="${index}" 
-                            title="重設為原始偵測值：${item.originalBPM ? Math.round(item.originalBPM) + ' BPM' : '無'}" 
+                    <button class="beat-sync-reset-btn" data-index="${index}"
+                            title="重設為原始偵測值：${item.originalBPM ? Math.round(item.originalBPM) + ' BPM' : '無'}"
                             ${!canReset ? 'disabled' : ''}>↺</button>
                 </div>
                 ` : ''}
