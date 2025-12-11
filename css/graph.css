@@ -1943,3 +1943,54 @@
     margin-top: var(--spacing-1);
     font-style: italic;
 }
+
+/* ===========================
+   Format Selection Menu
+   =========================== */
+
+.format-menu {
+    position: fixed;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    padding: var(--spacing-2);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    min-width: 120px;
+}
+
+.format-option {
+    padding: var(--spacing-2) var(--spacing-3);
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.format-option:hover {
+    background-color: var(--highlight);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.format-option:active {
+    background-color: var(--primary);
+    color: white;
+}
+
+.format-menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    background-color: transparent;
+}

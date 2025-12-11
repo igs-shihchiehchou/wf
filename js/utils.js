@@ -127,6 +127,65 @@ function audioBufferToWav(buffer) {
   }
 }
 
+// 將 AudioBuffer 轉換為 MP3 格式
+function audioBufferToMp3(buffer) {
+  // lamejs 需要 16-bit PCM 資料
+  const channels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const samples = buffer.length;
+
+  // 初始化 MP3 encoder (192 kbps, mono or stereo)
+  const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 192);
+  const mp3Data = [];
+
+  // 將 AudioBuffer 的 Float32Array (-1 to 1) 轉換為 Int16Array
+  const leftChannel = buffer.getChannelData(0);
+  const rightChannel = channels > 1 ? buffer.getChannelData(1) : null;
+
+  // 轉換為 16-bit PCM
+  const left = new Int16Array(samples);
+  const right = rightChannel ? new Int16Array(samples) : null;
+
+  for (let i = 0; i < samples; i++) {
+    left[i] = Math.max(-32768, Math.min(32767, leftChannel[i] * 32768));
+    if (right) {
+      right[i] = Math.max(-32768, Math.min(32767, rightChannel[i] * 32768));
+    }
+  }
+
+  // 編碼為 MP3（分塊處理，每次 1152 個樣本）
+  const sampleBlockSize = 1152;
+  for (let i = 0; i < samples; i += sampleBlockSize) {
+    const leftChunk = left.subarray(i, i + sampleBlockSize);
+    const rightChunk = right ? right.subarray(i, i + sampleBlockSize) : null;
+
+    const mp3buf = rightChunk
+      ? mp3encoder.encodeBuffer(leftChunk, rightChunk)
+      : mp3encoder.encodeBuffer(leftChunk);
+
+    if (mp3buf.length > 0) {
+      mp3Data.push(mp3buf);
+    }
+  }
+
+  // 完成編碼
+  const mp3buf = mp3encoder.flush();
+  if (mp3buf.length > 0) {
+    mp3Data.push(mp3buf);
+  }
+
+  // 合併所有 MP3 資料塊
+  const totalLength = mp3Data.reduce((acc, buf) => acc + buf.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const buf of mp3Data) {
+    result.set(buf, offset);
+    offset += buf.length;
+  }
+
+  return result.buffer;
+}
+
 // 節流函數
 function throttle(func, delay) {
   let lastCall = 0;
