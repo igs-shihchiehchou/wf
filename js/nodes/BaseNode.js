@@ -402,7 +402,7 @@ class BaseNode {
         // 下載全部
         const downloadAllBtn = element.querySelector(`[data-action="${actionPrefix}-download-all"]`);
         if (downloadAllBtn) {
-            downloadAllBtn.addEventListener('click', () => this.handleMultiFileDownloadAll());
+            downloadAllBtn.addEventListener('click', (e) => this.handleMultiFileDownloadAll(e));
         }
 
         // 個別播放
@@ -417,9 +417,9 @@ class BaseNode {
         // 個別下載
         const downloadBtns = element.querySelectorAll(`[data-action="${actionPrefix}-download-single"]`);
         downloadBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
                 const index = parseInt(btn.dataset.index);
-                this.handleMultiFileDownloadSingle(index);
+                this.handleMultiFileDownloadSingle(index, e);
             });
         });
 
@@ -544,9 +544,70 @@ class BaseNode {
     }
 
     /**
-     * 處理單檔下載
+     * 顯示格式選擇選單
+     * @param {Event} event - 觸發事件（用於定位）
+     * @returns {Promise<string>} - 返回選擇的格式 ('wav' 或 'mp3')，取消則返回 null
      */
-    handleMultiFileDownloadSingle(index) {
+    showFormatMenu(event) {
+        return new Promise((resolve) => {
+            // 建立遮罩層（點擊外部取消）
+            const overlay = document.createElement('div');
+            overlay.className = 'format-menu-overlay';
+
+            // 建立選單
+            const menu = document.createElement('div');
+            menu.className = 'format-menu';
+
+            // WAV 選項
+            const wavOption = document.createElement('button');
+            wavOption.className = 'format-option';
+            wavOption.textContent = 'WAV';
+            wavOption.addEventListener('click', () => {
+                cleanup();
+                resolve('wav');
+            });
+
+            // MP3 選項
+            const mp3Option = document.createElement('button');
+            mp3Option.className = 'format-option';
+            mp3Option.textContent = 'MP3';
+            mp3Option.addEventListener('click', () => {
+                cleanup();
+                resolve('mp3');
+            });
+
+            menu.appendChild(wavOption);
+            menu.appendChild(mp3Option);
+
+            // 定位選單（在按鈕附近）
+            const rect = event.target.getBoundingClientRect();
+            menu.style.left = `${rect.left}px`;
+            menu.style.top = `${rect.bottom + 5}px`;
+
+            // 點擊遮罩取消
+            overlay.addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            // 清理函數
+            function cleanup() {
+                if (overlay.parentNode) overlay.remove();
+                if (menu.parentNode) menu.remove();
+            }
+
+            // 加入 DOM
+            document.body.appendChild(overlay);
+            document.body.appendChild(menu);
+        });
+    }
+
+    /**
+     * 下載單個檔案（指定格式）
+     * @param {number} index - 檔案索引
+     * @param {string} format - 格式 ('wav' 或 'mp3')
+     */
+    async downloadSingleFile(index, format) {
         const buffer = this.getFileBuffer(index);
         if (!buffer) {
             showToast('沒有音訊可下載', 'warning');
@@ -554,8 +615,20 @@ class BaseNode {
         }
 
         try {
-            const wavData = audioBufferToWav(buffer);
-            const blob = new Blob([wavData], { type: 'audio/wav' });
+            let audioData, mimeType, extension;
+
+            if (format === 'mp3') {
+                showToast('正在編碼 MP3...', 'info');
+                audioData = audioBufferToMp3(buffer);
+                mimeType = 'audio/mpeg';
+                extension = 'mp3';
+            } else {
+                audioData = audioBufferToWav(buffer);
+                mimeType = 'audio/wav';
+                extension = 'wav';
+            }
+
+            const blob = new Blob([audioData], { type: mimeType });
             const url = URL.createObjectURL(blob);
 
             const filename = this.getFileName(index);
@@ -563,7 +636,7 @@ class BaseNode {
 
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${baseName}.wav`;
+            a.download = `${baseName}.${extension}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -576,9 +649,30 @@ class BaseNode {
     }
 
     /**
-     * 處理全部下載（ZIP）
+     * 處理單檔下載
      */
-    async handleMultiFileDownloadAll() {
+    async handleMultiFileDownloadSingle(index, event) {
+        const buffer = this.getFileBuffer(index);
+        if (!buffer) {
+            showToast('沒有音訊可下載', 'warning');
+            return;
+        }
+
+        // 顯示格式選擇選單
+        const format = await this.showFormatMenu(event);
+        if (!format) {
+            return; // 使用者取消
+        }
+
+        // 下載指定格式
+        await this.downloadSingleFile(index, format);
+    }
+
+    /**
+     * 下載所有檔案為 ZIP（指定格式）
+     * @param {string} format - 格式 ('wav' 或 'mp3')
+     */
+    async downloadAllFiles(format) {
         const items = this.getMultiFileItems();
         if (!items || items.length === 0) {
             showToast('沒有檔案可下載', 'warning');
@@ -586,7 +680,8 @@ class BaseNode {
         }
 
         try {
-            showToast('正在打包檔案...', 'info');
+            const formatName = format === 'mp3' ? 'MP3' : 'WAV';
+            showToast(`正在打包 ${formatName} 檔案...`, 'info');
 
             const zip = new JSZip();
             const prefix = this.getMultiFileDownloadPrefix();
@@ -594,10 +689,19 @@ class BaseNode {
             for (let i = 0; i < items.length; i++) {
                 const buffer = this.getFileBuffer(i);
                 if (buffer) {
-                    const wavData = audioBufferToWav(buffer);
+                    let audioData, extension;
+
+                    if (format === 'mp3') {
+                        audioData = audioBufferToMp3(buffer);
+                        extension = 'mp3';
+                    } else {
+                        audioData = audioBufferToWav(buffer);
+                        extension = 'wav';
+                    }
+
                     const filename = this.getFileName(i);
                     const baseName = filename.replace(/\.[^.]+$/, '');
-                    zip.file(`${baseName}.wav`, wavData);
+                    zip.file(`${baseName}.${extension}`, audioData);
                 }
             }
 
@@ -617,6 +721,26 @@ class BaseNode {
             showToast(`打包下載失敗: ${error.message}`, 'error');
             console.error('ZIP 下載失敗:', error);
         }
+    }
+
+    /**
+     * 處理全部下載（ZIP）
+     */
+    async handleMultiFileDownloadAll(event) {
+        const items = this.getMultiFileItems();
+        if (!items || items.length === 0) {
+            showToast('沒有檔案可下載', 'warning');
+            return;
+        }
+
+        // 顯示格式選擇選單
+        const format = await this.showFormatMenu(event);
+        if (!format) {
+            return; // 使用者取消
+        }
+
+        // 下載指定格式的 ZIP
+        await this.downloadAllFiles(format);
     }
 
     /**
@@ -950,20 +1074,50 @@ class BaseNode {
         }
     }
 
-    downloadPreview() {
+    async downloadPreview(event) {
         if (!this.previewBuffer) {
             showToast('沒有音訊可下載', 'warning');
             return;
         }
 
+        // 如果沒有傳入 event，創建一個假的事件對象（用於定位選單）
+        if (!event) {
+            event = {
+                target: {
+                    getBoundingClientRect: () => ({
+                        left: window.innerWidth / 2 - 60,
+                        bottom: window.innerHeight / 2,
+                    })
+                }
+            };
+        }
+
+        // 顯示格式選擇選單
+        const format = await this.showFormatMenu(event);
+        if (!format) {
+            return; // 使用者取消
+        }
+
         try {
-            const wavData = audioBufferToWav(this.previewBuffer);
-            const blob = new Blob([wavData], { type: 'audio/wav' });
+            let audioData, mimeType, extension;
+
+            if (format === 'mp3') {
+                showToast('正在編碼 MP3...', 'info');
+                audioData = audioBufferToMp3(this.previewBuffer);
+                mimeType = 'audio/mpeg';
+                extension = 'mp3';
+            } else {
+                audioData = audioBufferToWav(this.previewBuffer);
+                mimeType = 'audio/wav';
+                extension = 'wav';
+            }
+
+            const blob = new Blob([audioData], { type: mimeType });
             const url = URL.createObjectURL(blob);
 
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${this.title}_processed.wav`;
+            a.download = `${this.title}_processed.${extension}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
