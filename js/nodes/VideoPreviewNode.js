@@ -17,6 +17,7 @@ class VideoPreviewNode extends BaseNode {
     setupPorts() {
         // 建立 audio 輸入端口
         this.addInputPort('audio', 'audio', 'audio');
+        this.addOutputPort('audio', 'audio', 'audio');
     }
 
     getNodeCategory() {
