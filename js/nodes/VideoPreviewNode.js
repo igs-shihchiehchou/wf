@@ -129,12 +129,10 @@ class VideoPreviewNode extends BaseNode {
             clearBtn.addEventListener('click', () => this.clearVideo());
         }
 
-        // 綁定「開啟編輯器」按鈕（暫時無功能）
+        // 綁定「開啟編輯器」按鈕
         const editorBtn = this.element.querySelector('[data-action="open-editor"]');
-        if (editorBtn) {
-            editorBtn.addEventListener('click', () => {
-                showToast('編輯器功能尚未實作', 'info');
-            });
+        if (editorBtn && !editorBtn.disabled) {
+            editorBtn.addEventListener('click', () => this.openEditor());
         }
 
         // 綁定拖放事件 - 只綁定一次（使用標記避免重複綁定）
@@ -325,6 +323,250 @@ class VideoPreviewNode extends BaseNode {
         if (this.onDataChange) {
             this.onDataChange('videoFile', null);
         }
+    }
+
+    /**
+     * 建立模態視窗 DOM 元素
+     */
+    createModalElement() {
+        // 建立模態遮罩層（覆蓋全螢幕）
+        const overlay = document.createElement('div');
+        overlay.className = 'video-preview-modal-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+
+        // 建立模態視窗容器
+        const modal = document.createElement('div');
+        modal.className = 'video-preview-modal-window';
+        modal.style.cssText = `
+            background: var(--bg-dark);
+            width: 90vw;
+            height: 90vh;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        `;
+
+        // 建立標題列（含關閉按鈕）
+        const titleBar = document.createElement('div');
+        titleBar.className = 'video-preview-modal-title';
+        titleBar.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-3) var(--spacing-4);
+            border-bottom: 1px solid var(--border-muted);
+            background: var(--bg);
+        `;
+        titleBar.innerHTML = `
+            <h3 style="margin: 0; font-size: var(--text-base); color: var(--text);">影片預覽編輯器</h3>
+            <button class="video-preview-close-btn" style="
+                background: none;
+                border: none;
+                color: var(--text-muted);
+                font-size: 24px;
+                cursor: pointer;
+                padding: 0;
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+                transition: background 0.2s, color 0.2s;
+            " title="關閉編輯器">×</button>
+        `;
+
+        // 建立主內容區域
+        const content = document.createElement('div');
+        content.className = 'video-preview-modal-content';
+        content.style.cssText = `
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: var(--spacing-4);
+        `;
+
+        // 建立影片播放區域（video 元素）
+        const videoContainer = document.createElement('div');
+        videoContainer.className = 'video-preview-video-container';
+        videoContainer.style.cssText = `
+            width: 100%;
+            max-height: 400px;
+            background: #000;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            margin-bottom: var(--spacing-4);
+        `;
+
+        const video = document.createElement('video');
+        video.className = 'video-preview-video';
+        video.style.cssText = `
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        `;
+        video.controls = false; // 使用自訂控制列
+        videoContainer.appendChild(video);
+
+        // 建立播放控制列區域（占位）
+        const controlsContainer = document.createElement('div');
+        controlsContainer.className = 'video-preview-controls';
+        controlsContainer.style.cssText = `
+            padding: var(--spacing-3);
+            background: var(--bg);
+            border-radius: 4px;
+            margin-bottom: var(--spacing-4);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: var(--text-sm);
+        `;
+        controlsContainer.textContent = '播放控制列（待實作）';
+
+        // 建立時間軸區域（占位）
+        const timelineContainer = document.createElement('div');
+        timelineContainer.className = 'video-preview-timeline';
+        timelineContainer.style.cssText = `
+            padding: var(--spacing-3);
+            background: var(--bg);
+            border-radius: 4px;
+            margin-bottom: var(--spacing-4);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: var(--text-sm);
+        `;
+        timelineContainer.textContent = '時間軸區域（待實作）';
+
+        // 建立音軌列表容器（占位）
+        const tracksContainer = document.createElement('div');
+        tracksContainer.className = 'video-preview-tracks';
+        tracksContainer.style.cssText = `
+            flex: 1;
+            overflow-y: auto;
+            background: var(--bg);
+            border-radius: 4px;
+            padding: var(--spacing-3);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: var(--text-sm);
+        `;
+        tracksContainer.textContent = '音軌列表容器（待實作）';
+
+        // 組裝 DOM 結構
+        content.appendChild(videoContainer);
+        content.appendChild(controlsContainer);
+        content.appendChild(timelineContainer);
+        content.appendChild(tracksContainer);
+        modal.appendChild(titleBar);
+        modal.appendChild(content);
+        overlay.appendChild(modal);
+
+        // 儲存元素參考
+        this.videoElement = video;
+        this.modalElement = overlay;
+
+        // 綁定關閉按鈕事件
+        const closeBtn = titleBar.querySelector('.video-preview-close-btn');
+        closeBtn.addEventListener('click', () => this.closeEditor());
+
+        // 綁定遮罩點擊關閉（可選）
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                this.closeEditor();
+            }
+        });
+
+        // hover 效果
+        closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.background = 'var(--bg-dark)';
+            closeBtn.style.color = 'var(--text)';
+        });
+        closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.background = 'none';
+            closeBtn.style.color = 'var(--text-muted)';
+        });
+
+        return overlay;
+    }
+
+    /**
+     * 開啟編輯器
+     */
+    openEditor() {
+        // 檢查是否有影片
+        if (!this.data.videoUrl) {
+            showToast('請先載入影片', 'warning');
+            return;
+        }
+
+        // 建立模態 DOM
+        const modal = this.createModalElement();
+
+        // 載入影片到 video 元素
+        this.videoElement.src = this.data.videoUrl;
+
+        // 顯示模態視窗
+        document.body.appendChild(modal);
+
+        // 鎖定背景節點圖（添加 CSS 類）
+        const graphCanvas = document.querySelector('.graph-canvas');
+        if (graphCanvas) {
+            graphCanvas.classList.add('video-preview-locked');
+            // 添加內聯樣式確保鎖定效果
+            graphCanvas.style.pointerEvents = 'none';
+            graphCanvas.style.opacity = '0.5';
+        }
+
+        showToast('編輯器已開啟', 'info');
+    }
+
+    /**
+     * 關閉編輯器
+     */
+    closeEditor() {
+        // 停止所有播放
+        if (this.videoElement) {
+            this.videoElement.pause();
+            this.videoElement.currentTime = 0;
+        }
+
+        // 銷毀 WaveSurfer 實例（待實作）
+        // TODO: Task 3.2 - 在此處銷毀所有 WaveSurfer 實例
+
+        // 移除模態 DOM
+        if (this.modalElement && this.modalElement.parentNode) {
+            this.modalElement.parentNode.removeChild(this.modalElement);
+        }
+
+        // 清理參考
+        this.modalElement = null;
+        this.videoElement = null;
+
+        // 解鎖節點圖
+        const graphCanvas = document.querySelector('.graph-canvas');
+        if (graphCanvas) {
+            graphCanvas.classList.remove('video-preview-locked');
+            graphCanvas.style.pointerEvents = '';
+            graphCanvas.style.opacity = '';
+        }
+
+        showToast('編輯器已關閉', 'info');
     }
 
     async process(inputs) {
