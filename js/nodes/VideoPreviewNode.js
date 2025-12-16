@@ -117,7 +117,196 @@ class VideoPreviewNode extends BaseNode {
     }
 
     bindContentEvents() {
-        // 基礎實作：無事件綁定
+        // 綁定「選擇影片檔案」按鈕點擊事件
+        const selectBtn = this.element.querySelector('[data-action="select-video"]');
+        if (selectBtn) {
+            selectBtn.addEventListener('click', () => this.openVideoDialog());
+        }
+
+        // 綁定清除按鈕
+        const clearBtn = this.element.querySelector('[data-action="clear-video"]');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearVideo());
+        }
+
+        // 綁定「開啟編輯器」按鈕（暫時無功能）
+        const editorBtn = this.element.querySelector('[data-action="open-editor"]');
+        if (editorBtn) {
+            editorBtn.addEventListener('click', () => {
+                showToast('編輯器功能尚未實作', 'info');
+            });
+        }
+
+        // 綁定拖放事件 - 只綁定一次（使用標記避免重複綁定）
+        if (!this._dropEventsBound) {
+            this._dropEventsBound = true;
+
+            this.element.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.element.classList.add('drag-over');
+            });
+
+            this.element.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.element.classList.remove('drag-over');
+            });
+
+            this.element.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.element.classList.remove('drag-over');
+
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('video/'));
+                if (files.length > 0) {
+                    this.loadVideoFile(files[0]); // 只載入第一個影片
+                } else {
+                    showToast('請拖拉影片檔案', 'error');
+                }
+            });
+        }
+    }
+
+    /**
+     * 開啟影片檔案選擇對話框
+     */
+    openVideoDialog() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'video/*';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this.loadVideoFile(file);
+            }
+        };
+        input.click();
+    }
+
+    /**
+     * 載入影片檔案
+     */
+    async loadVideoFile(file) {
+        try {
+            // 檢查檔案類型（只接受 video/*）
+            if (!file.type.startsWith('video/')) {
+                showToast('只接受影片檔案', 'error');
+                return;
+            }
+
+            // 檢查檔案大小（>100MB 顯示警告）
+            const fileSizeMB = file.size / (1024 * 1024);
+            if (fileSizeMB > 100) {
+                showToast(`警告: 影片檔案較大 (${fileSizeMB.toFixed(1)} MB)，載入可能需要較長時間`, 'warning');
+            }
+
+            this.setProcessing(true);
+
+            // 釋放舊的 Blob URL（如果有）
+            if (this.data.videoUrl) {
+                URL.revokeObjectURL(this.data.videoUrl);
+            }
+
+            // 建立 Blob URL
+            const videoUrl = URL.createObjectURL(file);
+
+            // 儲存到 this.data
+            this.data.videoFile = file;
+            this.data.videoUrl = videoUrl;
+
+            // 產生影片縮圖
+            const thumbnail = await this.generateVideoThumbnail(videoUrl);
+            this.data.videoThumbnail = thumbnail;
+
+            // 更新節點 UI
+            this.updateContent();
+
+            this.setProcessing(false);
+            showToast('影片載入成功', 'success');
+
+            // 觸發資料變更
+            if (this.onDataChange) {
+                this.onDataChange('videoFile', this.data.videoFile);
+            }
+
+        } catch (error) {
+            this.setProcessing(false);
+            showToast(`載入失敗: ${error.message}`, 'error');
+            console.error('載入影片失敗:', error);
+        }
+    }
+
+    /**
+     * 產生影片縮圖（使用 canvas）
+     */
+    async generateVideoThumbnail(videoUrl) {
+        return new Promise((resolve, reject) => {
+            const video = document.createElement('video');
+            video.crossOrigin = 'anonymous';
+            video.preload = 'metadata';
+
+            video.addEventListener('loadedmetadata', () => {
+                // 跳到影片的 10% 位置取得縮圖（避免黑屏）
+                video.currentTime = Math.min(video.duration * 0.1, 1);
+            });
+
+            video.addEventListener('seeked', () => {
+                try {
+                    // 建立 canvas 並繪製當前幀
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    // 轉換為 dataURL
+                    const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+                    // 清理
+                    video.src = '';
+                    video.load();
+
+                    resolve(thumbnailUrl);
+                } catch (error) {
+                    console.error('產生縮圖失敗:', error);
+                    resolve(null); // 失敗時返回 null，使用影片本身作為縮圖
+                }
+            });
+
+            video.addEventListener('error', (e) => {
+                console.error('影片載入失敗:', e);
+                resolve(null);
+            });
+
+            video.src = videoUrl;
+        });
+    }
+
+    /**
+     * 清除影片
+     */
+    clearVideo() {
+        // 釋放 Blob URL
+        if (this.data.videoUrl) {
+            URL.revokeObjectURL(this.data.videoUrl);
+        }
+
+        // 清除 videoFile、videoUrl 和 videoThumbnail
+        this.data.videoFile = null;
+        this.data.videoUrl = null;
+        this.data.videoThumbnail = null;
+
+        // 更新節點 UI
+        this.updateContent();
+
+        showToast('已清除影片', 'info');
+
+        // 觸發資料變更
+        if (this.onDataChange) {
+            this.onDataChange('videoFile', null);
+        }
     }
 
     async process(inputs) {
