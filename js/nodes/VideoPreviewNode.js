@@ -238,12 +238,30 @@ class VideoPreviewNode extends BaseNode {
     }
 
     /**
-     * 產生影片縮圖（使用 canvas）
+     * 產生影片縮圖（使用 canvas）- 含逾時保護
      */
-    async generateVideoThumbnail(videoUrl) {
+    async generateVideoThumbnail(videoUrl, timeout = 10000) {
+        return Promise.race([
+            this._generateThumbnailCore(videoUrl),
+            new Promise((resolve) => setTimeout(() => {
+                console.warn('Thumbnail generation timeout');
+                resolve(null);
+            }, timeout))
+        ]);
+    }
+
+    /**
+     * 產生影片縮圖的核心邏輯
+     */
+    async _generateThumbnailCore(videoUrl) {
         return new Promise((resolve, reject) => {
             const video = document.createElement('video');
-            video.crossOrigin = 'anonymous';
+
+            // Only set crossOrigin for actual cross-origin URLs
+            if (videoUrl.startsWith('http')) {
+                video.crossOrigin = 'anonymous';
+            }
+
             video.preload = 'metadata';
 
             video.addEventListener('loadedmetadata', () => {
