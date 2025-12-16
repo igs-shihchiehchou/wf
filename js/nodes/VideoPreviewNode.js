@@ -8,6 +8,7 @@ class VideoPreviewNode extends BaseNode {
         const defaultData = {
             videoFile: null,      // File 物件
             videoUrl: null,       // Blob URL
+            videoThumbnail: null, // 影片縮圖 URL
             tracks: []            // 音軌參數陣列 [{offset: 0, cropStart: 0, cropEnd: null}]
         };
 
@@ -22,6 +23,15 @@ class VideoPreviewNode extends BaseNode {
 
     getNodeCategory() {
         return 'process';
+    }
+
+    /**
+     * 轉義 HTML 以防止 XSS 攻擊
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     renderContent() {
@@ -55,13 +65,13 @@ class VideoPreviewNode extends BaseNode {
                                    font-size: 16px; line-height: 1;"
                             title="清除影片">×</button>
                     <div style="margin-top: var(--spacing-2); text-align: center; color: var(--text-muted); font-size: var(--text-xs);">
-                        ${this.data.videoFile.name}
+                        ${this.escapeHtml(this.data.videoFile.name)}
                     </div>
                 </div>
                 <div style="text-align: center; color: var(--text-muted); font-size: var(--text-sm); padding: var(--spacing-2);">
                     請連接音訊輸入
                 </div>
-                <button class="node-btn" data-action="open-editor" disabled style="margin-top: var(--spacing-2);">開啟編輯器</button>
+                <button class="node-btn node-btn-primary" data-action="open-editor" style="margin-top: var(--spacing-2);">開啟編輯器</button>
             `;
         }
 
@@ -91,7 +101,7 @@ class VideoPreviewNode extends BaseNode {
                                font-size: 16px; line-height: 1;"
                         title="清除影片">×</button>
                 <div style="margin-top: var(--spacing-2); text-align: center; color: var(--text-muted); font-size: var(--text-xs);">
-                    ${this.data.videoFile.name}
+                    ${this.escapeHtml(this.data.videoFile.name)}
                 </div>
             </div>
             <button class="node-btn node-btn-primary" data-action="open-editor" style="margin-top: var(--spacing-2);">開啟編輯器</button>
