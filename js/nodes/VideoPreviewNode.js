@@ -692,6 +692,9 @@ class VideoPreviewNode extends BaseNode {
     calculateTimelineDuration() {
         let duration = this.videoElement ? this.videoElement.duration : 0;
 
+        // 防止 NaN（影片 metadata 尚未載入時）
+        if (isNaN(duration)) duration = 0;
+
         // 如果有音訊輸入，計算最長音訊結束時間
         // TODO: Task 3.1 - 當有音訊輸入時，計算 max(視訊長度, 音訊偏移 + 音訊長度)
         // 目前僅使用影片長度
@@ -851,21 +854,20 @@ class VideoPreviewNode extends BaseNode {
         if (!this.timelineTrack || !this.playbackCursor) return;
 
         // 點擊時間軸跳轉
-        this.timelineTrack.addEventListener('click', (e) => {
+        const onTimelineClick = (e) => {
             // 忽略游標本身的點擊
             if (e.target === this.playbackCursor || e.target.closest('.timeline-cursor')) {
                 return;
             }
             this.seekToPosition(e);
-        });
+        };
+        this.timelineTrack.addEventListener('click', onTimelineClick);
 
         // 拖動游標
         let isDragging = false;
-        let startX = 0;
 
         const onMouseDown = (e) => {
             isDragging = true;
-            startX = e.clientX;
             e.preventDefault();
             e.stopPropagation();
         };
@@ -885,7 +887,12 @@ class VideoPreviewNode extends BaseNode {
         document.addEventListener('mouseup', onMouseUp);
 
         // 儲存事件處理器以便清理
-        this.timelineEventHandlers = { onMouseMove, onMouseUp };
+        this.timelineEventHandlers = {
+            onTimelineClick,
+            onMouseDown,
+            onMouseMove,
+            onMouseUp
+        };
     }
 
     /**
@@ -1001,6 +1008,12 @@ class VideoPreviewNode extends BaseNode {
 
         // 清理時間軸事件處理器
         if (this.timelineEventHandlers) {
+            if (this.timelineTrack) {
+                this.timelineTrack.removeEventListener('click', this.timelineEventHandlers.onTimelineClick);
+            }
+            if (this.playbackCursor) {
+                this.playbackCursor.removeEventListener('mousedown', this.timelineEventHandlers.onMouseDown);
+            }
             document.removeEventListener('mousemove', this.timelineEventHandlers.onMouseMove);
             document.removeEventListener('mouseup', this.timelineEventHandlers.onMouseUp);
             this.timelineEventHandlers = null;
