@@ -4,21 +4,42 @@
 **目標**：實作一個完整可用的 VideoPreviewNode，支援視覺化編輯音訊時間軸
 **預計工作量**：中等（約需實作 3-5 個主要組件）
 
+## 實作進度
+
+### 已完成階段 ✅
+- **階段 1：節點基礎結構** - Tasks 1.1, 1.2, 1.3 (所有子任務完成)
+- **階段 2：模態視窗基礎** - Tasks 2.1, 2.2, 2.3 (所有子任務完成)
+- **階段 7：系統整合** - Task 7.1 (節點註冊完成)
+- **階段 3：音軌編輯功能** - Task 3.1 (音軌渲染完成)
+
+### 進行中階段 🔄
+- **階段 3：音軌編輯功能** - Tasks 3.2, 3.3, 3.4 (待實作)
+- **階段 4：播放同步** - Tasks 4.1, 4.2 (待實作)
+- **階段 5：資料處理與輸出** - Tasks 5.1, 5.2 (待實作)
+
+### 待開始階段 ⏳
+- **階段 6：樣式與 UI 優化** - Tasks 6.1, 6.2
+- **階段 7：系統整合** - Task 7.2 (序列化與還原)
+- **階段 8：錯誤處理與優化** - Tasks 8.1, 8.2, 8.3
+- **階段 9：測試與文檔** - Tasks 9.1, 9.2
+
+**總進度**：7/24 任務完成 (29%)
+
 ---
 
 ## 階段 1：節點基礎結構（優先度：高）
 
-### 任務 1.1：建立 VideoPreviewNode 類別
+### 任務 1.1：建立 VideoPreviewNode 類別 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：建立繼承自 BaseNode 的節點類別，設定基本結構
 
 **子任務**：
-- [ ] 建立 VideoPreviewNode 類別，繼承 BaseNode
-- [ ] 設定節點類型、標題、圖示（🎬）
-- [ ] 定義資料結構（videoFile, videoUrl, tracks）
-- [ ] 實作 setupPorts() - 建立 audio 輸入端口
-- [ ] 實作 getNodeCategory() - 返回 'process'
-- [ ] 匯出到 window.VideoPreviewNode
+- [x] 建立 VideoPreviewNode 類別，繼承 BaseNode
+- [x] 設定節點類型、標題、圖示（🎬）
+- [x] 定義資料結構（videoFile, videoUrl, tracks）
+- [x] 實作 setupPorts() - 建立 audio 輸入端口和輸出端口
+- [x] 實作 getNodeCategory() - 返回 'process'
+- [x] 匯出到 window.VideoPreviewNode
 
 **驗收標準**：
 - 節點可以在畫布上建立
@@ -29,18 +50,19 @@
 
 ---
 
-### 任務 1.2：實作節點內容區域渲染
+### 任務 1.2：實作節點內容區域渲染 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：根據狀態渲染不同的節點內容（等待輸入/影片上傳/已載入影片）
 
 **子任務**：
-- [ ] 實作 renderContent() 方法
-- [ ] 狀態 A：無輸入 + 無影片 → 顯示「等待輸入」
-- [ ] 狀態 B：無輸入 + 有影片 → 顯示影片縮圖 + 清除按鈕
-- [ ] 狀態 C：有輸入 + 無影片 → 顯示上傳按鈕 + 拖放提示
-- [ ] 狀態 D：有輸入 + 有影片 → 顯示影片縮圖 + 清除按鈕
-- [ ] 「開啟編輯器」按鈕：根據是否有影片決定啟用/禁用
-- [ ] 使用 BaseNode 的 renderPreview() 顯示處理後的音訊
+- [x] 實作 renderContent() 方法
+- [x] 狀態 A：無輸入 + 無影片 → 顯示「等待輸入」
+- [x] 狀態 B：無輸入 + 有影片 → 顯示影片縮圖 + 清除按鈕（按鈕啟用以支援僅影片預覽）
+- [x] 狀態 C：有輸入 + 無影片 → 顯示上傳按鈕 + 拖放提示
+- [x] 狀態 D：有輸入 + 有影片 → 顯示影片縮圖 + 清除按鈕
+- [x] 「開啟編輯器」按鈕：根據是否有影片決定啟用/禁用
+- [x] 使用 BaseNode 的 renderPreview() 顯示處理後的音訊
+- [x] 實作 escapeHtml() 防止 XSS 攻擊
 
 **驗收標準**：
 - 節點根據狀態正確顯示不同內容
@@ -51,26 +73,26 @@
 
 ---
 
-### 任務 1.3：實作影片檔案載入
+### 任務 1.3：實作影片檔案載入 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：支援透過按鈕選擇和拖放載入影片檔案
 
 **子任務**：
-- [ ] 實作 bindContentEvents() 方法
-- [ ] 綁定「選擇影片檔案」按鈕點擊事件
-- [ ] 建立檔案選擇對話框（接受 video/*）
-- [ ] 實作 loadVideoFile(file) 方法
-  - [ ] 檢查檔案類型（只接受 video/*）
-  - [ ] 檢查檔案大小（>100MB 顯示警告）
-  - [ ] 建立 Blob URL
-  - [ ] 儲存到 this.data.videoFile 和 this.data.videoUrl
-  - [ ] 產生影片縮圖（使用 canvas）
-  - [ ] 更新節點 UI
-- [ ] 綁定拖放事件（dragover, dragleave, drop）
-- [ ] 實作清除按鈕（×）功能
-  - [ ] 釋放 Blob URL
-  - [ ] 清除 videoFile 和 videoUrl
-  - [ ] 更新節點 UI
+- [x] 實作 bindContentEvents() 方法
+- [x] 綁定「選擇影片檔案」按鈕點擊事件
+- [x] 建立檔案選擇對話框（接受 video/*）
+- [x] 實作 loadVideoFile(file) 方法
+  - [x] 檢查檔案類型（只接受 video/*）
+  - [x] 檢查檔案大小（>100MB 顯示警告）
+  - [x] 建立 Blob URL
+  - [x] 儲存到 this.data.videoFile 和 this.data.videoUrl
+  - [x] 產生影片縮圖（使用 canvas，含逾時保護）
+  - [x] 更新節點 UI
+- [x] 綁定拖放事件（dragover, dragleave, drop）
+- [x] 實作清除按鈕（×）功能
+  - [x] 釋放 Blob URL
+  - [x] 清除 videoFile、videoUrl 和 videoThumbnail
+  - [x] 更新節點 UI
 
 **驗收標準**：
 - 可以透過按鈕選擇影片
@@ -86,31 +108,37 @@
 
 ## 階段 2：模態視窗基礎（優先度：高）
 
-### 任務 2.1：建立模態視窗 HTML 結構
+### 任務 2.1：建立模態視窗 HTML 結構 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：建立模態視窗的 DOM 結構和基本顯示/隱藏邏輯
 
 **子任務**：
-- [ ] 實作 createModalElement() 方法
-  - [ ] 建立模態遮罩層（覆蓋全螢幕）
-  - [ ] 建立模態視窗容器
-  - [ ] 建立標題列（含關閉按鈕）
-  - [ ] 建立影片播放區域（video 元素）
-  - [ ] 建立播放控制列區域（占位）
-  - [ ] 建立時間軸區域（占位）
-  - [ ] 建立音軌列表容器（占位）
-- [ ] 實作 openEditor() 方法
-  - [ ] 建立模態 DOM
-  - [ ] 載入影片到 video 元素
-  - [ ] 顯示模態視窗
-  - [ ] 鎖定背景節點圖（添加 CSS 類）
-- [ ] 實作 closeEditor() 方法
-  - [ ] 停止所有播放
-  - [ ] 銷毀 WaveSurfer 實例
-  - [ ] 移除模態 DOM
-  - [ ] 解鎖節點圖
-- [ ] 綁定關閉按鈕事件
-- [ ] 綁定遮罩點擊關閉（可選）
+- [x] 實作 createModalElement() 方法
+  - [x] 建立模態遮罩層（覆蓋全螢幕）
+  - [x] 建立模態視窗容器
+  - [x] 建立標題列（含關閉按鈕）
+  - [x] 建立影片播放區域（video 元素）
+  - [x] 建立播放控制列區域（實際控制，非占位）
+  - [x] 建立時間軸區域（實際時間軸，非占位）
+  - [x] 建立音軌列表容器
+- [x] 實作 openEditor() 方法
+  - [x] 建立模態 DOM
+  - [x] 載入影片到 video 元素
+  - [x] 添加影片載入錯誤處理
+  - [x] 檢查影片 metadata 是否已載入（處理快取影片）
+  - [x] 顯示模態視窗
+  - [x] 鎖定背景節點圖（添加 CSS 類）
+  - [x] 添加 ESC 鍵關閉功能
+- [x] 實作 closeEditor() 方法
+  - [x] 停止所有播放和動畫循環
+  - [x] 清理時間軸事件處理器
+  - [x] 銷毀 WaveSurfer 實例（待 Task 3.2）
+  - [x] 移除模態 DOM
+  - [x] 清理所有 DOM 參考
+  - [x] 解鎖節點圖
+  - [x] 移除 ESC 鍵監聽器
+- [x] 綁定關閉按鈕事件
+- [x] 綁定遮罩點擊關閉（可選）
 
 **驗收標準**：
 - 點擊「開啟編輯器」顯示模態視窗
@@ -123,25 +151,27 @@
 
 ---
 
-### 任務 2.2：實作播放控制列
+### 任務 2.2：實作播放控制列 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：建立播放/暫停、時間顯示等基本播放控制
 
 **子任務**：
-- [ ] 實作 renderPlaybackControls() 方法
-  - [ ] 播放/暫停按鈕（▶ / ⏸）
-  - [ ] 當前時間顯示（MM:SS.mmm 格式）
-  - [ ] 總時長顯示
-- [ ] 實作 togglePlayback() 方法
-  - [ ] 播放：呼叫 video.play()
-  - [ ] 暫停：呼叫 video.pause()
-  - [ ] 更新按鈕圖示
-- [ ] 綁定 video 元素事件
-  - [ ] timeupdate：更新時間顯示
-  - [ ] play：更新按鈕為暫停圖示
-  - [ ] pause：更新按鈕為播放圖示
-  - [ ] ended：處理播放結束
-- [ ] 實作時間格式化函數（支援毫秒）
+- [x] 實作 renderPlaybackControls() 方法
+  - [x] 播放/暫停按鈕（▶ / ⏸）
+  - [x] 當前時間顯示（MM:SS.mmm 格式）
+  - [x] 總時長顯示
+- [x] 實作 togglePlayback() 方法
+  - [x] 播放：呼叫 video.play() 含錯誤處理
+  - [x] 暫停：呼叫 video.pause()
+  - [x] 更新按鈕圖示
+- [x] 綁定 video 元素事件
+  - [x] timeupdate：更新時間顯示（快取 DOM 元素參考）
+  - [x] loadedmetadata：更新總時長
+  - [x] play：更新按鈕為暫停圖示
+  - [x] pause：更新按鈕為播放圖示
+  - [x] ended：處理播放結束
+- [x] 實作時間格式化函數（formatTime，支援毫秒和 NaN 處理）
+- [x] 實作 updateTimeDisplay()、updateTotalTimeDisplay()、updatePlaybackButton()
 
 **驗收標準**：
 - 播放/暫停按鈕正常運作
@@ -152,27 +182,37 @@
 
 ---
 
-### 任務 2.3：實作統一時間軸系統
+### 任務 2.3：實作統一時間軸系統 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：建立時間刻度、播放游標等時間軸元素
 
 **子任務**：
-- [ ] 實作 renderTimeline() 方法
-  - [ ] 計算時間軸長度（影片長度或最長音訊）
-  - [ ] 渲染時間刻度標記（每秒或每分鐘）
-  - [ ] 建立播放游標元素
-- [ ] 實作 updatePlaybackCursor() 方法
-  - [ ] 根據 video.currentTime 更新游標位置
-  - [ ] 使用 requestAnimationFrame 循環更新
-- [ ] 實作時間軸點擊跳轉
-  - [ ] 監聽時間軸容器點擊事件
-  - [ ] 計算點擊位置對應的時間
-  - [ ] 設定 video.currentTime
-- [ ] 實作游標拖動
-  - [ ] 監聽游標 mousedown 事件
-  - [ ] 實作 mousemove 拖動邏輯
-  - [ ] 釋放時更新播放位置
-- [ ] 實作時間軸自動擴展邏輯
+- [x] 實作 calculateTimelineDuration() 方法（含 NaN 檢查）
+- [x] 實作 renderTimeline() 方法
+  - [x] 計算時間軸長度（影片長度或最長音訊）
+  - [x] 智能時間刻度計算（根據時長選擇間隔）
+  - [x] 渲染時間刻度標記（1s/5s/30s/60s/120s）
+  - [x] 建立播放游標元素（視覺化線條 + 圓形把手）
+- [x] 實作 updatePlaybackCursor() 方法
+  - [x] 根據 video.currentTime 更新游標位置（百分比）
+  - [x] 使用 requestAnimationFrame 循環更新
+  - [x] 適當的防護（duration 為 0 時）
+- [x] 實作 startPlaybackLoop() 和 stopPlaybackLoop()
+- [x] 實作時間軸點擊跳轉
+  - [x] 監聽時間軸容器點擊事件
+  - [x] 忽略游標本身的點擊
+  - [x] 計算點擊位置對應的時間（使用 getBoundingClientRect）
+  - [x] 設定 video.currentTime
+  - [x] 更新游標位置
+- [x] 實作游標拖動
+  - [x] 監聽游標 mousedown 事件
+  - [x] 實作 mousemove 拖動邏輯（文件層級監聽）
+  - [x] 實作 mouseup 釋放邏輯
+  - [x] 釋放時更新播放位置
+  - [x] 儲存事件處理器以便清理
+- [x] 綁定 video 事件（seeking, seeked）更新游標
+- [x] 實作時間軸自動擴展邏輯（準備好，待 Task 3.1 整合）
+- [x] 實作 formatTimeForTimeline() 用於時間軸刻度顯示
 
 **驗收標準**：
 - 時間軸顯示清晰的刻度
@@ -186,22 +226,30 @@
 
 ## 階段 3：音軌編輯功能（優先度：高）
 
-### 任務 3.1：渲染音軌列表
+### 任務 3.1：渲染音軌列表 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：根據輸入音訊數量渲染音軌區域
 
 **子任務**：
-- [ ] 實作 renderTracks() 方法
-  - [ ] 取得輸入音訊列表（inputs.audioFiles）
-  - [ ] 確保 tracks 參數陣列長度一致
-  - [ ] 為每個音訊建立音軌 DOM
-    - [ ] 音軌標題（顯示檔案名）
-    - [ ] 時間軸容器（與統一時間軸對齊）
-    - [ ] 音訊區塊容器
-- [ ] 實作 ensureTracksArray(count) 方法
-  - [ ] 補齊或移除 tracks 參數到指定數量
-  - [ ] 新增音軌使用預設參數 {offset: 0, cropStart: 0, cropEnd: null}
-- [ ] 處理無音訊輸入的情況（只顯示影片）
+- [x] 實作 getInputAudioData() 方法
+  - [x] 從連接的輸入節點取得音訊資料
+  - [x] 支援多種輸出格式（{audioFiles, filenames} 和 {audio}）
+  - [x] AudioBuffer 類型驗證
+- [x] 實作 renderTracks() 方法
+  - [x] 取得輸入音訊列表
+  - [x] 確保 tracks 參數陣列長度一致
+  - [x] 大量音軌警告（>10）
+  - [x] 時間軸驗證（防止除零和競態條件）
+  - [x] 為每個音訊建立音軌 DOM
+    - [x] 音軌標題（顯示檔案名、時長、取樣率）
+    - [x] 時間軸容器（與統一時間軸對齊）
+    - [x] 音訊區塊容器（根據 offset 和 crop 定位）
+- [x] 實作 ensureTracksArray(count) 方法
+  - [x] 補齊或移除 tracks 參數到指定數量
+  - [x] 新增音軌使用預設參數 {offset: 0, cropStart: 0, cropEnd: null}
+- [x] 處理無音訊輸入的情況（顯示「僅預覽影片」）
+- [x] 整合到 openEditor() - 在 metadata 載入後渲染
+- [x] 處理快取影片的競態條件（readyState 檢查）
 
 **驗收標準**：
 - 音軌數量與輸入音訊數量一致
@@ -509,16 +557,23 @@
 
 ## 階段 7：系統整合（優先度：高）
 
-### 任務 7.1：註冊節點到系統
+### 任務 7.1：註冊節點到系統 ✅
 **檔案**：`index.html`, `js/graphEngine.js`, `js/nodePanel.js`
 **描述**：將 VideoPreviewNode 註冊到節點系統
 
 **子任務**：
-- [ ] 在 index.html 引入節點腳本
+- [x] 在 index.html 引入節點腳本
   ```html
   <script src="js/nodes/VideoPreviewNode.js"></script>
   ```
-- [ ] 在 graphEngine.js 的 nodeTypes 中註冊
+- [x] 在 graphEngine.js 的 nodeTypes 中註冊
+  ```javascript
+  'video-preview': VideoPreviewNode
+  ```
+- [x] 在 graphEngine.js 右鍵選單中添加影片預覽選項
+- [x] 在 graphEngine.js handleContextMenuAction 中處理影片預覽建立
+- [x] 在 graphEngine.js 連結拖放選單中添加影片預覽選項
+- [x] 在 nodePanel.js 的「處理」類別中添加影片預覽節點
   ```javascript
   this.nodeTypes = {
     // ...existing

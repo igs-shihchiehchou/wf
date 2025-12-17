@@ -263,7 +263,7 @@ class VideoPreviewNode extends BaseNode {
      * 產生影片縮圖的核心邏輯
      */
     async _generateThumbnailCore(videoUrl) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve, _reject) => {
             const video = document.createElement('video');
 
             // Only set crossOrigin for actual cross-origin URLs
