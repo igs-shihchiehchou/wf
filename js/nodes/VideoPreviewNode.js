@@ -18,6 +18,8 @@ class VideoPreviewNode extends BaseNode {
         this.videoElement = null;    // 模態視窗中的 video 元素
         this.modalElement = null;    // 模態視窗覆蓋層元素
         this.handleKeyDown = null;   // ESC 鍵處理函數
+        this.currentTimeEl = null;   // 當前時間顯示元素
+        this.totalTimeEl = null;     // 總時長顯示元素
     }
 
     setupPorts() {
@@ -590,6 +592,10 @@ class VideoPreviewNode extends BaseNode {
     bindVideoEvents() {
         if (!this.videoElement) return;
 
+        // 快取 DOM 元素參考以避免重複查詢
+        this.currentTimeEl = this.controlsContainer.querySelector('.video-current-time');
+        this.totalTimeEl = this.controlsContainer.querySelector('.video-total-time');
+
         // timeupdate：更新時間顯示
         this.videoElement.addEventListener('timeupdate', () => {
             this.updateTimeDisplay();
@@ -621,24 +627,16 @@ class VideoPreviewNode extends BaseNode {
      * 更新時間顯示
      */
     updateTimeDisplay() {
-        if (!this.videoElement || !this.controlsContainer) return;
-
-        const currentTimeEl = this.controlsContainer.querySelector('.video-current-time');
-        if (currentTimeEl) {
-            currentTimeEl.textContent = this.formatTime(this.videoElement.currentTime);
-        }
+        if (!this.videoElement || !this.currentTimeEl) return;
+        this.currentTimeEl.textContent = this.formatTime(this.videoElement.currentTime);
     }
 
     /**
      * 更新總時長顯示
      */
     updateTotalTimeDisplay() {
-        if (!this.videoElement || !this.controlsContainer) return;
-
-        const totalTimeEl = this.controlsContainer.querySelector('.video-total-time');
-        if (totalTimeEl) {
-            totalTimeEl.textContent = this.formatTime(this.videoElement.duration);
-        }
+        if (!this.videoElement || !this.totalTimeEl) return;
+        this.totalTimeEl.textContent = this.formatTime(this.videoElement.duration);
     }
 
     /**
@@ -737,6 +735,8 @@ class VideoPreviewNode extends BaseNode {
         this.modalElement = null;
         this.videoElement = null;
         this.controlsContainer = null;
+        this.currentTimeEl = null;
+        this.totalTimeEl = null;
 
         // 解鎖節點圖
         const graphCanvas = document.querySelector('.graph-canvas');
