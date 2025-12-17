@@ -25,6 +25,10 @@ class VideoPreviewNode extends BaseNode {
         this.timelineTrack = null;   // 時間軸軌道元素
         this.animationFrameId = null; // requestAnimationFrame ID
         this.trackWaveSurfers = [];   // 音軌 WaveSurfer 實例陣列
+
+        // 音訊播放引擎屬性 (Task 4.1)
+        this.audioContext = null;
+        this.sourceNodes = []; // 儲存當前播放的 SourceNodes 以便停止
     }
 
     setupPorts() {
@@ -610,33 +614,39 @@ class VideoPreviewNode extends BaseNode {
             this.renderTimeline();
         });
 
-        // play：更新按鈕為暫停圖示，啟動播放循環
+        // play：更新按鈕為暫停圖示，啟動播放循環，播放音訊
         this.videoElement.addEventListener('play', () => {
             this.updatePlaybackButton(true);
             this.startPlaybackLoop();
+            this.playAudio(this.videoElement.currentTime);
         });
 
-        // pause：更新按鈕為播放圖示，停止播放循環
+        // pause：更新按鈕為播放圖示，停止播放循環，停止音訊
         this.videoElement.addEventListener('pause', () => {
             this.updatePlaybackButton(false);
             this.stopPlaybackLoop();
+            this.stopAudio();
         });
 
         // ended：處理播放結束
         this.videoElement.addEventListener('ended', () => {
             this.updatePlaybackButton(false);
             this.stopPlaybackLoop();
-            // TODO: Task 4.2 - 處理音訊繼續播放
+            this.stopAudio();
         });
 
-        // seeking：跳轉時更新游標
+        // seeking：跳轉時停止音訊
         this.videoElement.addEventListener('seeking', () => {
             this.updatePlaybackCursor();
+            this.stopAudio();
         });
 
-        // seeked：跳轉完成時更新游標
+        // seeked：跳轉完成時，若為播放狀態則恢復音訊
         this.videoElement.addEventListener('seeked', () => {
             this.updatePlaybackCursor();
+            if (!this.videoElement.paused) {
+                this.playAudio(this.videoElement.currentTime);
+            }
         });
     }
 
@@ -952,6 +962,112 @@ class VideoPreviewNode extends BaseNode {
     }
 
     /**
+     * 初始化 AudioContext (Task 4.1)
+     */
+    setupAudioContext() {
+        if (!this.audioContext) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.audioContext = new AudioContext();
+        }
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+    }
+
+    /**
+     * 播放音訊 (Task 4.1)
+     * @param {number} startTime 影片當前時間 (秒)
+     */
+    playAudio(startTime) {
+        this.stopAudio(); // 先停止當前播放
+        this.setupAudioContext();
+
+        const audioData = this.getInputAudioData();
+        if (audioData.length === 0) return;
+
+        this.data.tracks.forEach((track, index) => {
+            if (!audioData[index]) return;
+
+            const buffer = audioData[index].buffer;
+
+            // 計算音訊在時間軸上的有效區間
+            const cropStart = track.cropStart || 0;
+            const cropEnd = track.cropEnd !== null ? track.cropEnd : buffer.duration;
+            const trackDuration = cropEnd - cropStart; // 裁切後的長度
+
+            // 修正：音訊實際開始發聲的時間點 = 容器偏移(offset) + 裁切掉的前段(cropStart)
+            const trackStartTime = track.offset + cropStart;
+            const trackEndTime = trackStartTime + trackDuration; // 音訊在時間軸結束的時間
+
+            // 檢查當前時間點是否在這段音訊的播放範圍內
+            // 影片時間: startTime
+            // 音訊播放區間: [trackStartTime, trackEndTime]
+
+            // 情況 1: 尚未播放到此音訊 (影片時間 < 音訊開始時間)
+            // 需要排程在未來播放
+            if (startTime < trackStartTime) {
+                const delay = trackStartTime - startTime;
+                const offset = cropStart; // 從裁切起點開始播
+                const duration = trackDuration;
+
+                this.scheduleAudioSource(buffer, delay, offset, duration);
+            }
+
+            // 情況 2: 正處於此音訊播放期間 (音訊開始時間 <= 影片時間 < 音訊結束時間)
+            else if (startTime >= trackStartTime && startTime < trackEndTime) {
+                const timeInTrack = startTime - trackStartTime; // 已經播了多久
+                const offset = cropStart + timeInTrack; // 從裁切起點 + 已經播過的時間開始播
+                const duration = trackDuration - timeInTrack; // 播剩下的長度
+
+                if (duration > 0) {
+                    this.scheduleAudioSource(buffer, 0, offset, duration);
+                }
+            }
+
+            // 情況 3: 此音訊已播完 (影片時間 >= 音訊結束時間) -> 不用處理
+        });
+    }
+
+    /**
+     * 建立並排程 AudioBufferSourceNode
+     */
+    scheduleAudioSource(buffer, whenDelay, offset, duration) {
+        const source = this.audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.audioContext.destination);
+
+        // when: AudioContext 時間座標
+        // offset: Buffer 內的偏移
+        // duration: 播放持續時間
+        const acTime = this.audioContext.currentTime + whenDelay;
+
+        source.start(acTime, offset, duration);
+        this.sourceNodes.push(source);
+
+        // 播放結束時自動從陣列移除 (非必要但好習慣)
+        source.onended = () => {
+            const idx = this.sourceNodes.indexOf(source);
+            if (idx > -1) {
+                this.sourceNodes.splice(idx, 1);
+            }
+        };
+    }
+
+    /**
+     * 停止音訊播放 (Task 4.1)
+     */
+    stopAudio() {
+        this.sourceNodes.forEach(source => {
+            try {
+                source.stop();
+            } catch (e) {
+                // 忽略已停止的錯誤
+            }
+        });
+        this.sourceNodes = [];
+    }
+
+    /**
      * 確保 tracks 參數陣列長度與音訊數量一致
      */
     ensureTracksArray(count) {
@@ -1130,10 +1246,14 @@ class VideoPreviewNode extends BaseNode {
                 align-items: center;
             `;
             trackTitle.innerHTML = `
-                <span>${this.escapeHtml(audio.filename)}</span>
-                <span style="color: var(--text-muted); font-size: var(--text-xs); font-family: monospace;">
-                    ${buffer.duration.toFixed(2)}s | ${buffer.sampleRate}Hz
-                </span>
+                <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                    <span>${this.escapeHtml(audio.filename)}</span>
+                    <span class="track-time-info" style="color: var(--text-muted); font-size: var(--text-xs); font-family: monospace;">
+                        Start: ${(trackParams.offset + (trackParams.cropStart || 0)).toFixed(2)}s | 
+                        End: ${(trackParams.offset + (trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration)).toFixed(2)}s | 
+                        Dur: ${((trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration) - (trackParams.cropStart || 0)).toFixed(2)}s
+                    </span>
+                </div>
             `;
 
             // 時間軸容器（與統一時間軸對齊）
@@ -1228,7 +1348,8 @@ class VideoPreviewNode extends BaseNode {
 
             // 綁定拖曳與裁切事件 (Task 3.4)
             // 傳入遮罩元素以便更新
-            this.bindTrackDragEvents(audioBlockContainer, waveContainer, startCurtain, endCurtain, index, pixelsPerSecond, audioDuration);
+            // Task 4.4: 傳入 trackTitle 以便更新時間顯示
+            this.bindTrackDragEvents(audioBlockContainer, waveContainer, startCurtain, endCurtain, index, pixelsPerSecond, audioDuration, trackTitle);
 
             // 組裝音軌 DOM
             trackTimelineContainer.appendChild(audioBlockContainer);
@@ -1297,15 +1418,31 @@ class VideoPreviewNode extends BaseNode {
     }
 
     /**
-     * 綁定音軌拖曳與裁切事件 (Task 3.3 & 3.4)
+     * 綁定音軌拖曳與裁切事件 (Task 3.3 & 3.4 & 4.4)
      */
-    bindTrackDragEvents(element, waveContainer, startCurtain, endCurtain, index, pixelsPerSecond, audioDuration) {
+    bindTrackDragEvents(element, waveContainer, startCurtain, endCurtain, index, pixelsPerSecond, audioDuration, trackTitleElement) {
         let startX = 0;
         let startLeft = 0; // element.style.left
         let startCropStart = 0;
         let startCropEnd = 0;
 
         let dragMode = 'none'; // 'move', 'resize-left', 'resize-right'
+
+        // Task 4.4: 取得時間顯示元素
+        const timeInfoEl = trackTitleElement ? trackTitleElement.querySelector('.track-time-info') : null;
+
+        const updateTimeInfo = (track) => {
+            if (!timeInfoEl) return;
+            const cs = track.cropStart || 0;
+            const ce = track.cropEnd !== null ? track.cropEnd : audioDuration;
+            // 修正顯示：Start 等於此片段在時間軸上的起始時間 (offset + cropStart)
+            // End 等於結束時間 (offset + cropEnd)
+            const startTime = track.offset + cs;
+            const endTime = track.offset + ce;
+            const duration = ce - cs;
+
+            timeInfoEl.textContent = `Start: ${startTime.toFixed(2)}s | End: ${endTime.toFixed(2)}s | Dur: ${duration.toFixed(2)}s`;
+        };
 
         // 建立 tooltip 元素
         let tooltip = document.createElement('div');
@@ -1398,6 +1535,7 @@ class VideoPreviewNode extends BaseNode {
                 // Offset = newLeft / pps
                 this.data.tracks[index].offset = newLeft / pixelsPerSecond;
                 this.updateTooltip(tooltip, 'move', this.data.tracks[index]);
+                updateTimeInfo(this.data.tracks[index]); // Update UI info
 
             } else if (dragMode === 'resize-left') {
                 // 左裁切：改變 cropStart
@@ -1414,6 +1552,7 @@ class VideoPreviewNode extends BaseNode {
                 startCurtain.style.width = `${newCropStart * pixelsPerSecond}px`;
 
                 this.updateTooltip(tooltip, 'resize-left', this.data.tracks[index]);
+                updateTimeInfo(this.data.tracks[index]); // Update UI info
 
             } else if (dragMode === 'resize-right') {
                 // 右裁切：改變 cropEnd
@@ -1430,6 +1569,7 @@ class VideoPreviewNode extends BaseNode {
                 endCurtain.style.width = `${(audioDuration - newCropEnd) * pixelsPerSecond}px`;
 
                 this.updateTooltip(tooltip, 'resize-right', this.data.tracks[index]);
+                updateTimeInfo(this.data.tracks[index]); // Update UI info
             }
         };
 

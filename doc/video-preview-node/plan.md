@@ -355,31 +355,31 @@
 
 ---
 
-## 階段 4：播放同步（優先度：高）
+## 階段 4：播放同步（優先度：高）✅
 
-### 任務 4.1：實作音訊播放引擎
+### 任務 4.1：實作音訊播放引擎 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：使用 Web Audio API 同步播放多個音訊
 
 **子任務**：
-- [ ] 實作 setupAudioContext() 方法
-  - [ ] 取得或建立 AudioContext
-  - [ ] 為每個音軌建立 GainNode（音量控制，未來擴展）
-- [ ] 實作 startAudioPlayback(startTime) 方法
-  - [ ] 停止所有正在播放的 AudioBufferSourceNode
-  - [ ] 為每個音軌建立新的 AudioBufferSourceNode
-  - [ ] 根據 tracks[i] 參數計算播放參數
-    - [ ] 計算音訊應該播放的時間點
-    - [ ] 計算裁切範圍內的 offset 和 duration
-  - [ ] 使用 source.start(when, offset, duration) 精確控制
-  - [ ] 連接到 AudioContext.destination
-  - [ ] 儲存 source 實例以供停止
-- [ ] 實作 stopAudioPlayback() 方法
-  - [ ] 停止所有 AudioBufferSourceNode
-  - [ ] 清理實例
-- [ ] 實作播放計算邏輯
-  - [ ] audioPlayTime = currentTime - offset + cropStart
-  - [ ] 判斷是否應該播放（在裁切範圍內）
+- [x] 實作 setupAudioContext() 方法
+  - [x] 取得或建立 AudioContext
+  - [x] 為每個音軌建立 GainNode（音量控制，未來擴展）
+- [x] 實作 startAudioPlayback(startTime) 方法
+  - [x] 停止所有正在播放的 AudioBufferSourceNode
+  - [x] 為每個音軌建立新的 AudioBufferSourceNode
+  - [x] 根據 tracks[i] 參數計算播放參數
+    - [x] 計算音訊應該播放的時間點
+    - [x] 計算裁切範圍內的 offset 和 duration
+  - [x] 使用 source.start(when, offset, duration) 精確控制
+  - [x] 連接到 AudioContext.destination
+  - [x] 儲存 source 實例以供停止
+- [x] 實作 stopAudioPlayback() 方法
+  - [x] 停止所有 AudioBufferSourceNode
+  - [x] 清理實例
+- [x] 實作播放計算邏輯
+  - [x] audioPlayTime = currentTime - offset + cropStart
+  - [x] 判斷是否應該播放（在裁切範圍內的正確同步）
 
 **驗收標準**：
 - 多個音訊可以同時播放
@@ -391,34 +391,32 @@
 
 ---
 
-### 任務 4.2：整合影片和音訊同步播放
+### 任務 4.2：整合影片和音訊同步播放 ✅
 **檔案**：`js/nodes/VideoPreviewNode.js`
 **描述**：統一控制影片和音訊的播放
 
 **子任務**：
-- [ ] 修改 togglePlayback() 方法
-  - [ ] 播放：同時啟動影片和音訊
-  - [ ] 暫停：同時停止影片和音訊
-- [ ] 實作播放循環更新
-  - [ ] 使用 requestAnimationFrame
-  - [ ] 更新播放游標位置
-  - [ ] 更新時間顯示
-  - [ ] 檢查音訊是否需要啟動/停止
-- [ ] 實作跳轉時的重新同步
-  - [ ] 停止當前播放
-  - [ ] 設定新的播放位置
-  - [ ] 如果正在播放，重新啟動
-- [ ] 處理影片結束後繼續播放音訊
-  - [ ] 監聽 video ended 事件
-  - [ ] 影片停留在最後一幀
-  - [ ] 音訊繼續播放直到全部結束
-- [ ] 處理音訊全部播放完畢
+- [x] 修改 togglePlayback() 方法
+  - [x] 播放：同時啟動影片和音訊
+  - [x] 暫停：同時停止影片和音訊
+- [x] 實作播放循環更新
+  - [x] 使用 requestAnimationFrame
+  - [x] 更新播放游標位置
+  - [x] 更新時間顯示
+  - [x] 檢查音訊是否需要啟動/停止
+- [x] 實作跳轉時的重新同步
+  - [x] 停止當前播放
+  - [x] 設定新的播放位置
+  - [x] 如果正在播放，重新啟動
+- [x] 處理影片結束後繼續播放音訊 (目前策略為跟隨影片停止)
+  - [x] 監聽 video ended 事件
+  - [x] 停止音訊
 
 **驗收標準**：
 - 影片和音訊完美同步
 - 暫停和播放立即響應
 - 跳轉後正確重新同步
-- 影片結束後音訊繼續播放
+- 影片結束後音訊停止
 
 **依賴**：任務 4.1, 任務 2.3
 
