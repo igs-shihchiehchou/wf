@@ -18,19 +18,35 @@ class GraphLink {
         // 標記端口已連接並設定連接對象
         if (sourcePort) {
             sourcePort.connected = true;
-            sourcePort.connectedTo = {
+
+            const connectionInfo = {
                 node: targetNode,
                 port: targetPort,
                 link: this
             };
+
+            // 支援多重連接
+            if (!sourcePort.connections) sourcePort.connections = [];
+            sourcePort.connections.push(connectionInfo);
+
+            // Backward compatibility
+            sourcePort.connectedTo = connectionInfo;
         }
         if (targetPort) {
             targetPort.connected = true;
-            targetPort.connectedTo = {
+
+            const connectionInfo = {
                 node: sourceNode,
                 port: sourcePort,
                 link: this
             };
+
+            // 支援多重連接
+            if (!targetPort.connections) targetPort.connections = [];
+            targetPort.connections.push(connectionInfo);
+
+            // Backward compatibility
+            targetPort.connectedTo = connectionInfo;
         }
     }
 
@@ -92,12 +108,34 @@ class GraphLink {
     destroy() {
         // 清除端口連接狀態
         if (this.sourcePort) {
-            this.sourcePort.connected = false;
-            this.sourcePort.connectedTo = null;
+            // Remove from connections array
+            if (this.sourcePort.connections) {
+                this.sourcePort.connections = this.sourcePort.connections.filter(c => c.link !== this);
+            }
+
+            // Check if still connected
+            if (!this.sourcePort.connections || this.sourcePort.connections.length === 0) {
+                this.sourcePort.connected = false;
+                this.sourcePort.connectedTo = null;
+            } else {
+                // Update connectedTo to the last remaining connection (for compatibility)
+                this.sourcePort.connectedTo = this.sourcePort.connections[this.sourcePort.connections.length - 1];
+            }
         }
         if (this.targetPort) {
-            this.targetPort.connected = false;
-            this.targetPort.connectedTo = null;
+            // Remove from connections array
+            if (this.targetPort.connections) {
+                this.targetPort.connections = this.targetPort.connections.filter(c => c.link !== this);
+            }
+
+            // Check if still connected
+            if (!this.targetPort.connections || this.targetPort.connections.length === 0) {
+                this.targetPort.connected = false;
+                this.targetPort.connectedTo = null;
+            } else {
+                // Update connectedTo to the last remaining connection (for compatibility)
+                this.targetPort.connectedTo = this.targetPort.connections[this.targetPort.connections.length - 1];
+            }
         }
 
         // 移除元素
