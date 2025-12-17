@@ -1755,10 +1755,108 @@ class VideoPreviewNode extends BaseNode {
         showToast('編輯器已關閉', 'info');
     }
 
+    /**
+     * 應用時間偏移到音訊 Buffer
+     * @param {AudioBuffer} buffer - 原始音訊 buffer
+     * @param {number} offset - 時間偏移（秒），正數為延後，負數為提前
+     * @returns {AudioBuffer} 處理後的 buffer
+     */
+    applyTimeOffset(buffer, offset) {
+        if (!buffer) return null;
+        if (offset === 0) return buffer;
+
+        const sampleRate = buffer.sampleRate;
+        const numberOfChannels = buffer.numberOfChannels;
+
+        // 正偏移：在開頭添加靜音
+        if (offset > 0) {
+            const silentSamples = Math.floor(offset * sampleRate);
+            const newLength = buffer.length + silentSamples;
+
+            // 建立新的 AudioBuffer
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const newBuffer = audioContext.createBuffer(numberOfChannels, newLength, sampleRate);
+
+            // 複製原音訊到偏移位置
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+                const originalData = buffer.getChannelData(channel);
+                const newData = newBuffer.getChannelData(channel);
+
+                // 開頭是靜音（預設為 0）
+                // 從 silentSamples 位置開始複製原始音訊
+                newData.set(originalData, silentSamples);
+            }
+
+            return newBuffer;
+        }
+
+        // 負偏移：裁切開頭部分
+        else {
+            const cropSeconds = Math.abs(offset);
+            // 使用 audioProcessor.cropAudio() 裁切開頭
+            return audioProcessor.cropAudio(buffer, cropSeconds, buffer.duration);
+        }
+    }
+
     async process(inputs) {
-        // 基礎實作：直接返回輸入
+        // 取得輸入音訊列表
+        const audioData = this.getInputAudioData();
+
+        // 如果沒有音訊輸入，返回空
+        if (audioData.length === 0) {
+            return {
+                audio: null,
+                audioFiles: [],
+                filenames: []
+            };
+        }
+
+        // 確保 tracks 參數陣列長度一致
+        this.ensureTracksArray(audioData.length);
+
+        // 為每個音訊應用處理
+        const processedAudioFiles = [];
+        const processedFilenames = [];
+
+        for (let i = 0; i < audioData.length; i++) {
+            const audioItem = audioData[i];
+            const trackParams = this.data.tracks[i];
+            let processedBuffer = audioItem.buffer;
+
+            try {
+                // 步驟 1：裁切（cropStart, cropEnd）
+                const cropStart = trackParams.cropStart || 0;
+                const cropEnd = trackParams.cropEnd !== null && trackParams.cropEnd !== undefined
+                    ? trackParams.cropEnd
+                    : processedBuffer.duration;
+
+                if (cropStart > 0 || cropEnd < processedBuffer.duration) {
+                    processedBuffer = audioProcessor.cropAudio(processedBuffer, cropStart, cropEnd);
+                }
+
+                // 步驟 2：應用時間偏移（offset）
+                const offset = trackParams.offset || 0;
+                if (offset !== 0) {
+                    processedBuffer = this.applyTimeOffset(processedBuffer, offset);
+                }
+
+                processedAudioFiles.push(processedBuffer);
+                processedFilenames.push(audioItem.filename);
+
+            } catch (error) {
+                console.error(`處理音訊 ${i} 時發生錯誤:`, error);
+                showToast(`處理音訊 "${audioItem.filename}" 失敗`, 'error');
+                // 錯誤時使用原始 buffer
+                processedAudioFiles.push(audioItem.buffer);
+                processedFilenames.push(audioItem.filename);
+            }
+        }
+
+        // 返回多檔案格式（支援 BaseNode 的多檔案預覽系統）
         return {
-            audio: inputs.audio || null
+            audio: processedAudioFiles[0] || null,  // 向下相容單檔案格式
+            audioFiles: processedAudioFiles,
+            filenames: processedFilenames
         };
     }
 
