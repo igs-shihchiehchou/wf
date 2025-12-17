@@ -13,6 +13,11 @@ class VideoPreviewNode extends BaseNode {
         };
 
         super(id, 'video-preview', '影片預覽', '🎬', options, defaultData);
+
+        // 模態視窗相關元素
+        this.videoElement = null;    // 模態視窗中的 video 元素
+        this.modalElement = null;    // 模態視窗覆蓋層元素
+        this.handleKeyDown = null;   // ESC 鍵處理函數
     }
 
     setupPorts() {
@@ -521,6 +526,12 @@ class VideoPreviewNode extends BaseNode {
         // 載入影片到 video 元素
         this.videoElement.src = this.data.videoUrl;
 
+        // 添加影片載入錯誤處理
+        this.videoElement.onerror = () => {
+            showToast('影片載入失敗', 'error');
+            this.closeEditor();
+        };
+
         // 顯示模態視窗
         document.body.appendChild(modal);
 
@@ -532,6 +543,12 @@ class VideoPreviewNode extends BaseNode {
             graphCanvas.style.pointerEvents = 'none';
             graphCanvas.style.opacity = '0.5';
         }
+
+        // 添加 ESC 鍵關閉功能
+        this.handleKeyDown = (e) => {
+            if (e.key === 'Escape') this.closeEditor();
+        };
+        document.addEventListener('keydown', this.handleKeyDown);
 
         showToast('編輯器已開啟', 'info');
     }
@@ -564,6 +581,12 @@ class VideoPreviewNode extends BaseNode {
             graphCanvas.classList.remove('video-preview-locked');
             graphCanvas.style.pointerEvents = '';
             graphCanvas.style.opacity = '';
+        }
+
+        // 移除 ESC 鍵監聽器
+        if (this.handleKeyDown) {
+            document.removeEventListener('keydown', this.handleKeyDown);
+            this.handleKeyDown = null;
         }
 
         showToast('編輯器已關閉', 'info');
