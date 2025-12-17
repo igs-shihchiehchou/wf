@@ -24,6 +24,7 @@ class VideoPreviewNode extends BaseNode {
         this.playbackCursor = null;  // 播放游標元素
         this.timelineTrack = null;   // 時間軸軌道元素
         this.animationFrameId = null; // requestAnimationFrame ID
+        this.trackWaveSurfers = [];   // 音軌 WaveSurfer 實例陣列
     }
 
     setupPorts() {
@@ -982,16 +983,39 @@ class VideoPreviewNode extends BaseNode {
         }
 
         // 取得連接的節點
+        // 取得連接的節點
         const sourceNode = audioPort.connectedTo?.node;
+
         if (!sourceNode) {
             return [];
         }
 
         // 嘗試從 lastOutputs 取得處理結果
-        const lastOutputs = sourceNode.lastOutputs;
-        if (!lastOutputs) {
+        let outputs = sourceNode.lastOutputs;
+
+        // 如果沒有執行結果，嘗試直接讀取節點狀態（改善 UX）
+        if (!outputs) {
+            // 情況 A: 連接的是 AudioInputNode (或其他支援 audioFiles 的節點)
+            if (sourceNode.audioFiles && Array.isArray(sourceNode.audioFiles) && sourceNode.audioFiles.length > 0) {
+                // 模擬輸出格式
+                outputs = {
+                    audioFiles: sourceNode.audioFiles.map(f => f.audioBuffer),
+                    filenames: sourceNode.audioFiles.map(f => f.filename)
+                };
+            }
+            // 情況 B: 舊版單檔節點
+            else if (sourceNode.data && (sourceNode.data.audioBuffer || sourceNode.audioBuffer)) {
+                outputs = {
+                    audio: sourceNode.data.audioBuffer || sourceNode.audioBuffer
+                };
+            }
+        }
+
+        if (!outputs) {
             return [];
         }
+
+        const lastOutputs = outputs; // 為了保持下方變數名稱一致
 
         // 根據不同的輸出格式處理
         const audioData = [];
@@ -1145,12 +1169,14 @@ class VideoPreviewNode extends BaseNode {
             audioBlockContainer.style.left = `${offsetPixels}px`;
             audioBlockContainer.style.width = `${widthPixels}px`;
 
-            // 音訊區塊內容（顯示波形占位符）
-            audioBlockContainer.innerHTML = `
-                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--bg); font-size: var(--text-xs);">
-                    波形占位符
-                </div>
-            `;
+            // 設定 ID 以便 WaveSurfer 綁定
+            const waveContainerId = `video-preview-wave-${this.id}-${index}`;
+            audioBlockContainer.id = waveContainerId;
+            // 清空內容（移除占位符）
+            audioBlockContainer.innerHTML = '';
+
+            // 綁定拖曳事件 (Task 3.3)
+            this.bindTrackDragEvents(audioBlockContainer, index, pixelsPerSecond);
 
             // 組裝音軌 DOM
             trackTimelineContainer.appendChild(audioBlockContainer);
@@ -1158,6 +1184,166 @@ class VideoPreviewNode extends BaseNode {
             trackDiv.appendChild(trackTimelineContainer);
             this.tracksContainer.appendChild(trackDiv);
         });
+
+        // 延遲初始化 WaveSurfer 以確保 DOM 已渲染
+        requestAnimationFrame(() => {
+            audioData.forEach((audio, index) => {
+                this.initTrackWaveSurfer(index, audio.buffer);
+            });
+        });
+    }
+
+    /**
+     * 初始化單一音軌的 WaveSurfer
+     */
+    initTrackWaveSurfer(index, buffer) {
+        if (!buffer) return;
+
+        const containerId = `#video-preview-wave-${this.id}-${index}`;
+        const container = this.tracksContainer.querySelector(containerId);
+
+        if (!container) return;
+
+        try {
+            // 銷毀舊實例（如果存在）
+            if (this.trackWaveSurfers[index]) {
+                this.trackWaveSurfers[index].destroy();
+                this.trackWaveSurfers[index] = null;
+            }
+
+            // 建立 WaveSurfer 實例
+            const wavesurfer = WaveSurfer.create({
+                container: container,
+                waveColor: 'hsl(0 0% 100% / 0.8)',
+                progressColor: 'hsl(0 0% 100% / 0.8)', // 不顯示進度顏色（由外部移動控制）
+                cursorColor: 'transparent',
+                height: container.clientHeight || 48,
+                barWidth: 2,
+                barGap: 1,
+                responsive: true,
+                normalize: true,
+                interact: false // 禁止內部互動（點擊等由外部控制）
+            });
+
+            // 載入音訊
+            const wavData = audioBufferToWav(buffer);
+            const blob = new Blob([wavData], { type: 'audio/wav' });
+            wavesurfer.loadBlob(blob);
+
+            // 儲存實例
+            this.trackWaveSurfers[index] = wavesurfer;
+
+        } catch (error) {
+            console.error(`WaveSurfer init failed for track ${index}:`, error);
+        }
+    }
+
+    /**
+     * 綁定音軌拖曳事件
+     */
+    bindTrackDragEvents(element, index, pixelsPerSecond) {
+        let startX = 0;
+        let startLeft = 0;
+        let isDragging = false;
+
+        // 建立 tooltip 元素
+        let tooltip = document.createElement('div');
+        tooltip.className = 'drag-tooltip';
+        tooltip.style.cssText = `
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            pointer-events: none;
+            display: none;
+            white-space: nowrap;
+            z-index: 1000;
+        `;
+        element.appendChild(tooltip);
+
+        const onMouseDown = (e) => {
+            // 防止與 WaveSurfer 互動衝突（雖然已設為 interact: false）
+            // 且防止觸發裁切邊緣（之後 Task 3.4 會處理邊緣）
+            // 這裡簡單判定：點擊位置不在左右邊緣 10px 內才算拖曳移動
+            const rect = element.getBoundingClientRect();
+            const edgeThreshold = 10;
+            const clickX = e.clientX - rect.left;
+
+            // 如果實作了邊緣裁切，這裡要避開邊緣。目前 Task 3.3 先全部視為拖曳。
+            // 為了預留 Task 3.4 空間，我們預留判斷邏輯
+            if (clickX < edgeThreshold || clickX > rect.width - edgeThreshold) {
+                return; // 邊緣操作交給 Task 3.4
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            isDragging = true;
+            startX = e.clientX;
+            startLeft = parseFloat(element.style.left) || 0;
+
+            element.style.cursor = 'grabbing';
+            element.classList.add('dragging');
+
+            // 顯示 tooltip
+            tooltip.style.display = 'block';
+            tooltip.textContent = `Offset: ${this.tracks[index].offset.toFixed(3)}s`;
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        };
+
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+
+            const dx = e.clientX - startX;
+            const newLeft = startLeft + dx;
+
+            // 更新視覺位置
+            element.style.left = `${newLeft}px`;
+
+            // 計算並更新 offset
+            const newOffset = newLeft / pixelsPerSecond;
+            this.tracks[index].offset = newOffset;
+
+            // 更新 tooltip
+            tooltip.textContent = `Offset: ${newOffset.toFixed(3)}s`;
+        };
+
+        const onMouseUp = () => {
+            if (!isDragging) return;
+
+            isDragging = false;
+            element.style.cursor = 'move'; // 回復為 move (hover 狀態)
+            element.classList.remove('dragging');
+            tooltip.style.display = 'none';
+
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+
+            // 觸發資料變更以儲存狀態
+            this.setData('tracks', this.tracks);
+        };
+
+        // 簡單的 hover cursor 處理
+        element.addEventListener('mousemove', (e) => {
+            const rect = element.getBoundingClientRect();
+            const edgeThreshold = 10;
+            const hoverX = e.clientX - rect.left;
+
+            if (hoverX < edgeThreshold || hoverX > rect.width - edgeThreshold) {
+                element.style.cursor = 'col-resize'; // 邊緣顯示調整大小游標
+            } else {
+                element.style.cursor = 'move'; // 中間顯示移動游標
+            }
+        });
+
+        element.addEventListener('mousedown', onMouseDown);
     }
 
     /**
@@ -1245,7 +1431,19 @@ class VideoPreviewNode extends BaseNode {
         }
 
         // 銷毀 WaveSurfer 實例（待實作）
-        // TODO: Task 3.2 - 在此處銷毀所有 WaveSurfer 實例
+        // 銷毀所有 WaveSurfer 實例
+        if (this.trackWaveSurfers) {
+            this.trackWaveSurfers.forEach(ws => {
+                if (ws) {
+                    try {
+                        ws.destroy();
+                    } catch (e) {
+                        console.warn('Destroy wavesurfer failed:', e);
+                    }
+                }
+            });
+            this.trackWaveSurfers = [];
+        }
 
         // 移除模態 DOM
         if (this.modalElement && this.modalElement.parentNode) {

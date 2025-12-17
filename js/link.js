@@ -3,19 +3,35 @@
  */
 
 class GraphLink {
-    constructor(id, sourceNodeId, sourcePort, targetNodeId, targetPort) {
+    constructor(id, sourceNode, sourcePort, targetNode, targetPort) {
         this.id = id;
-        this.sourceNodeId = sourceNodeId;
+        this.sourceNodeId = sourceNode.id;
+        this.sourceNode = sourceNode;
         this.sourcePort = sourcePort;
-        this.targetNodeId = targetNodeId;
+        this.targetNodeId = targetNode.id;
+        this.targetNode = targetNode;
         this.targetPort = targetPort;
 
         // 建立 SVG 元素
         this.element = this.createElement();
 
-        // 標記端口已連接
-        if (sourcePort) sourcePort.connected = true;
-        if (targetPort) targetPort.connected = true;
+        // 標記端口已連接並設定連接對象
+        if (sourcePort) {
+            sourcePort.connected = true;
+            sourcePort.connectedTo = {
+                node: targetNode,
+                port: targetPort,
+                link: this
+            };
+        }
+        if (targetPort) {
+            targetPort.connected = true;
+            targetPort.connectedTo = {
+                node: sourceNode,
+                port: sourcePort,
+                link: this
+            };
+        }
     }
 
     createElement() {
@@ -75,8 +91,14 @@ class GraphLink {
 
     destroy() {
         // 清除端口連接狀態
-        if (this.sourcePort) this.sourcePort.connected = false;
-        if (this.targetPort) this.targetPort.connected = false;
+        if (this.sourcePort) {
+            this.sourcePort.connected = false;
+            this.sourcePort.connectedTo = null;
+        }
+        if (this.targetPort) {
+            this.targetPort.connected = false;
+            this.targetPort.connectedTo = null;
+        }
 
         // 移除元素
         if (this.element && this.element.parentNode) {

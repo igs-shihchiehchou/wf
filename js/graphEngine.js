@@ -233,7 +233,7 @@ class GraphEngine {
                     if (sourcePort && targetPort) {
                         // 建立連線但不顯示 toast
                         const id = `link-${++this.linkIdCounter}`;
-                        const link = new GraphLink(id, sourceNode.id, sourcePort, targetNode.id, targetPort);
+                        const link = new GraphLink(id, sourceNode, sourcePort, targetNode, targetPort);
 
                         link.onSelect = (link) => {
                             this.canvas.clearSelection();
@@ -272,7 +272,7 @@ class GraphEngine {
         }
 
         const id = `link-${++this.linkIdCounter}`;
-        const link = new GraphLink(id, sourceNode.id, sourcePort, targetNode.id, targetPort);
+        const link = new GraphLink(id, sourceNode, sourcePort, targetNode, targetPort);
 
         // 綁定連線事件
         link.onSelect = (link) => {
