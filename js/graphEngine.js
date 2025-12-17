@@ -25,7 +25,8 @@ class GraphEngine {
             'soften': SoftenNode,
             'combine': CombineNode,
             'join': JoinNode,
-            'mix': MixNode
+            'mix': MixNode,
+            'video-preview': VideoPreviewNode
         };
 
         // 綁定畫布事件
@@ -659,6 +660,10 @@ class GraphEngine {
         <span class="context-menu-icon">◠</span>
         <span>新增柔化</span>
       </div>
+      <div class="context-menu-item" data-action="add-video-preview">
+        <span class="context-menu-icon">🎬</span>
+        <span>新增影片預覽</span>
+      </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="add-combine">
         <span class="context-menu-icon">⊕</span>
@@ -770,6 +775,9 @@ class GraphEngine {
         // 根據來源端口類型過濾節點
         let menuItems = '';
         const isOutputPort = sourcePort.type === 'output';
+
+        // 需要先補充 video-preview 的資訊
+        nodeTypeMap['add-video-preview'] = { type: 'video-preview', icon: '🎬', label: '影片預覽', hasInput: true, hasOutput: true };
 
         for (const [action, info] of Object.entries(nodeTypeMap)) {
             // 如果是從輸出端口拖出，只顯示有輸入端口的節點
@@ -905,6 +913,7 @@ class GraphEngine {
             'add-volume-sync': 'volume-sync',
             'add-beat-sync': 'beat-sync',
             'add-soften': 'soften',
+            'add-video-preview': 'video-preview',
             'add-combine': 'combine',
             'add-join': 'join',
             'add-mix': 'mix'
