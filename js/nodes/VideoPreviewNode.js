@@ -272,6 +272,8 @@ class VideoPreviewNode extends BaseNode {
                 video.crossOrigin = 'anonymous';
             }
 
+            video.muted = true; // 避免自動播放限制
+            video.playsInline = true;
             video.preload = 'metadata';
 
             video.addEventListener('loadedmetadata', () => {
@@ -304,7 +306,7 @@ class VideoPreviewNode extends BaseNode {
             });
 
             video.addEventListener('error', (e) => {
-                console.error('影片載入失敗:', e);
+                console.error('影片載入失敗 (縮圖產生):', video.error, e);
                 resolve(null);
             });
 
@@ -1079,6 +1081,7 @@ class VideoPreviewNode extends BaseNode {
 
         // 計算時間軸的像素寬度（用於對齊）
         const timelineDuration = this.calculateTimelineDuration();
+        console.log(`CalculateTimelineDuration: ${timelineDuration}`);
 
         // 驗證時間軸已準備好
         if (timelineDuration === 0 || !this.timelineTrack) {
@@ -1153,30 +1156,79 @@ class VideoPreviewNode extends BaseNode {
                 transform: translateY(-50%);
                 height: 80%;
                 background: var(--primary);
-                opacity: 0.6;
+                opacity: 0.8;
                 border-radius: 2px;
                 cursor: move;
+                border: 1px solid rgba(255,255,255,0.2);
             `;
 
             // 計算音訊區塊的位置和寬度
+            console.log(`RenderTracks[${index}]: ContainerWidth=${timelineWidth}, Duration=${timelineDuration}, PPS=${timelineWidth / (timelineDuration || 1)}`);
             const pixelsPerSecond = timelineWidth / (timelineDuration || 1);
-            const offsetPixels = trackParams.offset * pixelsPerSecond;
+            const cropStart = trackParams.cropStart || 0;
             const audioDuration = buffer.duration;
             const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : audioDuration;
-            const visibleDuration = cropEnd - trackParams.cropStart;
-            const widthPixels = visibleDuration * pixelsPerSecond;
 
-            audioBlockContainer.style.left = `${offsetPixels}px`;
-            audioBlockContainer.style.width = `${widthPixels}px`;
+            // 音訊區塊容器 (Full Container)
+            // Container 代表整個音訊檔案的長度
+            const blockLeftPixels = trackParams.offset * pixelsPerSecond;
+            const blockWidthPixels = audioDuration * pixelsPerSecond;
 
-            // 設定 ID 以便 WaveSurfer 綁定
+            // 限制 cropEnd 不超過 audioDuration
+            const safeCropEnd = Math.min(cropEnd, audioDuration);
+
+            audioBlockContainer.style.left = `${blockLeftPixels}px`;
+            audioBlockContainer.style.width = `${blockWidthPixels}px`;
+            // audioBlockContainer.style.overflow = 'hidden'; // 移除 hidden 以顯示 ghost
+
+            // 1. 內部波形容器 (Full Waveform)
+            const waveContainer = document.createElement('div');
+            waveContainer.className = 'track-wave-container';
             const waveContainerId = `video-preview-wave-${this.id}-${index}`;
-            audioBlockContainer.id = waveContainerId;
-            // 清空內容（移除占位符）
-            audioBlockContainer.innerHTML = '';
+            waveContainer.id = waveContainerId;
+            waveContainer.style.cssText = `
+                position: relative;
+                height: 100%;
+                width: 100%;
+            `;
 
-            // 綁定拖曳事件 (Task 3.3)
-            this.bindTrackDragEvents(audioBlockContainer, index, pixelsPerSecond);
+            // 2. 左側遮罩 (Start Curtain)
+            const startCurtain = document.createElement('div');
+            startCurtain.className = 'crop-curtain-start';
+            startCurtain.style.cssText = `
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: ${cropStart * pixelsPerSecond}px;
+                background-color: rgba(0, 0, 0, 0.5); 
+                pointer-events: none; /* 讓事件穿透到 Container 處理 */
+                z-index: 10;
+                border-right: 2px solid var(--primary); /* 裁切線 */
+            `;
+
+            // 3. 右側遮罩 (End Curtain)
+            const endCurtain = document.createElement('div');
+            endCurtain.className = 'crop-curtain-end';
+            endCurtain.style.cssText = `
+                position: absolute;
+                right: 0; 
+                top: 0;
+                bottom: 0;
+                width: ${(audioDuration - safeCropEnd) * pixelsPerSecond}px;
+                background-color: rgba(0, 0, 0, 0.5);
+                pointer-events: none;
+                z-index: 10;
+                border-left: 2px solid var(--primary); /* 裁切線 */
+            `;
+
+            audioBlockContainer.appendChild(waveContainer);
+            audioBlockContainer.appendChild(startCurtain);
+            audioBlockContainer.appendChild(endCurtain);
+
+            // 綁定拖曳與裁切事件 (Task 3.4)
+            // 傳入遮罩元素以便更新
+            this.bindTrackDragEvents(audioBlockContainer, waveContainer, startCurtain, endCurtain, index, pixelsPerSecond, audioDuration);
 
             // 組裝音軌 DOM
             trackTimelineContainer.appendChild(audioBlockContainer);
@@ -1196,19 +1248,25 @@ class VideoPreviewNode extends BaseNode {
     /**
      * 初始化單一音軌的 WaveSurfer
      */
-    initTrackWaveSurfer(index, buffer) {
+    async initTrackWaveSurfer(index, buffer) {
         if (!buffer) return;
 
-        const containerId = `#video-preview-wave-${this.id}-${index}`;
-        const container = this.tracksContainer.querySelector(containerId);
-
-        if (!container) return;
-
         try {
-            // 銷毀舊實例（如果存在）
+            // 清理舊實例
             if (this.trackWaveSurfers[index]) {
                 this.trackWaveSurfers[index].destroy();
                 this.trackWaveSurfers[index] = null;
+            }
+
+            // 取得容器 (現在是 inner wave container)
+            const waveContainerId = `video-preview-wave-${this.id}-${index}`;
+            const container = document.getElementById(waveContainerId);
+
+            if (!container) {
+                console.warn(`WaveSurfer container not found: ${waveContainerId}`);
+                console.log(document.getElementById(`video-preview-wave-${this.id}-${index}`));
+                // 嘗試再次查找，有時可能是尚未插入 DOM
+                return;
             }
 
             // 建立 WaveSurfer 實例
@@ -1239,12 +1297,15 @@ class VideoPreviewNode extends BaseNode {
     }
 
     /**
-     * 綁定音軌拖曳事件
+     * 綁定音軌拖曳與裁切事件 (Task 3.3 & 3.4)
      */
-    bindTrackDragEvents(element, index, pixelsPerSecond) {
+    bindTrackDragEvents(element, waveContainer, startCurtain, endCurtain, index, pixelsPerSecond, audioDuration) {
         let startX = 0;
-        let startLeft = 0;
-        let isDragging = false;
+        let startLeft = 0; // element.style.left
+        let startCropStart = 0;
+        let startCropEnd = 0;
+
+        let dragMode = 'none'; // 'move', 'resize-left', 'resize-right'
 
         // 建立 tooltip 元素
         let tooltip = document.createElement('div');
@@ -1267,83 +1328,159 @@ class VideoPreviewNode extends BaseNode {
         element.appendChild(tooltip);
 
         const onMouseDown = (e) => {
-            // 防止與 WaveSurfer 互動衝突（雖然已設為 interact: false）
-            // 且防止觸發裁切邊緣（之後 Task 3.4 會處理邊緣）
-            // 這裡簡單判定：點擊位置不在左右邊緣 10px 內才算拖曳移動
             const rect = element.getBoundingClientRect();
-            const edgeThreshold = 10;
-            const clickX = e.clientX - rect.left;
+            const clickXPixels = e.clientX - rect.left; // 相對於容器左側的像素
 
-            // 如果實作了邊緣裁切，這裡要避開邊緣。目前 Task 3.3 先全部視為拖曳。
-            // 為了預留 Task 3.4 空間，我們預留判斷邏輯
-            if (clickX < edgeThreshold || clickX > rect.width - edgeThreshold) {
-                return; // 邊緣操作交給 Task 3.4
+            // 取得目前的 crop 參數 (單位: 秒)
+            const currentCropStart = this.data.tracks[index].cropStart || 0;
+            const currentCropEnd = this.data.tracks[index].cropEnd !== undefined ? this.data.tracks[index].cropEnd : audioDuration;
+
+            // 轉換為像素位置
+            const cropStartPixels = currentCropStart * pixelsPerSecond;
+            const cropEndPixels = currentCropEnd * pixelsPerSecond;
+
+            const edgeThreshold = 10;
+
+            // 判斷點擊位置
+            // 1. Resize Left: 在 cropStart 附近
+            if (Math.abs(clickXPixels - cropStartPixels) < edgeThreshold) {
+                dragMode = 'resize-left';
+                element.style.cursor = 'w-resize';
+            }
+            // 2. Resize Right: 在 cropEnd 附近
+            else if (Math.abs(clickXPixels - cropEndPixels) < edgeThreshold) {
+                dragMode = 'resize-right';
+                element.style.cursor = 'e-resize';
+            }
+            // 3. Move: 其他區域都視為移動 (包含 Ghost區域)
+            else {
+                dragMode = 'move';
+                element.style.cursor = 'grabbing';
             }
 
             e.preventDefault();
             e.stopPropagation();
+            e.stopPropagation();
 
-            isDragging = true;
             startX = e.clientX;
+
+            // 記錄初始狀態
             startLeft = parseFloat(element.style.left) || 0;
 
-            element.style.cursor = 'grabbing';
-            element.classList.add('dragging');
+            // 確保 tracks[index].cropStart/End 有值
+            if (this.data.tracks[index].cropStart === undefined) this.data.tracks[index].cropStart = 0;
+            if (this.data.tracks[index].cropEnd === undefined || this.data.tracks[index].cropEnd === null) this.data.tracks[index].cropEnd = audioDuration;
 
-            // 顯示 tooltip
+            startCropStart = this.data.tracks[index].cropStart;
+            startCropEnd = this.data.tracks[index].cropEnd;
+
+            element.classList.add('dragging');
             tooltip.style.display = 'block';
-            tooltip.textContent = `Offset: ${this.tracks[index].offset.toFixed(3)}s`;
+            this.updateTooltip(tooltip, dragMode, this.data.tracks[index]);
 
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
         };
 
         const onMouseMove = (e) => {
-            if (!isDragging) return;
+            if (dragMode === 'none') return;
 
-            const dx = e.clientX - startX;
-            const newLeft = startLeft + dx;
+            const deltaPixels = e.clientX - startX;
+            const deltaSeconds = deltaPixels / pixelsPerSecond;
 
-            // 更新視覺位置
-            element.style.left = `${newLeft}px`;
+            const minDuration = 0.1; // 最小保留 0.1 秒
 
-            // 計算並更新 offset
-            const newOffset = newLeft / pixelsPerSecond;
-            this.tracks[index].offset = newOffset;
+            if (dragMode === 'move') {
+                // 移動模式：只改變 offset (容器的 left)
+                const newLeft = startLeft + deltaPixels;
+                element.style.left = `${newLeft}px`;
 
-            // 更新 tooltip
-            tooltip.textContent = `Offset: ${newOffset.toFixed(3)}s`;
+                // Offset = newLeft / pps
+                this.data.tracks[index].offset = newLeft / pixelsPerSecond;
+                this.updateTooltip(tooltip, 'move', this.data.tracks[index]);
+
+            } else if (dragMode === 'resize-left') {
+                // 左裁切：改變 cropStart
+                let newCropStart = startCropStart + deltaSeconds;
+
+                // 邊界檢查
+                if (newCropStart < 0) newCropStart = 0;
+                if (newCropStart > startCropEnd - minDuration) newCropStart = startCropEnd - minDuration;
+
+                // 更新數據
+                this.data.tracks[index].cropStart = newCropStart;
+
+                // 更新視覺 (Start Curtain Width)
+                startCurtain.style.width = `${newCropStart * pixelsPerSecond}px`;
+
+                this.updateTooltip(tooltip, 'resize-left', this.data.tracks[index]);
+
+            } else if (dragMode === 'resize-right') {
+                // 右裁切：改變 cropEnd
+                let newCropEnd = startCropEnd + deltaSeconds;
+
+                // 邊界檢查
+                if (newCropEnd > audioDuration) newCropEnd = audioDuration;
+                if (newCropEnd < startCropStart + minDuration) newCropEnd = startCropStart + minDuration;
+
+                // 更新數據
+                this.data.tracks[index].cropEnd = newCropEnd;
+
+                // 更新視覺 (End Curtain Width)
+                endCurtain.style.width = `${(audioDuration - newCropEnd) * pixelsPerSecond}px`;
+
+                this.updateTooltip(tooltip, 'resize-right', this.data.tracks[index]);
+            }
         };
 
         const onMouseUp = () => {
-            if (!isDragging) return;
+            if (dragMode === 'none') return;
+            dragMode = 'none';
 
-            isDragging = false;
-            element.style.cursor = 'move'; // 回復為 move (hover 狀態)
+            element.style.cursor = 'move';
             element.classList.remove('dragging');
             tooltip.style.display = 'none';
 
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
 
-            // 觸發資料變更以儲存狀態
-            this.setData('tracks', this.tracks);
+            this.setData('tracks', this.data.tracks);
         };
 
-        // 簡單的 hover cursor 處理
+        // Hover cursor 處理
         element.addEventListener('mousemove', (e) => {
-            const rect = element.getBoundingClientRect();
-            const edgeThreshold = 10;
-            const hoverX = e.clientX - rect.left;
+            if (dragMode !== 'none') return; // 拖曳中不改變
 
-            if (hoverX < edgeThreshold || hoverX > rect.width - edgeThreshold) {
-                element.style.cursor = 'col-resize'; // 邊緣顯示調整大小游標
+            const rect = element.getBoundingClientRect();
+            const hoverXPixels = e.clientX - rect.left;
+
+            const currentCropStart = this.data.tracks[index].cropStart || 0;
+            const currentCropEnd = this.data.tracks[index].cropEnd !== undefined ? this.data.tracks[index].cropEnd : audioDuration;
+
+            const cropStartPixels = currentCropStart * pixelsPerSecond;
+            const cropEndPixels = currentCropEnd * pixelsPerSecond;
+            const edgeThreshold = 10;
+
+            if (Math.abs(hoverXPixels - cropStartPixels) < edgeThreshold) {
+                element.style.cursor = 'w-resize';
+            } else if (Math.abs(hoverXPixels - cropEndPixels) < edgeThreshold) {
+                element.style.cursor = 'e-resize';
             } else {
-                element.style.cursor = 'move'; // 中間顯示移動游標
+                element.style.cursor = 'move';
             }
         });
 
         element.addEventListener('mousedown', onMouseDown);
+    }
+
+    updateTooltip(tooltip, mode, track) {
+        if (mode === 'move') {
+            tooltip.textContent = `Offset: ${track.offset.toFixed(3)}s`;
+        } else if (mode === 'resize-left') {
+            tooltip.textContent = `Start: ${track.cropStart.toFixed(3)}s`;
+        } else if (mode === 'resize-right') {
+            tooltip.textContent = `End: ${track.cropEnd.toFixed(3)}s`;
+        }
     }
 
     /**
@@ -1358,6 +1495,9 @@ class VideoPreviewNode extends BaseNode {
 
         // 建立模態 DOM
         const modal = this.createModalElement();
+
+        // 立即顯示模態視窗，以確保 renderTracks 時有寬度
+        document.body.appendChild(modal);
 
         // 載入影片到 video 元素
         this.videoElement.src = this.data.videoUrl;
@@ -1382,9 +1522,6 @@ class VideoPreviewNode extends BaseNode {
             // Wait for metadata to load
             this.videoElement.addEventListener('loadedmetadata', onLoadedMetadata);
         }
-
-        // 顯示模態視窗
-        document.body.appendChild(modal);
 
         // 鎖定背景節點圖（添加 CSS 類）
         const graphCanvas = document.querySelector('.graph-canvas');
