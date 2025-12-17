@@ -1000,10 +1000,16 @@ class VideoPreviewNode extends BaseNode {
         if (lastOutputs.audioFiles && Array.isArray(lastOutputs.audioFiles)) {
             const filenames = lastOutputs.filenames || [];
             for (let i = 0; i < lastOutputs.audioFiles.length; i++) {
-                audioData.push({
-                    buffer: lastOutputs.audioFiles[i],
-                    filename: filenames[i] || `音訊 ${i + 1}`
-                });
+                const buffer = lastOutputs.audioFiles[i];
+                // 驗證 buffer 是有效的 AudioBuffer
+                if (buffer instanceof AudioBuffer) {
+                    audioData.push({
+                        buffer: buffer,
+                        filename: filenames[i] || `音訊 ${i + 1}`
+                    });
+                } else {
+                    console.warn(`Invalid audio buffer at index ${i}, skipping`);
+                }
             }
         }
         // 格式 2: {audio: AudioBuffer}
@@ -1029,6 +1035,11 @@ class VideoPreviewNode extends BaseNode {
         // 確保 tracks 參數陣列長度一致
         this.ensureTracksArray(audioData.length);
 
+        // 大量音軌警告
+        if (audioData.length > 10) {
+            showToast(`音軌數量較多 (${audioData.length})，可能影響效能`, 'warning');
+        }
+
         // 清空容器
         this.tracksContainer.innerHTML = '';
 
@@ -1044,7 +1055,25 @@ class VideoPreviewNode extends BaseNode {
 
         // 計算時間軸的像素寬度（用於對齊）
         const timelineDuration = this.calculateTimelineDuration();
-        const timelineWidth = this.timelineTrack ? this.timelineTrack.offsetWidth : 800;
+
+        // 驗證時間軸已準備好
+        if (timelineDuration === 0 || !this.timelineTrack) {
+            console.warn('Timeline not ready, deferring track rendering');
+            this.tracksContainer.innerHTML = `
+                <div style="text-align: center; color: var(--text-muted); font-size: var(--text-sm); padding: var(--spacing-4);">
+                    等待影片載入...
+                </div>
+            `;
+            return;
+        }
+
+        const timelineWidth = this.timelineTrack.offsetWidth;
+
+        // 額外驗證
+        if (timelineWidth === 0) {
+            console.warn('Timeline width is 0, deferring track rendering');
+            return;
+        }
 
         // 為每個音訊建立音軌 DOM
         audioData.forEach((audio, index) => {
@@ -1158,7 +1187,15 @@ class VideoPreviewNode extends BaseNode {
             this.renderTracks();
             this.videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
         };
-        this.videoElement.addEventListener('loadedmetadata', onLoadedMetadata);
+
+        // Check if metadata is already loaded (cached video)
+        if (this.videoElement.readyState >= 1) {
+            // Metadata already loaded, render immediately
+            onLoadedMetadata();
+        } else {
+            // Wait for metadata to load
+            this.videoElement.addEventListener('loadedmetadata', onLoadedMetadata);
+        }
 
         // 顯示模態視窗
         document.body.appendChild(modal);
