@@ -20,6 +20,10 @@ class VideoPreviewNode extends BaseNode {
         this.handleKeyDown = null;   // ESC 鍵處理函數
         this.currentTimeEl = null;   // 當前時間顯示元素
         this.totalTimeEl = null;     // 總時長顯示元素
+        this.timelineContainer = null; // 時間軸容器元素
+        this.playbackCursor = null;  // 播放游標元素
+        this.timelineTrack = null;   // 時間軸軌道元素
+        this.animationFrameId = null; // requestAnimationFrame ID
     }
 
     setupPorts() {
@@ -447,7 +451,7 @@ class VideoPreviewNode extends BaseNode {
         // 使用 renderPlaybackControls() 渲染控制列內容
         controlsContainer.innerHTML = this.renderPlaybackControls();
 
-        // 建立時間軸區域（占位）
+        // 建立時間軸區域
         const timelineContainer = document.createElement('div');
         timelineContainer.className = 'video-preview-timeline';
         timelineContainer.style.cssText = `
@@ -455,11 +459,9 @@ class VideoPreviewNode extends BaseNode {
             background: var(--bg);
             border-radius: 4px;
             margin-bottom: var(--spacing-4);
-            text-align: center;
-            color: var(--text-muted);
-            font-size: var(--text-sm);
         `;
-        timelineContainer.textContent = '時間軸區域（待實作）';
+        // 使用 renderTimeline() 渲染時間軸內容
+        this.timelineContainer = timelineContainer;
 
         // 建立音軌列表容器（占位）
         const tracksContainer = document.createElement('div');
@@ -601,25 +603,39 @@ class VideoPreviewNode extends BaseNode {
             this.updateTimeDisplay();
         });
 
-        // loadedmetadata：影片載入完成後更新總時長
+        // loadedmetadata：影片載入完成後更新總時長並渲染時間軸
         this.videoElement.addEventListener('loadedmetadata', () => {
             this.updateTotalTimeDisplay();
+            this.renderTimeline();
         });
 
-        // play：更新按鈕為暫停圖示
+        // play：更新按鈕為暫停圖示，啟動播放循環
         this.videoElement.addEventListener('play', () => {
             this.updatePlaybackButton(true);
+            this.startPlaybackLoop();
         });
 
-        // pause：更新按鈕為播放圖示
+        // pause：更新按鈕為播放圖示，停止播放循環
         this.videoElement.addEventListener('pause', () => {
             this.updatePlaybackButton(false);
+            this.stopPlaybackLoop();
         });
 
         // ended：處理播放結束
         this.videoElement.addEventListener('ended', () => {
             this.updatePlaybackButton(false);
+            this.stopPlaybackLoop();
             // TODO: Task 4.2 - 處理音訊繼續播放
+        });
+
+        // seeking：跳轉時更新游標
+        this.videoElement.addEventListener('seeking', () => {
+            this.updatePlaybackCursor();
+        });
+
+        // seeked：跳轉完成時更新游標
+        this.videoElement.addEventListener('seeked', () => {
+            this.updatePlaybackCursor();
         });
     }
 
@@ -667,6 +683,263 @@ class VideoPreviewNode extends BaseNode {
         } else {
             // 暫停
             this.videoElement.pause();
+        }
+    }
+
+    /**
+     * 計算時間軸總長度（影片長度或最長音訊）
+     */
+    calculateTimelineDuration() {
+        let duration = this.videoElement ? this.videoElement.duration : 0;
+
+        // 如果有音訊輸入，計算最長音訊結束時間
+        // TODO: Task 3.1 - 當有音訊輸入時，計算 max(視訊長度, 音訊偏移 + 音訊長度)
+        // 目前僅使用影片長度
+
+        return duration || 0;
+    }
+
+    /**
+     * 渲染時間軸
+     */
+    renderTimeline() {
+        if (!this.timelineContainer) return;
+
+        const duration = this.calculateTimelineDuration();
+
+        // 清空容器
+        this.timelineContainer.innerHTML = '';
+
+        // 建立時間刻度容器
+        const scaleContainer = document.createElement('div');
+        scaleContainer.className = 'timeline-scale';
+        scaleContainer.style.cssText = `
+            position: relative;
+            height: 30px;
+            margin-bottom: var(--spacing-2);
+            user-select: none;
+        `;
+
+        // 計算刻度間隔（根據總時長決定）
+        const interval = this.calculateTimeInterval(duration);
+        const tickCount = Math.ceil(duration / interval);
+
+        // 渲染時間刻度標記
+        for (let i = 0; i <= tickCount; i++) {
+            const time = i * interval;
+            if (time > duration) break;
+
+            const percentage = duration > 0 ? (time / duration) * 100 : 0;
+
+            const tick = document.createElement('div');
+            tick.className = 'timeline-tick';
+            tick.style.cssText = `
+                position: absolute;
+                left: ${percentage}%;
+                top: 0;
+                width: 1px;
+                height: 12px;
+                background: var(--border-muted);
+            `;
+
+            const label = document.createElement('div');
+            label.className = 'timeline-label';
+            label.style.cssText = `
+                position: absolute;
+                left: ${percentage}%;
+                top: 14px;
+                transform: translateX(-50%);
+                font-size: 11px;
+                color: var(--text-muted);
+                font-family: monospace;
+            `;
+            label.textContent = this.formatTimeShort(time);
+
+            scaleContainer.appendChild(tick);
+            scaleContainer.appendChild(label);
+        }
+
+        // 建立可點擊的時間軸軌道
+        const track = document.createElement('div');
+        track.className = 'timeline-track';
+        track.style.cssText = `
+            position: relative;
+            height: 40px;
+            background: var(--bg-dark);
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: var(--spacing-2);
+        `;
+
+        // 建立播放游標
+        const cursor = document.createElement('div');
+        cursor.className = 'timeline-cursor';
+        cursor.style.cssText = `
+            position: absolute;
+            left: 0%;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: var(--primary);
+            cursor: ew-resize;
+            z-index: 10;
+        `;
+
+        // 建立游標頂部把手
+        const cursorHandle = document.createElement('div');
+        cursorHandle.className = 'timeline-cursor-handle';
+        cursorHandle.style.cssText = `
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 12px;
+            height: 12px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: ew-resize;
+        `;
+        cursor.appendChild(cursorHandle);
+
+        track.appendChild(cursor);
+
+        // 儲存參考
+        this.timelineTrack = track;
+        this.playbackCursor = cursor;
+
+        // 組裝時間軸
+        this.timelineContainer.appendChild(scaleContainer);
+        this.timelineContainer.appendChild(track);
+
+        // 綁定時間軸事件
+        this.bindTimelineEvents();
+    }
+
+    /**
+     * 計算時間刻度間隔（秒）
+     */
+    calculateTimeInterval(duration) {
+        if (duration <= 10) return 1;      // 每秒
+        if (duration <= 60) return 5;      // 每 5 秒
+        if (duration <= 300) return 30;    // 每 30 秒
+        if (duration <= 600) return 60;    // 每分鐘
+        return 120;                        // 每 2 分鐘
+    }
+
+    /**
+     * 格式化時間為簡短格式（用於刻度標籤）
+     */
+    formatTimeShort(seconds) {
+        if (isNaN(seconds) || seconds < 0) {
+            return '0:00';
+        }
+
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+
+        if (minutes > 0) {
+            return `${minutes}:${String(secs).padStart(2, '0')}`;
+        } else {
+            return `0:${String(secs).padStart(2, '0')}`;
+        }
+    }
+
+    /**
+     * 綁定時間軸事件
+     */
+    bindTimelineEvents() {
+        if (!this.timelineTrack || !this.playbackCursor) return;
+
+        // 點擊時間軸跳轉
+        this.timelineTrack.addEventListener('click', (e) => {
+            // 忽略游標本身的點擊
+            if (e.target === this.playbackCursor || e.target.closest('.timeline-cursor')) {
+                return;
+            }
+            this.seekToPosition(e);
+        });
+
+        // 拖動游標
+        let isDragging = false;
+        let startX = 0;
+
+        const onMouseDown = (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+            this.seekToPosition(e);
+        };
+
+        const onMouseUp = () => {
+            isDragging = false;
+        };
+
+        // 綁定到游標
+        this.playbackCursor.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        // 儲存事件處理器以便清理
+        this.timelineEventHandlers = { onMouseMove, onMouseUp };
+    }
+
+    /**
+     * 根據滑鼠位置跳轉到對應時間
+     */
+    seekToPosition(event) {
+        if (!this.timelineTrack || !this.videoElement) return;
+
+        const rect = this.timelineTrack.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const percentage = Math.max(0, Math.min(1, x / rect.width));
+        const duration = this.calculateTimelineDuration();
+        const targetTime = percentage * duration;
+
+        // 設定影片時間
+        this.videoElement.currentTime = targetTime;
+
+        // 立即更新游標位置
+        this.updatePlaybackCursor();
+    }
+
+    /**
+     * 更新播放游標位置
+     */
+    updatePlaybackCursor() {
+        if (!this.playbackCursor || !this.videoElement) return;
+
+        const duration = this.calculateTimelineDuration();
+        if (duration === 0) return;
+
+        const percentage = (this.videoElement.currentTime / duration) * 100;
+        this.playbackCursor.style.left = `${Math.min(100, Math.max(0, percentage))}%`;
+    }
+
+    /**
+     * 啟動播放循環更新（使用 requestAnimationFrame）
+     */
+    startPlaybackLoop() {
+        const loop = () => {
+            if (this.videoElement && !this.videoElement.paused) {
+                this.updatePlaybackCursor();
+                this.animationFrameId = requestAnimationFrame(loop);
+            }
+        };
+        loop();
+    }
+
+    /**
+     * 停止播放循環更新
+     */
+    stopPlaybackLoop() {
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
         }
     }
 
@@ -723,6 +996,16 @@ class VideoPreviewNode extends BaseNode {
             this.videoElement.currentTime = 0;
         }
 
+        // 停止播放循環
+        this.stopPlaybackLoop();
+
+        // 清理時間軸事件處理器
+        if (this.timelineEventHandlers) {
+            document.removeEventListener('mousemove', this.timelineEventHandlers.onMouseMove);
+            document.removeEventListener('mouseup', this.timelineEventHandlers.onMouseUp);
+            this.timelineEventHandlers = null;
+        }
+
         // 銷毀 WaveSurfer 實例（待實作）
         // TODO: Task 3.2 - 在此處銷毀所有 WaveSurfer 實例
 
@@ -737,6 +1020,9 @@ class VideoPreviewNode extends BaseNode {
         this.controlsContainer = null;
         this.currentTimeEl = null;
         this.totalTimeEl = null;
+        this.timelineContainer = null;
+        this.playbackCursor = null;
+        this.timelineTrack = null;
 
         // 解鎖節點圖
         const graphCanvas = document.querySelector('.graph-canvas');
