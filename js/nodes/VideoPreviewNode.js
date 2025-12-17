@@ -463,7 +463,7 @@ class VideoPreviewNode extends BaseNode {
         // 使用 renderTimeline() 渲染時間軸內容
         this.timelineContainer = timelineContainer;
 
-        // 建立音軌列表容器（占位）
+        // 建立音軌列表容器
         const tracksContainer = document.createElement('div');
         tracksContainer.className = 'video-preview-tracks';
         tracksContainer.style.cssText = `
@@ -472,11 +472,9 @@ class VideoPreviewNode extends BaseNode {
             background: var(--bg);
             border-radius: 4px;
             padding: var(--spacing-3);
-            text-align: center;
-            color: var(--text-muted);
-            font-size: var(--text-sm);
         `;
-        tracksContainer.textContent = '音軌列表容器（待實作）';
+        // 儲存參考以便後續更新
+        this.tracksContainer = tracksContainer;
 
         // 組裝 DOM 結構
         content.appendChild(videoContainer);
@@ -951,6 +949,189 @@ class VideoPreviewNode extends BaseNode {
     }
 
     /**
+     * 確保 tracks 參數陣列長度與音訊數量一致
+     */
+    ensureTracksArray(count) {
+        if (!this.data.tracks) {
+            this.data.tracks = [];
+        }
+
+        // 補齊新增的音軌（使用預設參數）
+        while (this.data.tracks.length < count) {
+            this.data.tracks.push({
+                offset: 0,       // 時間偏移（秒）
+                cropStart: 0,    // 裁切起始點（秒）
+                cropEnd: null    // 裁切結束點（null 表示音訊結尾）
+            });
+        }
+
+        // 移除多餘的音軌
+        if (this.data.tracks.length > count) {
+            this.data.tracks = this.data.tracks.slice(0, count);
+        }
+    }
+
+    /**
+     * 取得輸入音訊列表及其元資料
+     */
+    getInputAudioData() {
+        // 從輸入端口取得資料
+        const audioPort = this.getInputPort('audio');
+        if (!audioPort || !audioPort.connected) {
+            return [];
+        }
+
+        // 取得連接的節點
+        const sourceNode = audioPort.connectedTo?.node;
+        if (!sourceNode) {
+            return [];
+        }
+
+        // 嘗試從 lastOutputs 取得處理結果
+        const lastOutputs = sourceNode.lastOutputs;
+        if (!lastOutputs) {
+            return [];
+        }
+
+        // 根據不同的輸出格式處理
+        const audioData = [];
+
+        // 格式 1: {audioFiles: [...], filenames: [...]}
+        if (lastOutputs.audioFiles && Array.isArray(lastOutputs.audioFiles)) {
+            const filenames = lastOutputs.filenames || [];
+            for (let i = 0; i < lastOutputs.audioFiles.length; i++) {
+                audioData.push({
+                    buffer: lastOutputs.audioFiles[i],
+                    filename: filenames[i] || `音訊 ${i + 1}`
+                });
+            }
+        }
+        // 格式 2: {audio: AudioBuffer}
+        else if (lastOutputs.audio && lastOutputs.audio instanceof AudioBuffer) {
+            audioData.push({
+                buffer: lastOutputs.audio,
+                filename: sourceNode.data?.filename || '音訊 1'
+            });
+        }
+
+        return audioData;
+    }
+
+    /**
+     * 渲染音軌列表
+     */
+    renderTracks() {
+        if (!this.tracksContainer) return;
+
+        // 取得輸入音訊列表
+        const audioData = this.getInputAudioData();
+
+        // 確保 tracks 參數陣列長度一致
+        this.ensureTracksArray(audioData.length);
+
+        // 清空容器
+        this.tracksContainer.innerHTML = '';
+
+        // 處理無音訊輸入的情況（只顯示影片）
+        if (audioData.length === 0) {
+            this.tracksContainer.innerHTML = `
+                <div style="text-align: center; color: var(--text-muted); font-size: var(--text-sm); padding: var(--spacing-4);">
+                    無音訊輸入 - 僅預覽影片
+                </div>
+            `;
+            return;
+        }
+
+        // 計算時間軸的像素寬度（用於對齊）
+        const timelineDuration = this.calculateTimelineDuration();
+        const timelineWidth = this.timelineTrack ? this.timelineTrack.offsetWidth : 800;
+
+        // 為每個音訊建立音軌 DOM
+        audioData.forEach((audio, index) => {
+            const trackParams = this.data.tracks[index];
+            const buffer = audio.buffer;
+
+            // 建立音軌容器
+            const trackDiv = document.createElement('div');
+            trackDiv.className = 'video-preview-track';
+            trackDiv.style.cssText = `
+                margin-bottom: var(--spacing-3);
+                padding: var(--spacing-3);
+                background: var(--bg-dark);
+                border-radius: 4px;
+            `;
+
+            // 音軌標題（顯示檔案名）
+            const trackTitle = document.createElement('div');
+            trackTitle.className = 'track-title';
+            trackTitle.style.cssText = `
+                color: var(--text);
+                font-size: var(--text-sm);
+                font-weight: 500;
+                margin-bottom: var(--spacing-2);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            `;
+            trackTitle.innerHTML = `
+                <span>${this.escapeHtml(audio.filename)}</span>
+                <span style="color: var(--text-muted); font-size: var(--text-xs); font-family: monospace;">
+                    ${buffer.duration.toFixed(2)}s | ${buffer.sampleRate}Hz
+                </span>
+            `;
+
+            // 時間軸容器（與統一時間軸對齊）
+            const trackTimelineContainer = document.createElement('div');
+            trackTimelineContainer.className = 'track-timeline';
+            trackTimelineContainer.style.cssText = `
+                position: relative;
+                height: 60px;
+                background: var(--bg);
+                border-radius: 4px;
+                overflow: hidden;
+            `;
+
+            // 音訊區塊容器（占位，Task 3.2 將添加 WaveSurfer）
+            const audioBlockContainer = document.createElement('div');
+            audioBlockContainer.className = 'track-audio-block';
+            audioBlockContainer.style.cssText = `
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                height: 80%;
+                background: var(--primary);
+                opacity: 0.6;
+                border-radius: 2px;
+                cursor: move;
+            `;
+
+            // 計算音訊區塊的位置和寬度
+            const pixelsPerSecond = timelineWidth / (timelineDuration || 1);
+            const offsetPixels = trackParams.offset * pixelsPerSecond;
+            const audioDuration = buffer.duration;
+            const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : audioDuration;
+            const visibleDuration = cropEnd - trackParams.cropStart;
+            const widthPixels = visibleDuration * pixelsPerSecond;
+
+            audioBlockContainer.style.left = `${offsetPixels}px`;
+            audioBlockContainer.style.width = `${widthPixels}px`;
+
+            // 音訊區塊內容（顯示波形占位符）
+            audioBlockContainer.innerHTML = `
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--bg); font-size: var(--text-xs);">
+                    波形占位符
+                </div>
+            `;
+
+            // 組裝音軌 DOM
+            trackTimelineContainer.appendChild(audioBlockContainer);
+            trackDiv.appendChild(trackTitle);
+            trackDiv.appendChild(trackTimelineContainer);
+            this.tracksContainer.appendChild(trackDiv);
+        });
+    }
+
+    /**
      * 開啟編輯器
      */
     openEditor() {
@@ -971,6 +1152,13 @@ class VideoPreviewNode extends BaseNode {
             showToast('影片載入失敗', 'error');
             this.closeEditor();
         };
+
+        // 在影片載入 metadata 後渲染音軌
+        const onLoadedMetadata = () => {
+            this.renderTracks();
+            this.videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
+        };
+        this.videoElement.addEventListener('loadedmetadata', onLoadedMetadata);
 
         // 顯示模態視窗
         document.body.appendChild(modal);
@@ -1036,6 +1224,7 @@ class VideoPreviewNode extends BaseNode {
         this.timelineContainer = null;
         this.playbackCursor = null;
         this.timelineTrack = null;
+        this.tracksContainer = null;
 
         // 解鎖節點圖
         const graphCanvas = document.querySelector('.graph-canvas');
