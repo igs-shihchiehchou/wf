@@ -430,7 +430,7 @@ class VideoPreviewNode extends BaseNode {
         video.controls = false; // 使用自訂控制列
         videoContainer.appendChild(video);
 
-        // 建立播放控制列區域（占位）
+        // 建立播放控制列區域
         const controlsContainer = document.createElement('div');
         controlsContainer.className = 'video-preview-controls';
         controlsContainer.style.cssText = `
@@ -438,11 +438,12 @@ class VideoPreviewNode extends BaseNode {
             background: var(--bg);
             border-radius: 4px;
             margin-bottom: var(--spacing-4);
-            text-align: center;
-            color: var(--text-muted);
-            font-size: var(--text-sm);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-3);
         `;
-        controlsContainer.textContent = '播放控制列（待實作）';
+        // 使用 renderPlaybackControls() 渲染控制列內容
+        controlsContainer.innerHTML = this.renderPlaybackControls();
 
         // 建立時間軸區域（占位）
         const timelineContainer = document.createElement('div');
@@ -485,10 +486,17 @@ class VideoPreviewNode extends BaseNode {
         // 儲存元素參考
         this.videoElement = video;
         this.modalElement = overlay;
+        this.controlsContainer = controlsContainer;
 
         // 綁定關閉按鈕事件
         const closeBtn = titleBar.querySelector('.video-preview-close-btn');
         closeBtn.addEventListener('click', () => this.closeEditor());
+
+        // 綁定播放控制列事件
+        this.bindPlaybackControlsEvents();
+
+        // 綁定 video 元素事件
+        this.bindVideoEvents();
 
         // 綁定遮罩點擊關閉（可選）
         overlay.addEventListener('click', (e) => {
@@ -508,6 +516,160 @@ class VideoPreviewNode extends BaseNode {
         });
 
         return overlay;
+    }
+
+    /**
+     * 格式化時間為 MM:SS.mmm 格式
+     */
+    formatTime(seconds) {
+        if (isNaN(seconds) || seconds < 0) {
+            return '00:00.000';
+        }
+
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        const milliseconds = Math.floor((seconds % 1) * 1000);
+
+        const mm = String(minutes).padStart(2, '0');
+        const ss = String(secs).padStart(2, '0');
+        const mmm = String(milliseconds).padStart(3, '0');
+
+        return `${mm}:${ss}.${mmm}`;
+    }
+
+    /**
+     * 渲染播放控制列內容
+     */
+    renderPlaybackControls() {
+        return `
+            <button class="video-playback-btn" style="
+                background: var(--primary);
+                color: var(--bg);
+                border: none;
+                border-radius: 4px;
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.2s;
+            " title="播放/暫停">▶</button>
+            <div style="display: flex; align-items: center; gap: var(--spacing-2); color: var(--text); font-family: monospace; font-size: var(--text-sm);">
+                <span class="video-current-time">00:00.000</span>
+                <span style="color: var(--text-muted);">/</span>
+                <span class="video-total-time">00:00.000</span>
+            </div>
+        `;
+    }
+
+    /**
+     * 綁定播放控制列事件
+     */
+    bindPlaybackControlsEvents() {
+        if (!this.controlsContainer) return;
+
+        const playbackBtn = this.controlsContainer.querySelector('.video-playback-btn');
+        if (playbackBtn) {
+            playbackBtn.addEventListener('click', () => this.togglePlayback());
+
+            // hover 效果
+            playbackBtn.addEventListener('mouseenter', () => {
+                playbackBtn.style.background = 'hsl(56 38% 65%)'; // Lighter shade of primary
+            });
+            playbackBtn.addEventListener('mouseleave', () => {
+                playbackBtn.style.background = 'var(--primary)';
+            });
+        }
+    }
+
+    /**
+     * 綁定 video 元素事件
+     */
+    bindVideoEvents() {
+        if (!this.videoElement) return;
+
+        // timeupdate：更新時間顯示
+        this.videoElement.addEventListener('timeupdate', () => {
+            this.updateTimeDisplay();
+        });
+
+        // loadedmetadata：影片載入完成後更新總時長
+        this.videoElement.addEventListener('loadedmetadata', () => {
+            this.updateTotalTimeDisplay();
+        });
+
+        // play：更新按鈕為暫停圖示
+        this.videoElement.addEventListener('play', () => {
+            this.updatePlaybackButton(true);
+        });
+
+        // pause：更新按鈕為播放圖示
+        this.videoElement.addEventListener('pause', () => {
+            this.updatePlaybackButton(false);
+        });
+
+        // ended：處理播放結束
+        this.videoElement.addEventListener('ended', () => {
+            this.updatePlaybackButton(false);
+            // TODO: Task 4.2 - 處理音訊繼續播放
+        });
+    }
+
+    /**
+     * 更新時間顯示
+     */
+    updateTimeDisplay() {
+        if (!this.videoElement || !this.controlsContainer) return;
+
+        const currentTimeEl = this.controlsContainer.querySelector('.video-current-time');
+        if (currentTimeEl) {
+            currentTimeEl.textContent = this.formatTime(this.videoElement.currentTime);
+        }
+    }
+
+    /**
+     * 更新總時長顯示
+     */
+    updateTotalTimeDisplay() {
+        if (!this.videoElement || !this.controlsContainer) return;
+
+        const totalTimeEl = this.controlsContainer.querySelector('.video-total-time');
+        if (totalTimeEl) {
+            totalTimeEl.textContent = this.formatTime(this.videoElement.duration);
+        }
+    }
+
+    /**
+     * 更新播放/暫停按鈕圖示
+     */
+    updatePlaybackButton(isPlaying) {
+        if (!this.controlsContainer) return;
+
+        const playbackBtn = this.controlsContainer.querySelector('.video-playback-btn');
+        if (playbackBtn) {
+            playbackBtn.textContent = isPlaying ? '⏸' : '▶';
+            playbackBtn.title = isPlaying ? '暫停' : '播放';
+        }
+    }
+
+    /**
+     * 切換播放/暫停
+     */
+    togglePlayback() {
+        if (!this.videoElement) return;
+
+        if (this.videoElement.paused) {
+            // 播放
+            this.videoElement.play().catch(error => {
+                console.error('播放失敗:', error);
+                showToast('播放失敗', 'error');
+            });
+        } else {
+            // 暫停
+            this.videoElement.pause();
+        }
     }
 
     /**
@@ -574,6 +736,7 @@ class VideoPreviewNode extends BaseNode {
         // 清理參考
         this.modalElement = null;
         this.videoElement = null;
+        this.controlsContainer = null;
 
         // 解鎖節點圖
         const graphCanvas = document.querySelector('.graph-canvas');
