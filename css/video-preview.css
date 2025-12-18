@@ -169,6 +169,7 @@
     background: var(--bg);
     border-radius: 4px;
     margin-bottom: var(--spacing-4);
+    position: relative;
 }
 
 /* 時間刻度 */
@@ -245,6 +246,17 @@
     background: hsl(56 38% 65%);
     width: 14px;
     height: 14px;
+}
+
+/* 延伸播放線（貫穿所有音軌） */
+.timeline-playback-line {
+    position: fixed;
+    width: 2px;
+    background: var(--primary);
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 5;
+    transition: left 0.05s linear;
 }
 
 /* 音軌列表容器 */
