@@ -29,6 +29,46 @@ class VideoPreviewNode extends BaseNode {
         // 音訊播放引擎屬性 (Task 4.1)
         this.audioContext = null;
         this.sourceNodes = []; // 儲存當前播放的 SourceNodes 以便停止
+
+        // 註冊節點刪除時的清理回調
+        this.onDelete = () => {
+            this.cleanup();
+        };
+    }
+
+    /**
+     * 清理資源（節點刪除時調用）
+     */
+    cleanup() {
+        // 如果編輯器開啟中，先關閉
+        if (this.modalElement) {
+            this.closeEditor();
+        }
+
+        // 停止所有音訊播放
+        this.stopAudio();
+
+        // 釋放 Blob URL
+        if (this.data.videoUrl) {
+            URL.revokeObjectURL(this.data.videoUrl);
+            this.data.videoUrl = null;
+        }
+
+        // 關閉 AudioContext（如果存在）
+        if (this.audioContext && this.audioContext.state !== 'closed') {
+            try {
+                this.audioContext.close();
+            } catch (e) {
+                console.warn('關閉 AudioContext 失敗:', e);
+            }
+            this.audioContext = null;
+        }
+
+        // 清理數據
+        this.data.videoFile = null;
+        this.data.videoThumbnail = null;
+        this.trackWaveSurfers = [];
+        this.sourceNodes = [];
     }
 
     setupPorts() {
@@ -55,11 +95,12 @@ class VideoPreviewNode extends BaseNode {
         const hasInput = this.hasInputConnection();
         const hasVideo = this.data.videoUrl && this.data.videoFile;
 
-        // State A: 無輸入 + 無影片 → 顯示「等待輸入」
+        // State A: 無輸入 + 無影片 → 顯示影片上傳介面
         if (!hasInput && !hasVideo) {
             return `
-                <div class="node-placeholder" style="padding: var(--spacing-3); text-align: center;">
-                    <span style="color: var(--text-muted); font-size: var(--text-sm);">等待音訊輸入...</span>
+                <button class="node-btn node-btn-primary" data-action="select-video">選擇影片檔案</button>
+                <div class="node-drop-hint" style="text-align: center; color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--spacing-2);">
+                    或拖拉影片至此
                 </div>
                 <button class="node-btn" data-action="open-editor" disabled style="margin-top: var(--spacing-2);">開啟編輯器</button>
             `;
@@ -603,51 +644,63 @@ class VideoPreviewNode extends BaseNode {
         this.currentTimeEl = this.controlsContainer.querySelector('.video-current-time');
         this.totalTimeEl = this.controlsContainer.querySelector('.video-total-time');
 
-        // timeupdate：更新時間顯示
-        this.videoElement.addEventListener('timeupdate', () => {
-            this.updateTimeDisplay();
-        });
-
-        // loadedmetadata：影片載入完成後更新總時長並渲染時間軸
-        this.videoElement.addEventListener('loadedmetadata', () => {
-            this.updateTotalTimeDisplay();
-            this.renderTimeline();
-        });
-
-        // play：更新按鈕為暫停圖示，啟動播放循環，播放音訊
-        this.videoElement.addEventListener('play', () => {
-            this.updatePlaybackButton(true);
-            this.startPlaybackLoop();
-            this.playAudio(this.videoElement.currentTime);
-        });
-
-        // pause：更新按鈕為播放圖示，停止播放循環，停止音訊
-        this.videoElement.addEventListener('pause', () => {
-            this.updatePlaybackButton(false);
-            this.stopPlaybackLoop();
-            this.stopAudio();
-        });
-
-        // ended：處理播放結束
-        this.videoElement.addEventListener('ended', () => {
-            this.updatePlaybackButton(false);
-            this.stopPlaybackLoop();
-            this.stopAudio();
-        });
-
-        // seeking：跳轉時停止音訊
-        this.videoElement.addEventListener('seeking', () => {
-            this.updatePlaybackCursor();
-            this.stopAudio();
-        });
-
-        // seeked：跳轉完成時，若為播放狀態則恢復音訊
-        this.videoElement.addEventListener('seeked', () => {
-            this.updatePlaybackCursor();
-            if (!this.videoElement.paused) {
+        // 保存事件處理器引用以便後續移除
+        this.videoEventHandlers = {
+            timeupdate: () => {
+                if (!this.videoElement) return;
+                this.updateTimeDisplay();
+            },
+            loadedmetadata: () => {
+                if (!this.videoElement) return;
+                this.updateTotalTimeDisplay();
+                this.renderTimeline();
+            },
+            play: () => {
+                if (!this.videoElement) return;
+                this.updatePlaybackButton(true);
+            },
+            playing: () => {
+                if (!this.videoElement) return;
+                // 影片實際開始播放時才啟動同步
+                this.updatePlaybackCursor();
+                this.startPlaybackLoop();
                 this.playAudio(this.videoElement.currentTime);
+            },
+            pause: () => {
+                if (!this.videoElement) return;
+                this.updatePlaybackButton(false);
+                this.stopPlaybackLoop();
+                this.stopAudio();
+            },
+            ended: () => {
+                if (!this.videoElement) return;
+                this.updatePlaybackButton(false);
+                this.stopPlaybackLoop();
+                this.stopAudio();
+            },
+            seeking: () => {
+                if (!this.videoElement) return;
+                this.updatePlaybackCursor();
+                this.stopAudio();
+            },
+            seeked: () => {
+                if (!this.videoElement) return;
+                this.updatePlaybackCursor();
+                if (!this.videoElement.paused) {
+                    this.playAudio(this.videoElement.currentTime);
+                }
             }
-        });
+        };
+
+        // 綁定所有事件
+        this.videoElement.addEventListener('timeupdate', this.videoEventHandlers.timeupdate);
+        this.videoElement.addEventListener('loadedmetadata', this.videoEventHandlers.loadedmetadata);
+        this.videoElement.addEventListener('play', this.videoEventHandlers.play);
+        this.videoElement.addEventListener('playing', this.videoEventHandlers.playing);
+        this.videoElement.addEventListener('pause', this.videoEventHandlers.pause);
+        this.videoElement.addEventListener('ended', this.videoEventHandlers.ended);
+        this.videoElement.addEventListener('seeking', this.videoEventHandlers.seeking);
+        this.videoElement.addEventListener('seeked', this.videoEventHandlers.seeked);
     }
 
     /**
@@ -817,9 +870,15 @@ class VideoPreviewNode extends BaseNode {
 
         track.appendChild(cursor);
 
+        // 建立延伸播放線（貫穿所有音軌）
+        const playbackLine = document.createElement('div');
+        playbackLine.className = 'timeline-playback-line';
+        this.modalElement.appendChild(playbackLine);
+
         // 儲存參考
         this.timelineTrack = track;
         this.playbackCursor = cursor;
+        this.playbackLine = playbackLine;
 
         // 組裝時間軸
         this.timelineContainer.appendChild(scaleContainer);
@@ -827,6 +886,9 @@ class VideoPreviewNode extends BaseNode {
 
         // 綁定時間軸事件
         this.bindTimelineEvents();
+
+        // 初始化播放線位置
+        this.updatePlaybackLine();
     }
 
     /**
@@ -936,6 +998,36 @@ class VideoPreviewNode extends BaseNode {
 
         const percentage = (this.videoElement.currentTime / duration) * 100;
         this.playbackCursor.style.left = `${Math.min(100, Math.max(0, percentage))}%`;
+
+        // 同時更新延伸播放線
+        this.updatePlaybackLine();
+    }
+
+    /**
+     * 更新延伸播放線位置（貫穿所有音軌）
+     */
+    updatePlaybackLine() {
+        if (!this.playbackLine || !this.timelineTrack || !this.tracksContainer) return;
+
+        const trackRect = this.timelineTrack.getBoundingClientRect();
+        const tracksRect = this.tracksContainer.getBoundingClientRect();
+
+        // 計算左側位置（與游標同步）
+        const duration = this.calculateTimelineDuration();
+        if (duration === 0) return;
+
+        const percentage = this.videoElement ? (this.videoElement.currentTime / duration) : 0;
+        const leftPosition = trackRect.left + (trackRect.width * percentage);
+
+        // 計算垂直範圍（從時間軸軌道頂部到音軌容器底部）
+        const top = trackRect.top;
+        const bottom = tracksRect.bottom;
+        const height = bottom - top;
+
+        // 更新播放線位置和尺寸
+        this.playbackLine.style.left = `${leftPosition}px`;
+        this.playbackLine.style.top = `${top}px`;
+        this.playbackLine.style.height = `${height}px`;
     }
 
     /**
@@ -1078,9 +1170,10 @@ class VideoPreviewNode extends BaseNode {
         // 補齊新增的音軌（使用預設參數）
         while (this.data.tracks.length < count) {
             this.data.tracks.push({
-                offset: 0,       // 時間偏移（秒）
-                cropStart: 0,    // 裁切起始點（秒）
-                cropEnd: null    // 裁切結束點（null 表示音訊結尾）
+                offset: 0,         // 時間偏移（秒）
+                cropStart: 0,      // 裁切起始點（秒）
+                cropEnd: null,     // 裁切結束點（null 表示音訊結尾）
+                stretchFactor: 1.0 // 時間伸縮係數（1.0 = 原速，>1.0 = 變慢/拉長，<1.0 = 變快/壓縮）
             });
         }
 
@@ -1245,14 +1338,39 @@ class VideoPreviewNode extends BaseNode {
                 justify-content: space-between;
                 align-items: center;
             `;
+            const stretchFactor = trackParams.stretchFactor || 1.0;
+            const stretchedDuration = ((trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration) - (trackParams.cropStart || 0)) * stretchFactor;
+
             trackTitle.innerHTML = `
-                <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <div style="display:flex; justify-content:space-between; width:100%; align-items:center; gap: var(--spacing-2);">
                     <span>${this.escapeHtml(audio.filename)}</span>
-                    <span class="track-time-info" style="color: var(--text-muted); font-size: var(--text-xs); font-family: monospace;">
-                        Start: ${(trackParams.offset + (trackParams.cropStart || 0)).toFixed(2)}s | 
-                        End: ${(trackParams.offset + (trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration)).toFixed(2)}s | 
-                        Dur: ${((trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration) - (trackParams.cropStart || 0)).toFixed(2)}s
-                    </span>
+                    <div style="display: flex; align-items: center; gap: var(--spacing-2);">
+                        <span class="track-time-info" style="color: var(--text-muted); font-size: var(--text-xs); font-family: monospace;">
+                            Dur: ${stretchedDuration.toFixed(2)}s
+                            ${stretchFactor !== 1.0 ? `(${stretchFactor.toFixed(2)}x)` : ''}
+                        </span>
+                        <button class="track-stretch-btn" data-track-index="${index}" style="
+                            background: ${trackParams.stretchMode ? 'var(--primary)' : 'var(--bg)'};
+                            color: ${trackParams.stretchMode ? 'var(--bg)' : 'var(--text)'};
+                            border: 1px solid var(--border);
+                            border-radius: 4px;
+                            padding: 2px 8px;
+                            font-size: var(--text-xs);
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        " title="切換時長調整模式">⇔</button>
+                        <button class="track-reset-stretch-btn" data-track-index="${index}" style="
+                            background: var(--bg);
+                            color: var(--text);
+                            border: 1px solid var(--border);
+                            border-radius: 4px;
+                            padding: 2px 8px;
+                            font-size: var(--text-xs);
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            ${stretchFactor === 1.0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}
+                        " title="重置時長" ${stretchFactor === 1.0 ? 'disabled' : ''}>↺</button>
+                    </div>
                 </div>
             `;
 
@@ -1346,6 +1464,12 @@ class VideoPreviewNode extends BaseNode {
             audioBlockContainer.appendChild(startCurtain);
             audioBlockContainer.appendChild(endCurtain);
 
+            // 添加時長伸縮把手（當伸縮模式啟用時）
+            if (trackParams.stretchMode) {
+                const stretchHandle = this.createStretchHandle(index, audioBlockContainer, trackTitle, pixelsPerSecond, buffer.duration);
+                audioBlockContainer.appendChild(stretchHandle);
+            }
+
             // 綁定拖曳與裁切事件 (Task 3.4)
             // 傳入遮罩元素以便更新
             // Task 4.4: 傳入 trackTitle 以便更新時間顯示
@@ -1356,6 +1480,59 @@ class VideoPreviewNode extends BaseNode {
             trackDiv.appendChild(trackTitle);
             trackDiv.appendChild(trackTimelineContainer);
             this.tracksContainer.appendChild(trackDiv);
+
+            // 綁定時長調整按鈕事件
+            const stretchBtn = trackDiv.querySelector('.track-stretch-btn');
+            const resetBtn = trackDiv.querySelector('.track-reset-stretch-btn');
+
+            if (stretchBtn) {
+                stretchBtn.addEventListener('click', () => {
+                    // 切換伸縮模式
+                    trackParams.stretchMode = !trackParams.stretchMode;
+                    showToast(trackParams.stretchMode ? '時長調整模式已啟用' : '時長調整模式已關閉', 'info');
+
+                    // 優化：只更新按鈕樣式，不重新渲染整個列表
+                    stretchBtn.style.background = trackParams.stretchMode ? 'var(--primary)' : 'var(--bg)';
+                    stretchBtn.style.color = trackParams.stretchMode ? 'var(--bg)' : 'var(--text)';
+
+                    // 如果啟用伸縮模式，添加伸縮把手；否則移除
+                    const existingHandle = audioBlockContainer.querySelector('.track-stretch-handle');
+                    if (trackParams.stretchMode && !existingHandle) {
+                        const stretchHandle = this.createStretchHandle(index, audioBlockContainer, trackTitle, pixelsPerSecond, buffer.duration);
+                        audioBlockContainer.appendChild(stretchHandle);
+                    } else if (!trackParams.stretchMode && existingHandle) {
+                        existingHandle.remove();
+                    }
+                });
+            }
+
+            if (resetBtn) {
+                resetBtn.addEventListener('click', () => {
+                    if (trackParams.stretchFactor !== 1.0) {
+                        trackParams.stretchFactor = 1.0;
+                        this.setData('tracks', this.data.tracks);
+                        showToast('時長已重置', 'success');
+
+                        // 優化：只更新這一個音軌的寬度和顯示，不重新渲染整個列表
+                        const originalWidth = buffer.duration * pixelsPerSecond;
+                        audioBlockContainer.style.width = `${originalWidth}px`;
+
+                        // 更新時間顯示
+                        const timeInfo = trackTitle.querySelector('.track-time-info');
+                        if (timeInfo) {
+                            const cropStart = trackParams.cropStart || 0;
+                            const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration;
+                            const duration = cropEnd - cropStart;
+                            timeInfo.textContent = `Dur: ${duration.toFixed(2)}s`;
+                        }
+
+                        // 更新重置按鈕狀態
+                        resetBtn.style.opacity = '0.5';
+                        resetBtn.style.cursor = 'not-allowed';
+                        resetBtn.disabled = true;
+                    }
+                });
+            }
         });
 
         // 延遲初始化 WaveSurfer 以確保 DOM 已渲染
@@ -1613,6 +1790,118 @@ class VideoPreviewNode extends BaseNode {
         element.addEventListener('mousedown', onMouseDown);
     }
 
+    /**
+     * 建立伸縮把手元素
+     */
+    createStretchHandle(trackIndex, audioBlock, trackTitle, pixelsPerSecond, originalDuration) {
+        const stretchHandle = document.createElement('div');
+        stretchHandle.className = 'track-stretch-handle';
+        stretchHandle.style.cssText = `
+            position: absolute;
+            right: -6px;
+            top: 0;
+            bottom: 0;
+            width: 12px;
+            background: var(--primary);
+            cursor: ew-resize;
+            z-index: 20;
+            opacity: 0.9;
+            border-radius: 2px;
+            transition: opacity 0.2s;
+        `;
+        stretchHandle.title = '拖曳以調整時長';
+
+        stretchHandle.addEventListener('mouseenter', () => {
+            stretchHandle.style.opacity = '1';
+        });
+        stretchHandle.addEventListener('mouseleave', () => {
+            stretchHandle.style.opacity = '0.9';
+        });
+
+        // 綁定伸縮拖曳事件
+        this.bindStretchDragEvents(stretchHandle, trackIndex, audioBlock, trackTitle, pixelsPerSecond, originalDuration);
+
+        return stretchHandle;
+    }
+
+    /**
+     * 綁定時長伸縮拖曳事件
+     */
+    bindStretchDragEvents(handle, trackIndex, audioBlock, trackTitle, pixelsPerSecond, originalDuration) {
+        let isDragging = false;
+        let startX = 0;
+        let startStretchFactor = 1.0;
+        let startWidth = 0;
+
+        const updateStretchDisplay = () => {
+            const timeInfo = trackTitle.querySelector('.track-time-info');
+            if (timeInfo) {
+                const trackParams = this.data.tracks[trackIndex];
+                const stretchFactor = trackParams.stretchFactor || 1.0;
+                const cropStart = trackParams.cropStart || 0;
+                const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : originalDuration;
+                const stretchedDuration = (cropEnd - cropStart) * stretchFactor;
+
+                timeInfo.textContent = `Dur: ${stretchedDuration.toFixed(2)}s ${stretchFactor !== 1.0 ? `(${stretchFactor.toFixed(2)}x)` : ''}`;
+            }
+        };
+
+        const onMouseDown = (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startStretchFactor = this.data.tracks[trackIndex].stretchFactor || 1.0;
+
+            // 獲取當前音訊區塊的寬度
+            const rect = audioBlock.getBoundingClientRect();
+            startWidth = rect.width;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        };
+
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+
+            const deltaX = e.clientX - startX;
+            const originalWidth = originalDuration * pixelsPerSecond;
+
+            // 計算新的伸縮係數
+            // 原始寬度 * startStretchFactor + deltaX = 原始寬度 * newStretchFactor
+            const newStretchFactor = startStretchFactor + (deltaX / originalWidth);
+
+            // 限制伸縮範圍（0.25x ~ 4.0x）
+            const clampedStretchFactor = Math.max(0.25, Math.min(4.0, newStretchFactor));
+
+            // 更新數據
+            this.data.tracks[trackIndex].stretchFactor = clampedStretchFactor;
+
+            // 更新視覺寬度
+            const newWidth = originalWidth * clampedStretchFactor;
+            audioBlock.style.width = `${newWidth}px`;
+
+            // 更新顯示
+            updateStretchDisplay();
+        };
+
+        const onMouseUp = () => {
+            if (!isDragging) return;
+            isDragging = false;
+
+            // 保存數據
+            this.setData('tracks', this.data.tracks);
+
+            showToast(`時長已調整為 ${this.data.tracks[trackIndex].stretchFactor.toFixed(2)}x`, 'success');
+
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        handle.addEventListener('mousedown', onMouseDown);
+    }
+
     updateTooltip(tooltip, mode, track) {
         if (mode === 'move') {
             tooltip.textContent = `Offset: ${track.offset.toFixed(3)}s`;
@@ -1672,11 +1961,23 @@ class VideoPreviewNode extends BaseNode {
             graphCanvas.style.opacity = '0.5';
         }
 
-        // 添加 ESC 鍵關閉功能
+        // 添加鍵盤事件處理（ESC 關閉，阻止其他快捷鍵）
         this.handleKeyDown = (e) => {
-            if (e.key === 'Escape') this.closeEditor();
+            if (e.key === 'Escape') {
+                this.closeEditor();
+                return;
+            }
+
+            // 阻止空白鍵和其他圖形快捷鍵在模態視窗開啟時觸發
+            if (e.code === 'Space' || e.key === 'f' || e.key === 'F' ||
+                e.key === 'Delete' || e.key === 'Home' ||
+                e.key === '+' || e.key === '-' ||
+                (e.ctrlKey && (e.key === 's' || e.key === 'S' || e.key === 'o' || e.key === 'O'))) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
         };
-        document.addEventListener('keydown', this.handleKeyDown);
+        document.addEventListener('keydown', this.handleKeyDown, true); // 使用捕獲階段
 
         showToast('編輯器已開啟', 'info');
     }
@@ -1693,6 +1994,19 @@ class VideoPreviewNode extends BaseNode {
 
         // 停止播放循環
         this.stopPlaybackLoop();
+
+        // 清理影片事件處理器
+        if (this.videoEventHandlers && this.videoElement) {
+            this.videoElement.removeEventListener('timeupdate', this.videoEventHandlers.timeupdate);
+            this.videoElement.removeEventListener('loadedmetadata', this.videoEventHandlers.loadedmetadata);
+            this.videoElement.removeEventListener('play', this.videoEventHandlers.play);
+            this.videoElement.removeEventListener('playing', this.videoEventHandlers.playing);
+            this.videoElement.removeEventListener('pause', this.videoEventHandlers.pause);
+            this.videoElement.removeEventListener('ended', this.videoEventHandlers.ended);
+            this.videoElement.removeEventListener('seeking', this.videoEventHandlers.seeking);
+            this.videoElement.removeEventListener('seeked', this.videoEventHandlers.seeked);
+            this.videoEventHandlers = null;
+        }
 
         // 清理時間軸事件處理器
         if (this.timelineEventHandlers) {
@@ -1722,6 +2036,11 @@ class VideoPreviewNode extends BaseNode {
             this.trackWaveSurfers = [];
         }
 
+        // 移除延伸播放線
+        if (this.playbackLine && this.playbackLine.parentNode) {
+            this.playbackLine.parentNode.removeChild(this.playbackLine);
+        }
+
         // 移除模態 DOM
         if (this.modalElement && this.modalElement.parentNode) {
             this.modalElement.parentNode.removeChild(this.modalElement);
@@ -1735,6 +2054,7 @@ class VideoPreviewNode extends BaseNode {
         this.totalTimeEl = null;
         this.timelineContainer = null;
         this.playbackCursor = null;
+        this.playbackLine = null;
         this.timelineTrack = null;
         this.tracksContainer = null;
 
@@ -1746,9 +2066,9 @@ class VideoPreviewNode extends BaseNode {
             graphCanvas.style.opacity = '';
         }
 
-        // 移除 ESC 鍵監聽器
+        // 移除鍵盤事件監聽器
         if (this.handleKeyDown) {
-            document.removeEventListener('keydown', this.handleKeyDown);
+            document.removeEventListener('keydown', this.handleKeyDown, true);
             this.handleKeyDown = null;
         }
 
@@ -1823,12 +2143,41 @@ class VideoPreviewNode extends BaseNode {
             const trackParams = this.data.tracks[i];
             let processedBuffer = audioItem.buffer;
 
+            // 驗證 AudioBuffer
+            if (!processedBuffer || !(processedBuffer instanceof AudioBuffer)) {
+                console.warn(`音訊 ${i} 無效，跳過處理`);
+                showToast(`音訊 "${audioItem.filename}" 無效`, 'warning');
+                continue;
+            }
+
+            // 驗證 AudioBuffer 不為空
+            if (processedBuffer.length === 0 || processedBuffer.duration === 0) {
+                console.warn(`音訊 ${i} 為空，跳過處理`);
+                showToast(`音訊 "${audioItem.filename}" 為空`, 'warning');
+                continue;
+            }
+
             try {
                 // 步驟 1：裁切（cropStart, cropEnd）
-                const cropStart = trackParams.cropStart || 0;
-                const cropEnd = trackParams.cropEnd !== null && trackParams.cropEnd !== undefined
+                let cropStart = trackParams.cropStart || 0;
+                let cropEnd = trackParams.cropEnd !== null && trackParams.cropEnd !== undefined
                     ? trackParams.cropEnd
                     : processedBuffer.duration;
+
+                // 驗證並修正裁切參數
+                if (cropStart < 0) {
+                    console.warn(`音訊 ${i}: cropStart < 0，已修正為 0`);
+                    cropStart = 0;
+                }
+                if (cropEnd > processedBuffer.duration) {
+                    console.warn(`音訊 ${i}: cropEnd 超出音訊長度，已修正為 ${processedBuffer.duration}`);
+                    cropEnd = processedBuffer.duration;
+                }
+                if (cropStart >= cropEnd) {
+                    console.warn(`音訊 ${i}: cropStart >= cropEnd，跳過裁切`);
+                    cropStart = 0;
+                    cropEnd = processedBuffer.duration;
+                }
 
                 if (cropStart > 0 || cropEnd < processedBuffer.duration) {
                     processedBuffer = audioProcessor.cropAudio(processedBuffer, cropStart, cropEnd);
@@ -1838,6 +2187,24 @@ class VideoPreviewNode extends BaseNode {
                 const offset = trackParams.offset || 0;
                 if (offset !== 0) {
                     processedBuffer = this.applyTimeOffset(processedBuffer, offset);
+                }
+
+                // 步驟 3：應用時間伸縮（stretchFactor）
+                let stretchFactor = trackParams.stretchFactor || 1.0;
+
+                // 驗證並修正伸縮係數（範圍 0.25x ~ 4.0x）
+                if (stretchFactor < 0.25 || stretchFactor > 4.0) {
+                    console.warn(`音訊 ${i}: stretchFactor 超出範圍 (${stretchFactor})，已限制在 0.25-4.0`);
+                    stretchFactor = Math.max(0.25, Math.min(4.0, stretchFactor));
+                }
+
+                if (stretchFactor !== 1.0) {
+                    // 使用播放速率變更來實現時間伸縮
+                    // 注意：這會同時改變音高
+                    // stretchFactor > 1.0: 變慢 -> playbackRate < 1.0
+                    // stretchFactor < 1.0: 變快 -> playbackRate > 1.0
+                    const playbackRate = 1.0 / stretchFactor;
+                    processedBuffer = audioProcessor.changePlaybackRate(processedBuffer, playbackRate);
                 }
 
                 processedAudioFiles.push(processedBuffer);
