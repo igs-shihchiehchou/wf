@@ -29,7 +29,7 @@
 
 **子任務**：
 - [x] 建立 VideoPreviewNode 類別，繼承 BaseNode
-- [x] 設定節點類型、標題、圖示（🎬）
+- [x] 設定節點類型、標題、圖示（▣）
 - [x] 定義資料結構（videoFile, videoUrl, tracks）
 - [x] 實作 setupPorts() - 建立 audio 輸入端口和輸出端口
 - [x] 實作 getNodeCategory() - 返回 'process'
@@ -576,7 +576,7 @@
   {
     type: 'video-preview',
     label: '影片預覽',
-    icon: '🎬',
+    icon: '▣',
     description: '使用影片作為參考編輯音訊時間軸'
   }
   ```
@@ -747,7 +747,7 @@
 **子任務**：
 - [ ] 在節點類型表格中添加 video-preview
   - [ ] 類型：video-preview
-  - [ ] 圖示：🎬
+  - [ ] 圖示：▣
   - [ ] 描述：使用影片作為參考編輯音訊時間軸
 - [ ] 更新模組結構（如果需要）
 - [ ] 添加使用說明（可選）

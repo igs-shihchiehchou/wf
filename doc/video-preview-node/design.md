@@ -21,7 +21,7 @@ VideoPreviewNode（影片預覽節點）是一個中間處理節點，允許使�
 
 - **類型**：Process Node（中間處理節點）
 - **繼承**：BaseNode
-- **圖示**：🎬 或 📹
+- **圖示**：▣ 或 📹
 - **標題**：影片預覽
 
 ### 核心流程
@@ -54,7 +54,7 @@ VideoPreviewNode（影片預覽節點）是一個中間處理節點，允許使�
 ```javascript
 class VideoPreviewNode extends BaseNode {
   constructor(id, options = {}) {
-    super(id, 'video-preview', '影片預覽', '🎬', options, {
+    super(id, 'video-preview', '影片預覽', '▣', options, {
       videoFile: null,    // File 物件（運行時，不序列化）
       videoUrl: null,     // Blob URL（運行時）
       tracks: []          // 音軌編輯參數（會序列化）

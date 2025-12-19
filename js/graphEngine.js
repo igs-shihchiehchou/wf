@@ -661,7 +661,7 @@ class GraphEngine {
         <span>新增柔化</span>
       </div>
       <div class="context-menu-item" data-action="add-video-preview">
-        <span class="context-menu-icon">🎬</span>
+        <span class="context-menu-icon">▣</span>
         <span>新增影片預覽</span>
       </div>
       <div class="context-menu-divider"></div>
@@ -777,7 +777,7 @@ class GraphEngine {
         const isOutputPort = sourcePort.type === 'output';
 
         // 需要先補充 video-preview 的資訊
-        nodeTypeMap['add-video-preview'] = { type: 'video-preview', icon: '🎬', label: '影片預覽', hasInput: true, hasOutput: true };
+        nodeTypeMap['add-video-preview'] = { type: 'video-preview', icon: '▣', label: '影片預覽', hasInput: true, hasOutput: true };
 
         for (const [action, info] of Object.entries(nodeTypeMap)) {
             // 如果是從輸出端口拖出，只顯示有輸入端口的節點
