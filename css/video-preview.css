@@ -290,10 +290,8 @@
 /* 音軌區域 */
 .video-preview-track {
     margin-bottom: var(--spacing-3);
-    padding: var(--spacing-3);
     background: var(--bg-dark);
     border-radius: 4px;
-    border: 1px solid var(--border-muted);
 }
 
 .video-preview-track:last-child {
@@ -317,7 +315,7 @@
     font-family: var(--font-mono);
 }
 
-/* 時間軸容器 */
+/* 時間軸容器（不再獨立滾動，由父容器統一處理） */
 .track-timeline {
     position: relative;
     height: 60px;

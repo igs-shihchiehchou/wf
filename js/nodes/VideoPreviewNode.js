@@ -30,6 +30,10 @@ class VideoPreviewNode extends BaseNode {
         this.audioContext = null;
         this.sourceNodes = []; // 儲存當前播放的 SourceNodes 以便停止
 
+        // 縮放相關屬性
+        this.zoomLevel = 1.0;     // 縮放倍數 (1.0 = 100%, 2.0 = 200% 放大)
+        this.viewOffset = 0;      // 視窗偏移 (秒)
+
         // 註冊節點刪除時的清理回調
         this.onDelete = () => {
             this.cleanup();
@@ -499,36 +503,71 @@ class VideoPreviewNode extends BaseNode {
         // 使用 renderPlaybackControls() 渲染控制列內容
         controlsContainer.innerHTML = this.renderPlaybackControls();
 
-        // 建立時間軸區域
+        // 建立視窗信息欄（獨立容器，不受滾動影響）
+        const viewInfoContainer = document.createElement('div');
+        viewInfoContainer.id = 'timeline-view-info';
+        viewInfoContainer.className = 'timeline-view-info';
+        viewInfoContainer.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-2) var(--spacing-3);
+            background: var(--bg-dark);
+            border-radius: 4px;
+            margin-bottom: var(--spacing-2);
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            font-family: monospace;
+        `;
+        viewInfoContainer.innerHTML = `
+            <span id="view-time-range">View: 0.00s - 0.00s</span>
+            <span id="view-zoom-level">Zoom: 100%</span>
+        `;
+
+        // 建立時間軸區域（不再獨立滾動）
         const timelineContainer = document.createElement('div');
         timelineContainer.className = 'video-preview-timeline';
         timelineContainer.style.cssText = `
             padding: var(--spacing-3);
             background: var(--bg);
-            border-radius: 4px;
-            margin-bottom: var(--spacing-4);
+            border-radius: 4px 4px 0 0;
+            margin-bottom: 0;
+            overflow: visible;
         `;
         // 使用 renderTimeline() 渲染時間軸內容
         this.timelineContainer = timelineContainer;
 
-        // 建立音軌列表容器
+        // 建立音軌列表容器（不再獨立滾動）
         const tracksContainer = document.createElement('div');
         tracksContainer.className = 'video-preview-tracks';
         tracksContainer.style.cssText = `
-            flex: 1;
-            overflow-y: auto;
             background: var(--bg);
-            border-radius: 4px;
+            border-radius: 0 0 4px 4px;
             padding: var(--spacing-3);
+            padding-top: 0;
         `;
         // 儲存參考以便後續更新
         this.tracksContainer = tracksContainer;
 
+        // 建立統一的水平滾動容器包裹 timeline 和 tracks
+        const timelineScrollWrapper = document.createElement('div');
+        timelineScrollWrapper.className = 'video-preview-timeline-scroll-wrapper';
+        timelineScrollWrapper.style.cssText = `
+            overflow-x: auto;
+            overflow-y: auto;
+            margin-bottom: var(--spacing-4);
+            border-radius: 4px;
+            max-height: 60vh;
+        `;
+        timelineScrollWrapper.appendChild(timelineContainer);
+        timelineScrollWrapper.appendChild(tracksContainer);
+        this.timelineScrollWrapper = timelineScrollWrapper;
+
         // 組裝 DOM 結構
         content.appendChild(videoContainer);
         content.appendChild(controlsContainer);
-        content.appendChild(timelineContainer);
-        content.appendChild(tracksContainer);
+        content.appendChild(viewInfoContainer); // 視窗信息欄（獨立，不受滾動影響）
+        content.appendChild(timelineScrollWrapper);
         modal.appendChild(titleBar);
         modal.appendChild(content);
         overlay.appendChild(modal);
@@ -548,12 +587,12 @@ class VideoPreviewNode extends BaseNode {
         // 綁定 video 元素事件
         this.bindVideoEvents();
 
-        // 綁定遮罩點擊關閉（可選）
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                this.closeEditor();
-            }
-        });
+        // 移除遮罩點擊關閉功能，防止誤觸
+        // overlay.addEventListener('click', (e) => {
+        //     if (e.target === overlay) {
+        //         this.closeEditor();
+        //     }
+        // });
 
         // hover 效果
         closeBtn.addEventListener('mouseenter', () => {
@@ -777,14 +816,20 @@ class VideoPreviewNode extends BaseNode {
         // 清空容器
         this.timelineContainer.innerHTML = '';
 
-        // 建立時間刻度容器
+        // 更新視窗信息（在容器外部）
+        this.updateViewInfo();
+
+        // 建立時間刻度容器（寬度隨縮放而增加）
         const scaleContainer = document.createElement('div');
         scaleContainer.className = 'timeline-scale';
+        const scaleWidth = `${100 * this.zoomLevel}%`;
         scaleContainer.style.cssText = `
             position: relative;
             height: 30px;
             margin-bottom: var(--spacing-2);
             user-select: none;
+            width: ${scaleWidth};
+            min-width: 100%;
         `;
 
         // 計算刻度間隔（根據總時長決定）
@@ -826,9 +871,10 @@ class VideoPreviewNode extends BaseNode {
             scaleContainer.appendChild(label);
         }
 
-        // 建立可點擊的時間軸軌道
+        // 建立可點擊的時間軸軌道（寬度隨縮放而增加）
         const track = document.createElement('div');
         track.className = 'timeline-track';
+        const trackWidth = `${100 * this.zoomLevel}%`;
         track.style.cssText = `
             position: relative;
             height: 40px;
@@ -836,6 +882,8 @@ class VideoPreviewNode extends BaseNode {
             border-radius: 4px;
             cursor: pointer;
             margin-top: var(--spacing-2);
+            width: ${trackWidth};
+            min-width: 100%;
         `;
 
         // 建立播放游標
@@ -870,6 +918,11 @@ class VideoPreviewNode extends BaseNode {
 
         track.appendChild(cursor);
 
+        // 移除舊的播放線（防止重複）
+        if (this.playbackLine && this.playbackLine.parentNode) {
+            this.playbackLine.parentNode.removeChild(this.playbackLine);
+        }
+
         // 建立延伸播放線（貫穿所有音軌）
         const playbackLine = document.createElement('div');
         playbackLine.className = 'timeline-playback-line';
@@ -886,6 +939,9 @@ class VideoPreviewNode extends BaseNode {
 
         // 綁定時間軸事件
         this.bindTimelineEvents();
+
+        // 綁定滾輪縮放事件
+        this.bindZoomEvents();
 
         // 初始化播放線位置
         this.updatePlaybackLine();
@@ -966,6 +1022,128 @@ class VideoPreviewNode extends BaseNode {
             onMouseMove,
             onMouseUp
         };
+    }
+
+    /**
+     * 綁定滾輪縮放事件
+     */
+    bindZoomEvents() {
+        if (!this.timelineScrollWrapper || !this.tracksContainer) return;
+
+        // 移除舊的事件監聽器（如果存在）
+        if (this.zoomEventHandler) {
+            this.timelineScrollWrapper.removeEventListener('wheel', this.zoomEventHandler);
+        }
+
+        const onWheel = (e) => {
+            e.preventDefault();
+
+            // 根據 deltaY 計算縮放變化 (更精細的控制)
+            // 注意:不同瀏覽器和設備的 deltaY 值差異很大
+            // 使用 deltaMode 來標準化處理
+            let deltaY = e.deltaY;
+
+            // 標準化 deltaY 值 (某些設備/瀏覽器會返回很大的值)
+            if (e.deltaMode === 1) {
+                // DOM_DELTA_LINE - 以行為單位
+                deltaY *= 33; // 轉換為像素
+            } else if (e.deltaMode === 2) {
+                // DOM_DELTA_PAGE - 以頁為單位
+                deltaY *= 100; // 轉換為像素
+            }
+
+            // 使用固定步進,每次縮放固定 10%
+            // 不管 deltaY 多大,每次都是固定增減 0.1
+            const zoomStep = 0.1; // 固定每次 10%
+            const zoomChange = deltaY > 0 ? -zoomStep : zoomStep;
+
+            const oldZoomLevel = this.zoomLevel;
+            const newZoomLevel = Math.max(1.0, Math.min(10.0, this.zoomLevel + zoomChange));
+
+            // 如果縮放級別沒有變化,直接返回
+            if (Math.abs(newZoomLevel - oldZoomLevel) < 0.01) return;
+
+            // 調試日誌 (可以在瀏覽器控制台查看)
+            console.log(`Zoom: ${oldZoomLevel.toFixed(2)} → ${newZoomLevel.toFixed(2)} (deltaY: ${e.deltaY}, normalized: ${deltaY}, change: ${zoomChange.toFixed(3)})`);
+
+            // 計算滑鼠位置對應的時間點(作為縮放焦點)
+            const rect = this.timelineTrack.getBoundingClientRect();
+            const containerRect = this.timelineScrollWrapper.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const containerScrollLeft = this.timelineScrollWrapper.scrollLeft;
+
+            // 當前滑鼠位置對應的時間(考慮滾動)
+            const duration = this.calculateTimelineDuration();
+            const mouseTime = ((mouseX + containerScrollLeft) / rect.width) * duration;
+
+            // 更新縮放級別
+            this.zoomLevel = newZoomLevel;
+
+            // 重新渲染時間軸和音軌（跳過 WaveSurfer 重新創建以提高性能）
+            this.renderTimeline();
+            this.renderTracks(true); // skipWaveSurfer = true
+
+            // 調整滾動位置以保持滑鼠焦點
+            // 新的時間軸寬度
+            requestAnimationFrame(() => {
+                if (!this.timelineTrack) return;
+                const newRect = this.timelineTrack.getBoundingClientRect();
+                const newMouseX = (mouseTime / duration) * newRect.width;
+                const targetScrollLeft = newMouseX - (e.clientX - containerRect.left);
+
+                this.timelineScrollWrapper.scrollLeft = Math.max(0, targetScrollLeft);
+
+                // 更新視窗信息
+                this.updateViewInfo();
+
+                // 更新播放游標位置 (確保縮放後游標在正確位置)
+                this.updatePlaybackCursor();
+            });
+
+            // 使用防抖顯示提示,避免頻繁更新
+            if (this.zoomToastTimeout) {
+                clearTimeout(this.zoomToastTimeout);
+            }
+            this.zoomToastTimeout = setTimeout(() => {
+                showToast(`縮放: ${Math.round(this.zoomLevel * 100)}%`, 'info');
+            }, 200);
+        };
+
+        // 綁定到統一滾動容器（支持在時間軸和音軌上縮放）
+        this.timelineScrollWrapper.addEventListener('wheel', onWheel, { passive: false });
+
+        // 保存事件處理器以便清理
+        this.zoomEventHandler = onWheel;
+
+        // 綁定滾動事件以更新視窗信息
+        const onScroll = () => {
+            this.updateViewInfo();
+        };
+        this.timelineScrollWrapper.addEventListener('scroll', onScroll);
+        this.viewInfoScrollHandler = onScroll;
+    }
+
+    /**
+     * 更新視窗信息顯示（時間範圍和縮放級別）
+     */
+    updateViewInfo() {
+        const viewTimeRange = document.getElementById('view-time-range');
+        const viewZoomLevel = document.getElementById('view-zoom-level');
+
+        if (!viewTimeRange || !viewZoomLevel || !this.timelineTrack || !this.timelineContainer) return;
+
+        const duration = this.calculateTimelineDuration();
+        const trackRect = this.timelineTrack.getBoundingClientRect();
+        const containerRect = this.timelineScrollWrapper.getBoundingClientRect();
+        const scrollLeft = this.timelineScrollWrapper.scrollLeft;
+
+        // 計算當前視窗顯示的時間範圍
+        const viewStartTime = (scrollLeft / trackRect.width) * duration;
+        const viewEndTime = ((scrollLeft + containerRect.width) / trackRect.width) * duration;
+
+        // 更新顯示
+        viewTimeRange.textContent = `View: ${viewStartTime.toFixed(2)}s - ${Math.min(viewEndTime, duration).toFixed(2)}s`;
+        viewZoomLevel.textContent = `Zoom: ${Math.round(this.zoomLevel * 100)}%`;
     }
 
     /**
@@ -1087,9 +1265,11 @@ class VideoPreviewNode extends BaseNode {
             const cropEnd = track.cropEnd !== null ? track.cropEnd : buffer.duration;
             const trackDuration = cropEnd - cropStart; // 裁切後的長度
 
-            // 修正：音訊實際開始發聲的時間點 = 容器偏移(offset) + 裁切掉的前段(cropStart)
-            const trackStartTime = track.offset + cropStart;
-            const trackEndTime = trackStartTime + trackDuration; // 音訊在時間軸結束的時間
+            // 音訊在時間軸上的播放區間
+            // trackStartTime = 音訊容器在時間軸上的起始位置
+            // trackEndTime = 起始位置 + 裁切後的長度
+            const trackStartTime = track.offset;
+            const trackEndTime = trackStartTime + trackDuration;
 
             // 檢查當前時間點是否在這段音訊的播放範圍內
             // 影片時間: startTime
@@ -1260,8 +1440,9 @@ class VideoPreviewNode extends BaseNode {
 
     /**
      * 渲染音軌列表
+     * @param {boolean} skipWaveSurfer - 是否跳過 WaveSurfer 重新創建(縮放時使用)
      */
-    renderTracks() {
+    renderTracks(skipWaveSurfer = false) {
         if (!this.tracksContainer) return;
 
         // 取得輸入音訊列表
@@ -1316,17 +1497,16 @@ class VideoPreviewNode extends BaseNode {
             const trackParams = this.data.tracks[index];
             const buffer = audio.buffer;
 
-            // 建立音軌容器
+            // 建立音軌容器（不加padding，讓內部元素自行處理對齊）
             const trackDiv = document.createElement('div');
             trackDiv.className = 'video-preview-track';
             trackDiv.style.cssText = `
                 margin-bottom: var(--spacing-3);
-                padding: var(--spacing-3);
                 background: var(--bg-dark);
                 border-radius: 4px;
             `;
 
-            // 音軌標題（顯示檔案名）
+            // 音軌標題（顯示檔案名，添加padding）
             const trackTitle = document.createElement('div');
             trackTitle.className = 'track-title';
             trackTitle.style.cssText = `
@@ -1334,19 +1514,26 @@ class VideoPreviewNode extends BaseNode {
                 font-size: var(--text-sm);
                 font-weight: 500;
                 margin-bottom: var(--spacing-2);
+                padding: var(--spacing-3);
+                padding-bottom: 0;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
             `;
             const stretchFactor = trackParams.stretchFactor || 1.0;
-            const stretchedDuration = ((trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration) - (trackParams.cropStart || 0)) * stretchFactor;
+            const cropStart = trackParams.cropStart || 0;
+            const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration;
+            const stretchedDuration = (cropEnd - cropStart) * stretchFactor;
+            // 計算時間軸上的起始和結束時間
+            const startTime = trackParams.offset + cropStart;
+            const endTime = trackParams.offset + cropEnd;
 
             trackTitle.innerHTML = `
                 <div style="display:flex; justify-content:space-between; width:100%; align-items:center; gap: var(--spacing-2);">
                     <span>${this.escapeHtml(audio.filename)}</span>
                     <div style="display: flex; align-items: center; gap: var(--spacing-2);">
                         <span class="track-time-info" style="color: var(--text-muted); font-size: var(--text-xs); font-family: monospace;">
-                            Dur: ${stretchedDuration.toFixed(2)}s
+                            Start: ${startTime.toFixed(2)}s | End: ${endTime.toFixed(2)}s | Dur: ${stretchedDuration.toFixed(2)}s
                             ${stretchFactor !== 1.0 ? `(${stretchFactor.toFixed(2)}x)` : ''}
                         </span>
                         <button class="track-stretch-btn" data-track-index="${index}" style="
@@ -1368,21 +1555,23 @@ class VideoPreviewNode extends BaseNode {
                             font-size: var(--text-xs);
                             cursor: pointer;
                             transition: all 0.2s;
-                            ${stretchFactor === 1.0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}
-                        " title="重置時長" ${stretchFactor === 1.0 ? 'disabled' : ''}>↺</button>
+                        " title="重置時長">↺</button>
                     </div>
                 </div>
             `;
 
-            // 時間軸容器（與統一時間軸對齊）
+            // 時間軸容器（與統一時間軸對齊，不再獨立滾動）
             const trackTimelineContainer = document.createElement('div');
             trackTimelineContainer.className = 'track-timeline';
+            const trackWidth = `${100 * this.zoomLevel}%`;
             trackTimelineContainer.style.cssText = `
                 position: relative;
                 height: 60px;
                 background: var(--bg);
                 border-radius: 4px;
-                overflow: hidden;
+                overflow: visible;
+                width: ${trackWidth};
+                min-width: 100%;
             `;
 
             // 音訊區塊容器（占位，Task 3.2 將添加 WaveSurfer）
@@ -1397,15 +1586,15 @@ class VideoPreviewNode extends BaseNode {
                 opacity: 0.8;
                 border-radius: 2px;
                 cursor: move;
-                border: 1px solid rgba(255,255,255,0.2);
+                box-sizing: border-box;
             `;
 
-            // 計算音訊區塊的位置和寬度
-            console.log(`RenderTracks[${index}]: ContainerWidth=${timelineWidth}, Duration=${timelineDuration}, PPS=${timelineWidth / (timelineDuration || 1)}`);
+            // 計算音訊區塊的位置和寬度 (考慮縮放)
+            // 注意: timelineWidth 已經包含縮放因子 (因為 timeline track 的 width 是 ${100 * this.zoomLevel}%)
             const pixelsPerSecond = timelineWidth / (timelineDuration || 1);
-            const cropStart = trackParams.cropStart || 0;
+            console.log(`RenderTracks[${index}]: ContainerWidth=${timelineWidth}, Duration=${timelineDuration}, Zoom=${this.zoomLevel}, PPS=${pixelsPerSecond}`);
+            // cropStart 和 cropEnd 已在前面聲明
             const audioDuration = buffer.duration;
-            const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : audioDuration;
 
             // 音訊區塊容器 (Full Container)
             // Container 代表整個音訊檔案的長度
@@ -1508,39 +1697,36 @@ class VideoPreviewNode extends BaseNode {
 
             if (resetBtn) {
                 resetBtn.addEventListener('click', () => {
-                    if (trackParams.stretchFactor !== 1.0) {
-                        trackParams.stretchFactor = 1.0;
-                        this.setData('tracks', this.data.tracks);
-                        showToast('時長已重置', 'success');
+                    trackParams.stretchFactor = 1.0;
+                    this.setData('tracks', this.data.tracks);
+                    showToast('時長已重置', 'success');
 
-                        // 優化：只更新這一個音軌的寬度和顯示，不重新渲染整個列表
-                        const originalWidth = buffer.duration * pixelsPerSecond;
-                        audioBlockContainer.style.width = `${originalWidth}px`;
+                    // 優化：只更新這一個音軌的寬度和顯示，不重新渲染整個列表
+                    const originalWidth = buffer.duration * pixelsPerSecond;
+                    audioBlockContainer.style.width = `${originalWidth}px`;
 
-                        // 更新時間顯示
-                        const timeInfo = trackTitle.querySelector('.track-time-info');
-                        if (timeInfo) {
-                            const cropStart = trackParams.cropStart || 0;
-                            const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration;
-                            const duration = cropEnd - cropStart;
-                            timeInfo.textContent = `Dur: ${duration.toFixed(2)}s`;
-                        }
-
-                        // 更新重置按鈕狀態
-                        resetBtn.style.opacity = '0.5';
-                        resetBtn.style.cursor = 'not-allowed';
-                        resetBtn.disabled = true;
+                    // 更新時間顯示
+                    const timeInfo = trackTitle.querySelector('.track-time-info');
+                    if (timeInfo) {
+                        const cropStart = trackParams.cropStart || 0;
+                        const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration;
+                        const duration = cropEnd - cropStart;
+                        const startTime = trackParams.offset + cropStart;
+                        const endTime = trackParams.offset + cropEnd;
+                        timeInfo.textContent = `Start: ${startTime.toFixed(2)}s | End: ${endTime.toFixed(2)}s | Dur: ${duration.toFixed(2)}s`;
                     }
                 });
             }
         });
 
-        // 延遲初始化 WaveSurfer 以確保 DOM 已渲染
-        requestAnimationFrame(() => {
-            audioData.forEach((audio, index) => {
-                this.initTrackWaveSurfer(index, audio.buffer);
+        // 延遲初始化 WaveSurfer 以確保 DOM 已渲染（縮放時跳過以提高性能）
+        if (!skipWaveSurfer) {
+            requestAnimationFrame(() => {
+                audioData.forEach((audio, index) => {
+                    this.initTrackWaveSurfer(index, audio.buffer);
+                });
             });
-        });
+        }
     }
 
     /**
@@ -1621,14 +1807,14 @@ class VideoPreviewNode extends BaseNode {
             timeInfoEl.textContent = `Start: ${startTime.toFixed(2)}s | End: ${endTime.toFixed(2)}s | Dur: ${duration.toFixed(2)}s`;
         };
 
-        // 建立 tooltip 元素
+        // 建立 tooltip 元素（顯示在右側）
         let tooltip = document.createElement('div');
         tooltip.className = 'drag-tooltip';
         tooltip.style.cssText = `
             position: absolute;
             top: -25px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 100%;
+            transform: translateX(10px);
             background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 2px 6px;
@@ -1656,18 +1842,26 @@ class VideoPreviewNode extends BaseNode {
             const edgeThreshold = 10;
 
             // 判斷點擊位置
-            // 1. Resize Left: 在 cropStart 附近
-            if (Math.abs(clickXPixels - cropStartPixels) < edgeThreshold) {
-                dragMode = 'resize-left';
-                element.style.cursor = 'w-resize';
-            }
-            // 2. Resize Right: 在 cropEnd 附近
-            else if (Math.abs(clickXPixels - cropEndPixels) < edgeThreshold) {
-                dragMode = 'resize-right';
-                element.style.cursor = 'e-resize';
-            }
-            // 3. Move: 其他區域都視為移動 (包含 Ghost區域)
-            else {
+            // 修改優先級：預設為拖拉(move)，只有按住 Shift 鍵時才啟用裁切功能
+            if (e.shiftKey) {
+                // Shift 模式：啟用裁切功能
+                // 1. Resize Left: 在 cropStart 附近
+                if (Math.abs(clickXPixels - cropStartPixels) < edgeThreshold) {
+                    dragMode = 'resize-left';
+                    element.style.cursor = 'w-resize';
+                }
+                // 2. Resize Right: 在 cropEnd 附近
+                else if (Math.abs(clickXPixels - cropEndPixels) < edgeThreshold) {
+                    dragMode = 'resize-right';
+                    element.style.cursor = 'e-resize';
+                }
+                // 3. Move: 其他區域仍為移動
+                else {
+                    dragMode = 'move';
+                    element.style.cursor = 'grabbing';
+                }
+            } else {
+                // 預設模式：整個區域都可以拖拉
                 dragMode = 'move';
                 element.style.cursor = 'grabbing';
             }
@@ -1764,7 +1958,7 @@ class VideoPreviewNode extends BaseNode {
             this.setData('tracks', this.data.tracks);
         };
 
-        // Hover cursor 處理
+        // Hover cursor 處理 - 只有按住 Shift 時才顯示裁切游標
         element.addEventListener('mousemove', (e) => {
             if (dragMode !== 'none') return; // 拖曳中不改變
 
@@ -1778,11 +1972,17 @@ class VideoPreviewNode extends BaseNode {
             const cropEndPixels = currentCropEnd * pixelsPerSecond;
             const edgeThreshold = 10;
 
-            if (Math.abs(hoverXPixels - cropStartPixels) < edgeThreshold) {
-                element.style.cursor = 'w-resize';
-            } else if (Math.abs(hoverXPixels - cropEndPixels) < edgeThreshold) {
-                element.style.cursor = 'e-resize';
+            // 只有按住 Shift 鍵時才顯示裁切游標
+            if (e.shiftKey) {
+                if (Math.abs(hoverXPixels - cropStartPixels) < edgeThreshold) {
+                    element.style.cursor = 'w-resize';
+                } else if (Math.abs(hoverXPixels - cropEndPixels) < edgeThreshold) {
+                    element.style.cursor = 'e-resize';
+                } else {
+                    element.style.cursor = 'move';
+                }
             } else {
+                // 預設顯示移動游標
                 element.style.cursor = 'move';
             }
         });
@@ -2020,6 +2220,22 @@ class VideoPreviewNode extends BaseNode {
             document.removeEventListener('mouseup', this.timelineEventHandlers.onMouseUp);
             this.timelineEventHandlers = null;
         }
+
+        // 清理滾輪縮放事件處理器
+        if (this.zoomEventHandler && this.timelineScrollWrapper) {
+            this.timelineScrollWrapper.removeEventListener('wheel', this.zoomEventHandler);
+            this.zoomEventHandler = null;
+        }
+
+        // 清理滾動事件處理器
+        if (this.viewInfoScrollHandler && this.timelineScrollWrapper) {
+            this.timelineScrollWrapper.removeEventListener('scroll', this.viewInfoScrollHandler);
+            this.viewInfoScrollHandler = null;
+        }
+
+        // 重置縮放狀態
+        this.zoomLevel = 1.0;
+        this.viewOffset = 0;
 
         // 銷毀 WaveSurfer 實例（待實作）
         // 銷毀所有 WaveSurfer 實例
