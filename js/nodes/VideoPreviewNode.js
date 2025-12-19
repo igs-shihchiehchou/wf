@@ -12,7 +12,7 @@ class VideoPreviewNode extends BaseNode {
             tracks: []            // 音軌參數陣列 [{offset: 0, cropStart: 0, cropEnd: null}]
         };
 
-        super(id, 'video-preview', '影片預覽', '🎬', options, defaultData);
+        super(id, 'video-preview', '影片預覽', '▣', options, defaultData);
 
         // 模態視窗相關元素
         this.videoElement = null;    // 模態視窗中的 video 元素

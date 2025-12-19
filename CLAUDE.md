@@ -75,7 +75,7 @@ js/
 | `key-integration` | ⚙ | Batch pitch adjustment to target key |
 | `join` | ⛓ | Join two audio files end-to-end |
 | `mix` | ⊗ | Mix two audio files together |
-| `video-preview` | 🎬 | Edit audio timeline with video reference |
+| `video-preview` | ▣ | Edit audio timeline with video reference |
 
 ### Data Flow
 
