@@ -53,9 +53,10 @@ js/
 ├── components/
 │   └── ProgressBar.js    # Progress bar component for analysis
 └── nodes/
-    ├── BaseNode.js       # Base class for all nodes
-    ├── AudioInputNode.js # Audio file input node with automatic analysis
-    └── ProcessNodes.js   # Processing nodes (Volume, Crop, FadeIn, FadeOut, Speed, Pitch)
+    ├── BaseNode.js         # Base class for all nodes
+    ├── AudioInputNode.js   # Audio file input node with automatic analysis
+    ├── VideoPreviewNode.js # Video-referenced audio timeline editor
+    └── ProcessNodes.js     # Processing nodes (Volume, Crop, FadeIn, FadeOut, Speed, Pitch)
 ```
 
 ### Node Types
@@ -74,6 +75,7 @@ js/
 | `key-integration` | ⚙ | Batch pitch adjustment to target key |
 | `join` | ⛓ | Join two audio files end-to-end |
 | `mix` | ⊗ | Mix two audio files together |
+| `video-preview` | ▣ | Edit audio timeline with video reference |
 
 ### Data Flow
 

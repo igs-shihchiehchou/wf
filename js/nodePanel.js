@@ -31,7 +31,8 @@ class NodePanel {
                     { type: 'key-integration', label: '批量調音', icon: '⚙', description: '分析多檔案調性，統一移調至目標調性' },
                     { type: 'volume-sync', label: '音量整合', icon: '⇋', description: '統一多個音訊的響度' },
                     { type: 'beat-sync', label: '節拍整合', icon: '♩', description: '統一多個音訊的 BPM，保持音高不變' },
-                    { type: 'soften', label: '柔化', icon: '◠', description: '減少刺耳的高頻，讓聲音更柔和' }
+                    { type: 'soften', label: '柔化', icon: '◠', description: '減少刺耳的高頻，讓聲音更柔和' },
+                    { type: 'video-preview', label: '影片預覽', icon: '▣', description: '使用影片作為參考編輯音訊時間軸' }
                 ]
             },
             {
