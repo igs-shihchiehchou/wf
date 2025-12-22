@@ -528,6 +528,9 @@ class VideoPreviewNode extends BaseNode {
         const timelineContainer = document.createElement('div');
         timelineContainer.className = 'video-preview-timeline';
         timelineContainer.style.cssText = `
+            position: sticky;
+            top: 0;
+            z-index: 10;
             padding: var(--spacing-3);
             background: var(--bg);
             border-radius: 4px 4px 0 0;
@@ -1373,13 +1376,18 @@ class VideoPreviewNode extends BaseNode {
             return [];
         }
 
-        // 取得連接的節點
-        // 取得連接的節點
+        // 取得連接的節點和端口
         const sourceNode = audioPort.connectedTo?.node;
+        const sourcePort = audioPort.connectedTo?.port;
+        const sourcePortName = sourcePort?.name;
 
         if (!sourceNode) {
             return [];
         }
+
+        // 檢查是否連接自預覽端口 (preview-output-N)
+        const isPreviewPort = sourcePortName && sourcePortName.startsWith('preview-output-');
+        const previewIndex = isPreviewPort ? parseInt(sourcePortName.split('-')[2]) : -1;
 
         // 嘗試從 lastOutputs 取得處理結果
         let outputs = sourceNode.lastOutputs;
@@ -1407,6 +1415,23 @@ class VideoPreviewNode extends BaseNode {
         }
 
         const lastOutputs = outputs; // 為了保持下方變數名稱一致
+
+        // 如果連接自預覽端口，只返回該特定音訊
+        if (isPreviewPort && lastOutputs.audioFiles && Array.isArray(lastOutputs.audioFiles)) {
+            const filenames = lastOutputs.filenames || [];
+            if (previewIndex >= 0 && previewIndex < lastOutputs.audioFiles.length) {
+                const buffer = lastOutputs.audioFiles[previewIndex];
+                if (buffer instanceof AudioBuffer) {
+                    return [{
+                        buffer: buffer,
+                        filename: filenames[previewIndex] || `音訊 ${previewIndex + 1}`
+                    }];
+                }
+            }
+            // 如果預覽索引無效，返回空陣列
+            console.warn(`Invalid preview index ${previewIndex} for audioFiles length ${lastOutputs.audioFiles.length}`);
+            return [];
+        }
 
         // 根據不同的輸出格式處理
         const audioData = [];
