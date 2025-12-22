@@ -1509,7 +1509,9 @@ class VideoPreviewNode extends BaseNode {
             return;
         }
 
-        const timelineWidth = this.timelineTrack.offsetWidth;
+        // 計算時間軸實際寬度（使用容器寬度 × 縮放倍率以避免 offsetWidth 的四捨五入誤差）
+        const containerWidth = this.timelineScrollWrapper.offsetWidth;
+        const timelineWidth = containerWidth * this.zoomLevel;
 
         // 額外驗證
         if (timelineWidth === 0) {
