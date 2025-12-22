@@ -528,6 +528,9 @@ class VideoPreviewNode extends BaseNode {
         const timelineContainer = document.createElement('div');
         timelineContainer.className = 'video-preview-timeline';
         timelineContainer.style.cssText = `
+            position: sticky;
+            top: 0;
+            z-index: 10;
             padding: var(--spacing-3);
             background: var(--bg);
             border-radius: 4px 4px 0 0;
@@ -545,6 +548,7 @@ class VideoPreviewNode extends BaseNode {
             border-radius: 0 0 4px 4px;
             padding: var(--spacing-3);
             padding-top: 0;
+            overflow: visible;
         `;
         // 儲存參考以便後續更新
         this.tracksContainer = tracksContainer;
@@ -790,7 +794,7 @@ class VideoPreviewNode extends BaseNode {
     }
 
     /**
-     * 計算時間軸總長度（影片長度或最長音訊）
+     * 計算時間軸總長度（優先使用影片長度，無影片時使用音訊長度）
      */
     calculateTimelineDuration() {
         let duration = this.videoElement ? this.videoElement.duration : 0;
@@ -798,9 +802,21 @@ class VideoPreviewNode extends BaseNode {
         // 防止 NaN（影片 metadata 尚未載入時）
         if (isNaN(duration)) duration = 0;
 
-        // 如果有音訊輸入，計算最長音訊結束時間
-        // TODO: Task 3.1 - 當有音訊輸入時，計算 max(視訊長度, 音訊偏移 + 音訊長度)
-        // 目前僅使用影片長度
+        // 如果沒有影片，才計算最長音訊結束時間
+        if (duration === 0) {
+            const audioData = this.getInputAudioData();
+            if (audioData && audioData.length > 0) {
+                audioData.forEach((audio, index) => {
+                    const trackParams = this.data.tracks[index];
+                    if (audio.buffer && trackParams) {
+                        // 計算音訊結束時間 = 偏移 + 音訊時長
+                        const audioEndTime = trackParams.offset + audio.buffer.duration;
+                        // 取最大值
+                        duration = Math.max(duration, audioEndTime);
+                    }
+                });
+            }
+        }
 
         return duration || 0;
     }
@@ -1079,9 +1095,9 @@ class VideoPreviewNode extends BaseNode {
             // 更新縮放級別
             this.zoomLevel = newZoomLevel;
 
-            // 重新渲染時間軸和音軌（跳過 WaveSurfer 重新創建以提高性能）
+            // 重新渲染時間軸和音軌（包含 WaveSurfer 重新創建）
             this.renderTimeline();
-            this.renderTracks(true); // skipWaveSurfer = true
+            this.renderTracks(false); // 必須重新創建 WaveSurfer 以正確顯示縮放後的波形
 
             // 調整滾動位置以保持滑鼠焦點
             // 新的時間軸寬度
@@ -1373,13 +1389,18 @@ class VideoPreviewNode extends BaseNode {
             return [];
         }
 
-        // 取得連接的節點
-        // 取得連接的節點
+        // 取得連接的節點和端口
         const sourceNode = audioPort.connectedTo?.node;
+        const sourcePort = audioPort.connectedTo?.port;
+        const sourcePortName = sourcePort?.name;
 
         if (!sourceNode) {
             return [];
         }
+
+        // 檢查是否連接自預覽端口 (preview-output-N)
+        const isPreviewPort = sourcePortName && sourcePortName.startsWith('preview-output-');
+        const previewIndex = isPreviewPort ? parseInt(sourcePortName.split('-')[2]) : -1;
 
         // 嘗試從 lastOutputs 取得處理結果
         let outputs = sourceNode.lastOutputs;
@@ -1407,6 +1428,23 @@ class VideoPreviewNode extends BaseNode {
         }
 
         const lastOutputs = outputs; // 為了保持下方變數名稱一致
+
+        // 如果連接自預覽端口，只返回該特定音訊
+        if (isPreviewPort && lastOutputs.audioFiles && Array.isArray(lastOutputs.audioFiles)) {
+            const filenames = lastOutputs.filenames || [];
+            if (previewIndex >= 0 && previewIndex < lastOutputs.audioFiles.length) {
+                const buffer = lastOutputs.audioFiles[previewIndex];
+                if (buffer instanceof AudioBuffer) {
+                    return [{
+                        buffer: buffer,
+                        filename: filenames[previewIndex] || `音訊 ${previewIndex + 1}`
+                    }];
+                }
+            }
+            // 如果預覽索引無效，返回空陣列
+            console.warn(`Invalid preview index ${previewIndex} for audioFiles length ${lastOutputs.audioFiles.length}`);
+            return [];
+        }
 
         // 根據不同的輸出格式處理
         const audioData = [];
@@ -1456,6 +1494,20 @@ class VideoPreviewNode extends BaseNode {
             showToast(`音軌數量較多 (${audioData.length})，可能影響效能`, 'warning');
         }
 
+        // 清理舊的 WaveSurfer 實例（必須在清空 DOM 之前執行）
+        if (this.trackWaveSurfers && this.trackWaveSurfers.length > 0) {
+            this.trackWaveSurfers.forEach(ws => {
+                if (ws) {
+                    try {
+                        ws.destroy();
+                    } catch (e) {
+                        console.warn('WaveSurfer destroy error:', e);
+                    }
+                }
+            });
+            this.trackWaveSurfers = [];
+        }
+
         // 清空容器
         this.tracksContainer.innerHTML = '';
 
@@ -1471,7 +1523,9 @@ class VideoPreviewNode extends BaseNode {
 
         // 計算時間軸的像素寬度（用於對齊）
         const timelineDuration = this.calculateTimelineDuration();
-        console.log(`CalculateTimelineDuration: ${timelineDuration}`);
+        console.log(`[RenderTracks] CalculateTimelineDuration: ${timelineDuration}s`);
+        console.log(`[RenderTracks] VideoDuration: ${this.videoElement?.duration || 0}s`);
+        console.log(`[RenderTracks] AudioData count: ${audioData.length}`);
 
         // 驗證時間軸已準備好
         if (timelineDuration === 0 || !this.timelineTrack) {
@@ -1484,7 +1538,9 @@ class VideoPreviewNode extends BaseNode {
             return;
         }
 
-        const timelineWidth = this.timelineTrack.offsetWidth;
+        // 計算時間軸實際寬度（使用容器寬度 × 縮放倍率以避免 offsetWidth 的四捨五入誤差）
+        const containerWidth = this.timelineScrollWrapper.offsetWidth;
+        const timelineWidth = containerWidth * this.zoomLevel;
 
         // 額外驗證
         if (timelineWidth === 0) {
@@ -1504,6 +1560,7 @@ class VideoPreviewNode extends BaseNode {
                 margin-bottom: var(--spacing-3);
                 background: var(--bg-dark);
                 border-radius: 4px;
+                overflow: visible;
             `;
 
             // 音軌標題（顯示檔案名，添加padding）
@@ -1569,7 +1626,7 @@ class VideoPreviewNode extends BaseNode {
                 height: 60px;
                 background: var(--bg);
                 border-radius: 4px;
-                overflow: visible;
+                overflow: hidden;
                 width: ${trackWidth};
                 min-width: 100%;
             `;
@@ -1592,7 +1649,6 @@ class VideoPreviewNode extends BaseNode {
             // 計算音訊區塊的位置和寬度 (考慮縮放)
             // 注意: timelineWidth 已經包含縮放因子 (因為 timeline track 的 width 是 ${100 * this.zoomLevel}%)
             const pixelsPerSecond = timelineWidth / (timelineDuration || 1);
-            console.log(`RenderTracks[${index}]: ContainerWidth=${timelineWidth}, Duration=${timelineDuration}, Zoom=${this.zoomLevel}, PPS=${pixelsPerSecond}`);
             // cropStart 和 cropEnd 已在前面聲明
             const audioDuration = buffer.duration;
 
@@ -1600,6 +1656,10 @@ class VideoPreviewNode extends BaseNode {
             // Container 代表整個音訊檔案的長度
             const blockLeftPixels = trackParams.offset * pixelsPerSecond;
             const blockWidthPixels = audioDuration * pixelsPerSecond;
+
+            console.log(`[Track ${index}] Audio: ${audioDuration}s, Offset: ${trackParams.offset}s, End: ${trackParams.offset + audioDuration}s`);
+            console.log(`[Track ${index}] TimelineWidth: ${timelineWidth}px, TimelineDuration: ${timelineDuration}s, PPS: ${pixelsPerSecond.toFixed(2)}`);
+            console.log(`[Track ${index}] Block: left=${blockLeftPixels.toFixed(2)}px, width=${blockWidthPixels.toFixed(2)}px`);
 
             // 限制 cropEnd 不超過 audioDuration
             const safeCropEnd = Math.min(cropEnd, audioDuration);
@@ -1762,7 +1822,7 @@ class VideoPreviewNode extends BaseNode {
                 height: container.clientHeight || 48,
                 barWidth: 2,
                 barGap: 1,
-                responsive: true,
+                responsive: false, // 禁用 responsive 以避免視窗滾動時的裁切問題
                 normalize: true,
                 interact: false // 禁止內部互動（點擊等由外部控制）
             });
