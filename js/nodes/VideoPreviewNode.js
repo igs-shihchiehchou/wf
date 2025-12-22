@@ -794,7 +794,7 @@ class VideoPreviewNode extends BaseNode {
     }
 
     /**
-     * 計算時間軸總長度（影片長度或最長音訊）
+     * 計算時間軸總長度（優先使用影片長度，無影片時使用音訊長度）
      */
     calculateTimelineDuration() {
         let duration = this.videoElement ? this.videoElement.duration : 0;
@@ -802,18 +802,20 @@ class VideoPreviewNode extends BaseNode {
         // 防止 NaN（影片 metadata 尚未載入時）
         if (isNaN(duration)) duration = 0;
 
-        // 計算最長音訊結束時間
-        const audioData = this.getInputAudioData();
-        if (audioData && audioData.length > 0) {
-            audioData.forEach((audio, index) => {
-                const trackParams = this.data.tracks[index];
-                if (audio.buffer && trackParams) {
-                    // 計算音訊結束時間 = 偏移 + 音訊時長
-                    const audioEndTime = trackParams.offset + audio.buffer.duration;
-                    // 取最大值
-                    duration = Math.max(duration, audioEndTime);
-                }
-            });
+        // 如果沒有影片，才計算最長音訊結束時間
+        if (duration === 0) {
+            const audioData = this.getInputAudioData();
+            if (audioData && audioData.length > 0) {
+                audioData.forEach((audio, index) => {
+                    const trackParams = this.data.tracks[index];
+                    if (audio.buffer && trackParams) {
+                        // 計算音訊結束時間 = 偏移 + 音訊時長
+                        const audioEndTime = trackParams.offset + audio.buffer.duration;
+                        // 取最大值
+                        duration = Math.max(duration, audioEndTime);
+                    }
+                });
+            }
         }
 
         return duration || 0;
@@ -1624,7 +1626,7 @@ class VideoPreviewNode extends BaseNode {
                 height: 60px;
                 background: var(--bg);
                 border-radius: 4px;
-                overflow: visible;
+                overflow: hidden;
                 width: ${trackWidth};
                 min-width: 100%;
             `;
