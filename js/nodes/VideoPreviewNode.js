@@ -1520,7 +1520,9 @@ class VideoPreviewNode extends BaseNode {
 
         // 計算時間軸的像素寬度（用於對齊）
         const timelineDuration = this.calculateTimelineDuration();
-        console.log(`CalculateTimelineDuration: ${timelineDuration}`);
+        console.log(`[RenderTracks] CalculateTimelineDuration: ${timelineDuration}s`);
+        console.log(`[RenderTracks] VideoDuration: ${this.videoElement?.duration || 0}s`);
+        console.log(`[RenderTracks] AudioData count: ${audioData.length}`);
 
         // 驗證時間軸已準備好
         if (timelineDuration === 0 || !this.timelineTrack) {
@@ -1643,7 +1645,6 @@ class VideoPreviewNode extends BaseNode {
             // 計算音訊區塊的位置和寬度 (考慮縮放)
             // 注意: timelineWidth 已經包含縮放因子 (因為 timeline track 的 width 是 ${100 * this.zoomLevel}%)
             const pixelsPerSecond = timelineWidth / (timelineDuration || 1);
-            console.log(`RenderTracks[${index}]: ContainerWidth=${timelineWidth}, Duration=${timelineDuration}, Zoom=${this.zoomLevel}, PPS=${pixelsPerSecond}`);
             // cropStart 和 cropEnd 已在前面聲明
             const audioDuration = buffer.duration;
 
@@ -1651,6 +1652,10 @@ class VideoPreviewNode extends BaseNode {
             // Container 代表整個音訊檔案的長度
             const blockLeftPixels = trackParams.offset * pixelsPerSecond;
             const blockWidthPixels = audioDuration * pixelsPerSecond;
+
+            console.log(`[Track ${index}] Audio: ${audioDuration}s, Offset: ${trackParams.offset}s, End: ${trackParams.offset + audioDuration}s`);
+            console.log(`[Track ${index}] TimelineWidth: ${timelineWidth}px, TimelineDuration: ${timelineDuration}s, PPS: ${pixelsPerSecond.toFixed(2)}`);
+            console.log(`[Track ${index}] Block: left=${blockLeftPixels.toFixed(2)}px, width=${blockWidthPixels.toFixed(2)}px`);
 
             // 限制 cropEnd 不超過 audioDuration
             const safeCropEnd = Math.min(cropEnd, audioDuration);
