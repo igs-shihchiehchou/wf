@@ -1092,9 +1092,9 @@ class VideoPreviewNode extends BaseNode {
             // 更新縮放級別
             this.zoomLevel = newZoomLevel;
 
-            // 重新渲染時間軸和音軌（跳過 WaveSurfer 重新創建以提高性能）
+            // 重新渲染時間軸和音軌（包含 WaveSurfer 重新創建）
             this.renderTimeline();
-            this.renderTracks(true); // skipWaveSurfer = true
+            this.renderTracks(false); // 必須重新創建 WaveSurfer 以正確顯示縮放後的波形
 
             // 調整滾動位置以保持滑鼠焦點
             // 新的時間軸寬度
@@ -1489,6 +1489,20 @@ class VideoPreviewNode extends BaseNode {
         // 大量音軌警告
         if (audioData.length > 10) {
             showToast(`音軌數量較多 (${audioData.length})，可能影響效能`, 'warning');
+        }
+
+        // 清理舊的 WaveSurfer 實例（必須在清空 DOM 之前執行）
+        if (this.trackWaveSurfers && this.trackWaveSurfers.length > 0) {
+            this.trackWaveSurfers.forEach(ws => {
+                if (ws) {
+                    try {
+                        ws.destroy();
+                    } catch (e) {
+                        console.warn('WaveSurfer destroy error:', e);
+                    }
+                }
+            });
+            this.trackWaveSurfers = [];
         }
 
         // 清空容器
