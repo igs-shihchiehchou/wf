@@ -801,9 +801,19 @@ class VideoPreviewNode extends BaseNode {
         // 防止 NaN（影片 metadata 尚未載入時）
         if (isNaN(duration)) duration = 0;
 
-        // 如果有音訊輸入，計算最長音訊結束時間
-        // TODO: Task 3.1 - 當有音訊輸入時，計算 max(視訊長度, 音訊偏移 + 音訊長度)
-        // 目前僅使用影片長度
+        // 計算最長音訊結束時間
+        const audioData = this.getInputAudioData();
+        if (audioData && audioData.length > 0) {
+            audioData.forEach((audio, index) => {
+                const trackParams = this.data.tracks[index];
+                if (audio.buffer && trackParams) {
+                    // 計算音訊結束時間 = 偏移 + 音訊時長
+                    const audioEndTime = trackParams.offset + audio.buffer.duration;
+                    // 取最大值
+                    duration = Math.max(duration, audioEndTime);
+                }
+            });
+        }
 
         return duration || 0;
     }
