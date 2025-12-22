@@ -548,6 +548,7 @@ class VideoPreviewNode extends BaseNode {
             border-radius: 0 0 4px 4px;
             padding: var(--spacing-3);
             padding-top: 0;
+            overflow: visible;
         `;
         // 儲存參考以便後續更新
         this.tracksContainer = tracksContainer;
@@ -1557,6 +1558,7 @@ class VideoPreviewNode extends BaseNode {
                 margin-bottom: var(--spacing-3);
                 background: var(--bg-dark);
                 border-radius: 4px;
+                overflow: visible;
             `;
 
             // 音軌標題（顯示檔案名，添加padding）
@@ -1818,7 +1820,7 @@ class VideoPreviewNode extends BaseNode {
                 height: container.clientHeight || 48,
                 barWidth: 2,
                 barGap: 1,
-                responsive: true,
+                responsive: false, // 禁用 responsive 以避免視窗滾動時的裁切問題
                 normalize: true,
                 interact: false // 禁止內部互動（點擊等由外部控制）
             });
