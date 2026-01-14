@@ -55,8 +55,21 @@ js/
 └── nodes/
     ├── BaseNode.js         # Base class for all nodes
     ├── AudioInputNode.js   # Audio file input node with automatic analysis
-    ├── VideoPreviewNode.js # Video-referenced audio timeline editor
-    └── ProcessNodes.js     # Processing nodes (Volume, Crop, FadeIn, FadeOut, Speed, Pitch)
+    ├── VolumeNode.js       # Volume adjustment node (0-200%)
+    ├── CropNode.js         # Audio trimming node
+    ├── FadeInNode.js      # Fade-in effect node
+    ├── FadeOutNode.js     # Fade-out effect node
+    ├── SpeedNode.js        # Playback speed adjustment (changes pitch)
+    ├── PitchNode.js        # Pitch adjustment (Phase Vocoder)
+    ├── SmartPitchNode.js    # Smart pitch with detection
+    ├── KeyIntegrationNode.js # Batch pitch adjustment to target key
+    ├── VolumeSyncNode.js    # Volume synchronization node
+    ├── BeatSyncNode.js     # Beat synchronization node
+    ├── SoftenNode.js       # Audio softening node
+    ├── CombineNode.js      # Combine multiple inputs into list
+    ├── JoinNode.js        # Join audio files end-to-end
+    ├── MixNode.js         # Mix two audio files together
+    └── VideoPreviewNode.js # Video-referenced audio timeline editor
 ```
 
 ### Node Types
@@ -124,6 +137,18 @@ AudioInputNode → [ProcessNode] → [ProcessNode] → ... → Preview/Download
   - Progress reporting during long analyses
   - Chunked processing for large files
 
+**WaveSurfer.js Integration:**
+- Used for waveform visualization and audio playback in node previews
+- Loaded via CDN (v7)
+- Configured with custom colors matching theme
+- **Critical**: `normalize: false` must be set to ensure preview matches download
+
+**Preview vs Download Behavior:**
+- Preview: Uses WaveSurfer for real-time audio visualization and playback
+- Download: Direct AudioBuffer to file conversion (WAV/MP3)
+- **Important**: WaveSurfer normalization (`normalize: true`) causes preview-download volume discrepancy
+- Always set `normalize: false` to maintain consistency between preview and final output
+
 **Graph Engine (graphEngine.js):**
 - Manages node creation and deletion
 - Handles port connections
@@ -148,7 +173,7 @@ Dark theme with warm yellow/beige tones defined in `css/theme.css`:
 
 ## Adding a New Node
 
-1. **Create node class** in `js/nodes/ProcessNodes.js`:
+1. **Create node class** in `js/nodes/MyNode.js`:
    ```javascript
    class MyNode extends BaseNode {
      constructor(id, options = {}) {
@@ -215,6 +240,7 @@ Dark theme with warm yellow/beige tones defined in `css/theme.css`:
   - YIN pitch detection optimized for 80-1000 Hz range (game audio focus)
   - Spectrogram generation uses first 10 seconds for hash-based caching
   - Analysis cache limited to 10 most recent files (localStorage constraint)
+- **Volume node preview/download discrepancy**: WaveSurfer normalization can cause preview to sound different from downloaded files if `normalize: true` is used
 
 ## Git Commit Convention
 
