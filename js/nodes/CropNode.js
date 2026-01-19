@@ -225,7 +225,7 @@ class CropNode extends BaseNode {
                 barWidth: 2,
                 barGap: 1,
                 responsive: true,
-                normalize: true,
+                normalize: false,
                 interact: false
             });
 
