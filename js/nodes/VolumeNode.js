@@ -6,7 +6,8 @@ class VolumeNode extends BaseNode {
     constructor(id, options = {}) {
         // 先設定預設值再呼叫 super
         const defaultData = {
-            volume: options.volume || 100
+            volume: options.volume || 100,
+            clippingMode: options.clippingMode || 'none'
         };
         super(id, 'volume', '音量調整', '▲', options, defaultData);
     }
