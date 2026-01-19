@@ -129,6 +129,30 @@ class AudioProcessor {
   }
 
   /**
+   * 應用軟削波（使用 tanh 函數）
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @returns {AudioBuffer} 處理後的音訊
+   */
+  applySoftClip(audioBuffer) {
+    const newBuffer = this.audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const oldData = audioBuffer.getChannelData(channel);
+      const newData = newBuffer.getChannelData(channel);
+      for (let i = 0; i < audioBuffer.length; i++) {
+        // tanh naturally compresses values approaching ±1
+        newData[i] = Math.tanh(oldData[i]);
+      }
+    }
+
+    return newBuffer;
+  }
+
+  /**
    * 應用淡入效果
    * @param {AudioBuffer} audioBuffer - 原始音訊
    * @param {number} duration - 淡入持續時間（秒）
