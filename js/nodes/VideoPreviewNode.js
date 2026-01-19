@@ -796,7 +796,7 @@ class VideoPreviewNode extends BaseNode {
     /**
      * 計算時間軸總長度（優先使用影片長度，無影片時使用音訊長度）
      */
-    calculateTimelineDuration() {
+    async calculateTimelineDuration() {
         let duration = this.videoElement ? this.videoElement.duration : 0;
 
         // 防止 NaN（影片 metadata 尚未載入時）
@@ -804,7 +804,7 @@ class VideoPreviewNode extends BaseNode {
 
         // 如果沒有影片，才計算最長音訊結束時間
         if (duration === 0) {
-            const audioData = this.getInputAudioData();
+            const audioData = await this.getInputAudioData();
             if (audioData && audioData.length > 0) {
                 audioData.forEach((audio, index) => {
                     const trackParams = this.data.tracks[index];
@@ -824,10 +824,10 @@ class VideoPreviewNode extends BaseNode {
     /**
      * 渲染時間軸
      */
-    renderTimeline() {
+    async renderTimeline() {  // FIX Bug #3: Made async
         if (!this.timelineContainer) return;
 
-        const duration = this.calculateTimelineDuration();
+        const duration = await this.calculateTimelineDuration();  // FIX Bug #3: Added await
 
         // 清空容器
         this.timelineContainer.innerHTML = '';
@@ -1051,7 +1051,7 @@ class VideoPreviewNode extends BaseNode {
             this.timelineScrollWrapper.removeEventListener('wheel', this.zoomEventHandler);
         }
 
-        const onWheel = (e) => {
+        const onWheel = async (e) => {
             e.preventDefault();
 
             // 根據 deltaY 計算縮放變化 (更精細的控制)
@@ -1089,7 +1089,7 @@ class VideoPreviewNode extends BaseNode {
             const containerScrollLeft = this.timelineScrollWrapper.scrollLeft;
 
             // 當前滑鼠位置對應的時間(考慮滾動)
-            const duration = this.calculateTimelineDuration();
+            const duration = await this.calculateTimelineDuration();  // FIX Bug #3: Added await
             const mouseTime = ((mouseX + containerScrollLeft) / rect.width) * duration;
 
             // 更新縮放級別
@@ -1097,7 +1097,7 @@ class VideoPreviewNode extends BaseNode {
 
             // 重新渲染時間軸和音軌（包含 WaveSurfer 重新創建）
             this.renderTimeline();
-            this.renderTracks(false); // 必須重新創建 WaveSurfer 以正確顯示縮放後的波形
+            await this.renderTracks(false); // 必須重新創建 WaveSurfer 以正確顯示縮放後的波形
 
             // 調整滾動位置以保持滑鼠焦點
             // 新的時間軸寬度
@@ -1142,13 +1142,13 @@ class VideoPreviewNode extends BaseNode {
     /**
      * 更新視窗信息顯示（時間範圍和縮放級別）
      */
-    updateViewInfo() {
+    async updateViewInfo() {  // FIX Bug #3: Made async
         const viewTimeRange = document.getElementById('view-time-range');
         const viewZoomLevel = document.getElementById('view-zoom-level');
 
         if (!viewTimeRange || !viewZoomLevel || !this.timelineTrack || !this.timelineContainer) return;
 
-        const duration = this.calculateTimelineDuration();
+        const duration = await this.calculateTimelineDuration();  // FIX Bug #3: Added await
         const trackRect = this.timelineTrack.getBoundingClientRect();
         const containerRect = this.timelineScrollWrapper.getBoundingClientRect();
         const scrollLeft = this.timelineScrollWrapper.scrollLeft;
@@ -1165,13 +1165,13 @@ class VideoPreviewNode extends BaseNode {
     /**
      * 根據滑鼠位置跳轉到對應時間
      */
-    seekToPosition(event) {
+    async seekToPosition(event) {  // FIX Bug #3: Made async
         if (!this.timelineTrack || !this.videoElement) return;
 
         const rect = this.timelineTrack.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const percentage = Math.max(0, Math.min(1, x / rect.width));
-        const duration = this.calculateTimelineDuration();
+        const duration = await this.calculateTimelineDuration();  // FIX Bug #3: Added await
         const targetTime = percentage * duration;
 
         // 設定影片時間
@@ -1184,10 +1184,10 @@ class VideoPreviewNode extends BaseNode {
     /**
      * 更新播放游標位置
      */
-    updatePlaybackCursor() {
+    async updatePlaybackCursor() {  // FIX Bug #3: Made async
         if (!this.playbackCursor || !this.videoElement) return;
 
-        const duration = this.calculateTimelineDuration();
+        const duration = await this.calculateTimelineDuration();  // FIX Bug #3: Added await
         if (duration === 0) return;
 
         const percentage = (this.videoElement.currentTime / duration) * 100;
@@ -1200,14 +1200,14 @@ class VideoPreviewNode extends BaseNode {
     /**
      * 更新延伸播放線位置（貫穿所有音軌）
      */
-    updatePlaybackLine() {
+    async updatePlaybackLine() {  // FIX Bug #3: Made async
         if (!this.playbackLine || !this.timelineTrack || !this.tracksContainer) return;
 
         const trackRect = this.timelineTrack.getBoundingClientRect();
         const tracksRect = this.tracksContainer.getBoundingClientRect();
 
         // 計算左側位置（與游標同步）
-        const duration = this.calculateTimelineDuration();
+        const duration = await this.calculateTimelineDuration();  // FIX Bug #3: Added await
         if (duration === 0) return;
 
         const percentage = this.videoElement ? (this.videoElement.currentTime / duration) : 0;
@@ -1264,28 +1264,43 @@ class VideoPreviewNode extends BaseNode {
      * 播放音訊 (Task 4.1)
      * @param {number} startTime 影片當前時間 (秒)
      */
-    playAudio(startTime) {
+    async playAudio(startTime) {  // FIX Bug #4: Made async
         this.stopAudio(); // 先停止當前播放
         this.setupAudioContext();
 
-        const audioData = this.getInputAudioData();
+        const audioData = await this.getInputAudioData();  // FIX Bug #4: Added await
         if (audioData.length === 0) return;
+
+        console.log('[playAudio] DIAGNOSTIC - startTime:', startTime);
+        console.log('[playAudio] DIAGNOSTIC - tracks:', this.data.tracks);
 
         this.data.tracks.forEach((track, index) => {
             if (!audioData[index]) return;
 
             const buffer = audioData[index].buffer;
+            const stretchFactor = track.stretchFactor || 1.0;  // FIX Bug #6: Get stretch factor
 
             // 計算音訊在時間軸上的有效區間
             const cropStart = track.cropStart || 0;
             const cropEnd = track.cropEnd !== null ? track.cropEnd : buffer.duration;
             const trackDuration = cropEnd - cropStart; // 裁切後的長度
+            const stretchedDuration = trackDuration * stretchFactor;  // FIX Bug #6: Account for stretch
+
+            console.log(`[playAudio] Track ${index}:`, {
+                cropStart,
+                cropEnd,
+                trackDuration,
+                stretchFactor,
+                stretchedDuration,
+                offset: track.offset,
+                bufferDuration: buffer.duration
+            });
 
             // 音訊在時間軸上的播放區間
             // trackStartTime = 音訊容器在時間軸上的起始位置
-            // trackEndTime = 起始位置 + 裁切後的長度
+            // trackEndTime = 起始位置 + 伸縮後的長度
             const trackStartTime = track.offset;
-            const trackEndTime = trackStartTime + trackDuration;
+            const trackEndTime = trackStartTime + stretchedDuration;  // FIX Bug #6: Use stretched duration
 
             // 檢查當前時間點是否在這段音訊的播放範圍內
             // 影片時間: startTime
@@ -1296,19 +1311,40 @@ class VideoPreviewNode extends BaseNode {
             if (startTime < trackStartTime) {
                 const delay = trackStartTime - startTime;
                 const offset = cropStart; // 從裁切起點開始播
-                const duration = trackDuration;
+                const duration = trackDuration;  // 原始時長（playbackRate會處理伸縮）
 
-                this.scheduleAudioSource(buffer, delay, offset, duration);
+                console.log(`[playAudio] Track ${index} - Case 1 (scheduled):`, {
+                    delay,
+                    offset,
+                    duration,
+                    stretchFactor,
+                    trackStartTime,
+                    trackEndTime
+                });
+
+                this.scheduleAudioSource(buffer, delay, offset, duration, stretchFactor);  // FIX Bug #6: Pass stretchFactor
             }
 
             // 情況 2: 正處於此音訊播放期間 (音訊開始時間 <= 影片時間 < 音訊結束時間)
             else if (startTime >= trackStartTime && startTime < trackEndTime) {
-                const timeInTrack = startTime - trackStartTime; // 已經播了多久
-                const offset = cropStart + timeInTrack; // 從裁切起點 + 已經播過的時間開始播
-                const duration = trackDuration - timeInTrack; // 播剩下的長度
+                const timeInTrack = startTime - trackStartTime; // 已經播了多久（時間軸時間）
+                // 轉換為音訊內部時間（考慮伸縮）
+                const audioTime = timeInTrack / stretchFactor;  // FIX Bug #6: Convert timeline time to audio time
+                // offset = buffer position = cropStart + elapsed audio time
+                const offset = cropStart + audioTime;
+                const duration = trackDuration - audioTime; // 播剩下的長度
 
-                if (duration > 0) {
-                    this.scheduleAudioSource(buffer, 0, offset, duration);
+                console.log(`[playAudio] Track ${index} - Case 2 (playing now):`, {
+                    timeInTrack,
+                    audioTime,
+                    offset,
+                    duration,
+                    stretchFactor
+                });
+
+                // Guard: offset 不能為負數（當影片時間在 trackStart 和 cropStart 之間時）
+                if (duration > 0 && offset >= 0) {
+                    this.scheduleAudioSource(buffer, 0, offset, duration, stretchFactor);  // FIX Bug #6: Pass stretchFactor
                 }
             }
 
@@ -1318,16 +1354,38 @@ class VideoPreviewNode extends BaseNode {
 
     /**
      * 建立並排程 AudioBufferSourceNode
+     * @param {AudioBuffer} buffer - 音訊緩衝
+     * @param {number} whenDelay - 延遲時間（秒）
+     * @param {number} offset - Buffer 內的偏移（秒）
+     * @param {number} duration - 播放持續時間（秒，未伸縮）
+     * @param {number} stretchFactor - 時間伸縮係數（1.0 = 正常，>1.0 = 變慢，<1.0 = 變快）
      */
-    scheduleAudioSource(buffer, whenDelay, offset, duration) {
+    scheduleAudioSource(buffer, whenDelay, offset, duration, stretchFactor = 1.0) {
         const source = this.audioContext.createBufferSource();
         source.buffer = buffer;
+
+        // FIX Bug #6: Apply stretch by adjusting playback rate
+        // stretchFactor > 1.0: 變慢 -> playbackRate < 1.0
+        // stretchFactor < 1.0: 變快 -> playbackRate > 1.0
+        const playbackRate = 1.0 / stretchFactor;
+        source.playbackRate.value = playbackRate;
+
         source.connect(this.audioContext.destination);
 
         // when: AudioContext 時間座標
         // offset: Buffer 內的偏移
-        // duration: 播放持續時間
+        // duration: 播放持續時間（原始時長，playbackRate會自動處理伸縮）
         const acTime = this.audioContext.currentTime + whenDelay;
+
+        console.log('[scheduleAudioSource] DIAGNOSTIC:', {
+            bufferDuration: buffer.duration,
+            whenDelay,
+            offset,
+            duration,
+            stretchFactor,
+            playbackRate,
+            acTime
+        });
 
         source.start(acTime, offset, duration);
         this.sourceNodes.push(source);
@@ -1359,33 +1417,48 @@ class VideoPreviewNode extends BaseNode {
      * 確保 tracks 參數陣列長度與音訊數量一致
      */
     ensureTracksArray(count) {
+        console.log(`[VideoPreviewNode] DIAGNOSTIC ensureTracksArray - count: ${count}`);
+        console.log(`[VideoPreviewNode] DIAGNOSTIC ensureTracksArray - current tracks length: ${this.data.tracks?.length || 0}`);
+
         if (!this.data.tracks) {
             this.data.tracks = [];
         }
 
         // 補齊新增的音軌（使用預設參數）
         while (this.data.tracks.length < count) {
-            this.data.tracks.push({
+            const newTrack = {
                 offset: 0,         // 時間偏移（秒）
                 cropStart: 0,      // 裁切起始點（秒）
                 cropEnd: null,     // 裁切結束點（null 表示音訊結尾）
                 stretchFactor: 1.0 // 時間伸縮係數（1.0 = 原速，>1.0 = 變慢/拉長，<1.0 = 變快/壓縮）
-            });
+            };
+            console.log(`[VideoPreviewNode] DIAGNOSTIC ensureTracksArray - Adding new track:`, newTrack);
+            this.data.tracks.push(newTrack);
         }
 
         // 移除多餘的音軌
         if (this.data.tracks.length > count) {
+            console.log(`[VideoPreviewNode] DIAGNOSTIC ensureTracksArray - Removing extra tracks: ${this.data.tracks.length} -> ${count}`);
             this.data.tracks = this.data.tracks.slice(0, count);
         }
+
+        console.log(`[VideoPreviewNode] DIAGNOSTIC ensureTracksArray - Final tracks:`, this.data.tracks);
     }
 
     /**
      * 取得輸入音訊列表及其元資料
      */
-    getInputAudioData() {
+    async getInputAudioData() {
+        console.log('[VideoPreviewNode] === getInputAudioData DIAGNOSTIC START ===');
+
         // 從輸入端口取得資料
         const audioPort = this.getInputPort('audio');
+        console.log('[VideoPreviewNode] DIAGNOSTIC - audioPort:', audioPort);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - audioPort.connected:', audioPort?.connected);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - audioPort.connectedTo:', audioPort?.connectedTo);
+
         if (!audioPort || !audioPort.connected) {
+            console.log('[VideoPreviewNode] DIAGNOSTIC - No port or no connection, returning []');
             return [];
         }
 
@@ -1394,7 +1467,12 @@ class VideoPreviewNode extends BaseNode {
         const sourcePort = audioPort.connectedTo?.port;
         const sourcePortName = sourcePort?.name;
 
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Source node:', sourceNode);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Source node type:', sourceNode?.type);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Source port name:', sourcePortName);
+
         if (!sourceNode) {
+            console.log('[VideoPreviewNode] No source node, returning []');
             return [];
         }
 
@@ -1402,10 +1480,50 @@ class VideoPreviewNode extends BaseNode {
         const isPreviewPort = sourcePortName && sourcePortName.startsWith('preview-output-');
         const previewIndex = isPreviewPort ? parseInt(sourcePortName.split('-')[2]) : -1;
 
+        // 嘗試取得來源節點的狀態
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Source node lastOutputs:', sourceNode.lastOutputs);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Source node data:', sourceNode.data);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Source node audioFiles:', sourceNode.audioFiles);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Source node inputAudioBuffer:', sourceNode.inputAudioBuffer);
+
         // 嘗試從 lastOutputs 取得處理結果
         let outputs = sourceNode.lastOutputs;
 
-        // 如果沒有執行結果，嘗試直接讀取節點狀態（改善 UX）
+        // 如果沒有執行結果，嘗試執行來源節點及其上游節點
+        if (!outputs) {
+            console.log('[VideoPreviewNode] No lastOutputs, trying to execute source node chain');
+            try {
+                // 嘗試使用 graph engine 執行上游節點
+                if (window.graphEngine) {
+                    console.log('[VideoPreviewNode] Using graph engine to execute upstream');
+                    // 從來源節點開始執行整個鏈
+                    const sourceNodeId = sourceNode.id;
+                    await window.graphEngine.executeFromNode(sourceNodeId);
+                    
+                    // 現在應該有 lastOutputs 了
+                    outputs = sourceNode.lastOutputs;
+                    console.log('[VideoPreviewNode] After graph execution, lastOutputs:', outputs);
+                } else {
+                    // 回退：為來源節點建立空的輸入並執行
+                    console.log('[VideoPreviewNode] Graph engine not available, using fallback');
+                    const sourceInputs = {};
+                    outputs = sourceNode.process(sourceInputs);
+                    console.log('[VideoPreviewNode] Source node executed, outputs:', outputs);
+                }
+            } catch (error) {
+                console.error('[VideoPreviewNode] Error executing source node:', error);
+            }
+        } else {
+            console.log('[VideoPreviewNode] Found lastOutputs:', outputs);
+        }
+
+        // 處理 Promise 情況
+        if (outputs && typeof outputs.then === 'function') {
+            console.log('[VideoPreviewNode] Found Promise, this should not happen in getInputAudioData');
+            return []; // 無法在同步方法中處理 Promise
+        }
+
+        // 如果還是沒有執行結果，嘗試直接讀取節點狀態（改善 UX）
         if (!outputs) {
             // 情況 A: 連接的是 AudioInputNode (或其他支援 audioFiles 的節點)
             if (sourceNode.audioFiles && Array.isArray(sourceNode.audioFiles) && sourceNode.audioFiles.length > 0) {
@@ -1423,11 +1541,14 @@ class VideoPreviewNode extends BaseNode {
             }
         }
 
+        console.log('[VideoPreviewNode] getInputAudioData - outputs:', outputs);
         if (!outputs) {
+            console.log('[VideoPreviewNode] getInputAudioData - No outputs found, returning []');
             return [];
         }
 
         const lastOutputs = outputs; // 為了保持下方變數名稱一致
+        console.log('[VideoPreviewNode] getInputAudioData - lastOutputs:', lastOutputs);
 
         // 如果連接自預覽端口，只返回該特定音訊
         if (isPreviewPort && lastOutputs.audioFiles && Array.isArray(lastOutputs.audioFiles)) {
@@ -1473,6 +1594,9 @@ class VideoPreviewNode extends BaseNode {
             });
         }
 
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Final audioData length:', audioData.length);
+        console.log('[VideoPreviewNode] DIAGNOSTIC - Final audioData:', audioData);
+        console.log('[VideoPreviewNode] === getInputAudioData DIAGNOSTIC END ===');
         return audioData;
     }
 
@@ -1480,11 +1604,11 @@ class VideoPreviewNode extends BaseNode {
      * 渲染音軌列表
      * @param {boolean} skipWaveSurfer - 是否跳過 WaveSurfer 重新創建(縮放時使用)
      */
-    renderTracks(skipWaveSurfer = false) {
+    async renderTracks(skipWaveSurfer = false) {
         if (!this.tracksContainer) return;
 
         // 取得輸入音訊列表
-        const audioData = this.getInputAudioData();
+        const audioData = await this.getInputAudioData();
 
         // 確保 tracks 參數陣列長度一致
         this.ensureTracksArray(audioData.length);
@@ -1522,7 +1646,7 @@ class VideoPreviewNode extends BaseNode {
         }
 
         // 計算時間軸的像素寬度（用於對齊）
-        const timelineDuration = this.calculateTimelineDuration();
+        const timelineDuration = await this.calculateTimelineDuration();  // FIX Bug #3: Added await
         console.log(`[RenderTracks] CalculateTimelineDuration: ${timelineDuration}s`);
         console.log(`[RenderTracks] VideoDuration: ${this.videoElement?.duration || 0}s`);
         console.log(`[RenderTracks] AudioData count: ${audioData.length}`);
@@ -1551,6 +1675,10 @@ class VideoPreviewNode extends BaseNode {
         // 為每個音訊建立音軌 DOM
         audioData.forEach((audio, index) => {
             const trackParams = this.data.tracks[index];
+            console.log(`[VideoPreviewNode] DIAGNOSTIC renderTracks - Track ${index} params:`, trackParams);
+            console.log(`[VideoPreviewNode] DIAGNOSTIC renderTracks - Track ${index} offset:`, trackParams.offset);
+            console.log(`[VideoPreviewNode] DIAGNOSTIC renderTracks - Track ${index} offset type:`, typeof trackParams.offset);
+
             const buffer = audio.buffer;
 
             // 建立音軌容器（不加padding，讓內部元素自行處理對齊）
@@ -1582,8 +1710,10 @@ class VideoPreviewNode extends BaseNode {
             const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration;
             const stretchedDuration = (cropEnd - cropStart) * stretchFactor;
             // 計算時間軸上的起始和結束時間
-            const startTime = trackParams.offset + cropStart;
-            const endTime = trackParams.offset + cropEnd;
+            // startTime = offset (where audio starts on timeline)
+            // endTime = offset + stretched duration (where audio ends on timeline)
+            const startTime = trackParams.offset;
+            const endTime = trackParams.offset + stretchedDuration;
 
             trackTitle.innerHTML = `
                 <div style="display:flex; justify-content:space-between; width:100%; align-items:center; gap: var(--spacing-2);">
@@ -1771,8 +1901,10 @@ class VideoPreviewNode extends BaseNode {
                         const cropStart = trackParams.cropStart || 0;
                         const cropEnd = trackParams.cropEnd !== null ? trackParams.cropEnd : buffer.duration;
                         const duration = cropEnd - cropStart;
-                        const startTime = trackParams.offset + cropStart;
-                        const endTime = trackParams.offset + cropEnd;
+                        // startTime = offset (where audio starts on timeline)
+                        // endTime = offset + duration (where audio ends on timeline)
+                        const startTime = trackParams.offset;
+                        const endTime = trackParams.offset + duration;
                         timeInfo.textContent = `Start: ${startTime.toFixed(2)}s | End: ${endTime.toFixed(2)}s | Dur: ${duration.toFixed(2)}s`;
                     }
                 });
@@ -1823,7 +1955,7 @@ class VideoPreviewNode extends BaseNode {
                 barWidth: 2,
                 barGap: 1,
                 responsive: false, // 禁用 responsive 以避免視窗滾動時的裁切問題
-                normalize: true,
+                normalize: false,
                 interact: false // 禁止內部互動（點擊等由外部控制）
             });
 
@@ -1858,11 +1990,11 @@ class VideoPreviewNode extends BaseNode {
             if (!timeInfoEl) return;
             const cs = track.cropStart || 0;
             const ce = track.cropEnd !== null ? track.cropEnd : audioDuration;
-            // 修正顯示：Start 等於此片段在時間軸上的起始時間 (offset + cropStart)
-            // End 等於結束時間 (offset + cropEnd)
-            const startTime = track.offset + cs;
-            const endTime = track.offset + ce;
             const duration = ce - cs;
+            // startTime = offset (where audio starts on timeline)
+            // endTime = offset + duration (where audio ends on timeline)
+            const startTime = track.offset;
+            const endTime = track.offset + duration;
 
             timeInfoEl.textContent = `Start: ${startTime.toFixed(2)}s | End: ${endTime.toFixed(2)}s | Dur: ${duration.toFixed(2)}s`;
         };
@@ -1895,9 +2027,12 @@ class VideoPreviewNode extends BaseNode {
             const currentCropStart = this.data.tracks[index].cropStart || 0;
             const currentCropEnd = this.data.tracks[index].cropEnd !== undefined ? this.data.tracks[index].cropEnd : audioDuration;
 
-            // 轉換為像素位置
-            const cropStartPixels = currentCropStart * pixelsPerSecond;
-            const cropEndPixels = currentCropEnd * pixelsPerSecond;
+            // FIX Bug #7: Account for stretchFactor in edge position calculation
+            const currentStretchFactor = this.data.tracks[index].stretchFactor || 1.0;
+
+            // 轉換為像素位置 (accounting for stretch)
+            const cropStartPixels = currentCropStart * pixelsPerSecond * currentStretchFactor;
+            const cropEndPixels = currentCropEnd * pixelsPerSecond * currentStretchFactor;
 
             const edgeThreshold = 10;
 
@@ -2198,8 +2333,8 @@ class VideoPreviewNode extends BaseNode {
         };
 
         // 在影片載入 metadata 後渲染音軌
-        const onLoadedMetadata = () => {
-            this.renderTracks();
+        const onLoadedMetadata = async () => {
+            await this.renderTracks();
             this.videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
         };
 
@@ -2395,8 +2530,39 @@ class VideoPreviewNode extends BaseNode {
     }
 
     async process(inputs) {
-        // 取得輸入音訊列表
-        const audioData = this.getInputAudioData();
+        console.log('[VideoPreviewNode] process called with inputs:', inputs);
+
+        // 使用圖形引擎傳遞的輸入（如果有的話），否則自己取得
+        let audioData = [];
+
+        // FIX Bug #2: Check for audioFiles FIRST (multi-file), then audio (single-file fallback)
+        // This ensures we don't lose files when both audio and audioFiles are present
+        if (inputs && inputs.audioFiles && Array.isArray(inputs.audioFiles) && inputs.audioFiles.length > 0) {
+            console.log('[VideoPreviewNode] Using graph engine multi-file inputs:', inputs);
+            // 多檔案格式 - 優先處理，確保不會丟失檔案
+            const filenames = inputs.filenames || [];
+            for (let i = 0; i < inputs.audioFiles.length; i++) {
+                if (inputs.audioFiles[i] instanceof AudioBuffer) {
+                    audioData.push({
+                        buffer: inputs.audioFiles[i],
+                        filename: filenames[i] || `Audio ${i + 1}`
+                    });
+                }
+            }
+        } else if (inputs && inputs.audio) {
+            console.log('[VideoPreviewNode] Using graph engine single-file input:', inputs);
+            // 單一音訊格式（向下相容）
+            audioData = [{
+                buffer: inputs.audio,
+                filename: inputs.filenames?.[0] || 'Processed Audio'
+            }];
+        } else {
+            // 回退到自己的輸入偵測方法
+            console.log('[VideoPreviewNode] Using getInputAudioData fallback, inputs were:', inputs);
+            audioData = await this.getInputAudioData();
+        }
+        
+        console.log('[VideoPreviewNode] Final audioData length:', audioData.length);
 
         // 如果沒有音訊輸入，返回空
         if (audioData.length === 0) {
@@ -2459,13 +2625,13 @@ class VideoPreviewNode extends BaseNode {
                     processedBuffer = audioProcessor.cropAudio(processedBuffer, cropStart, cropEnd);
                 }
 
-                // 步驟 2：應用時間偏移（offset）
-                const offset = trackParams.offset || 0;
-                if (offset !== 0) {
-                    processedBuffer = this.applyTimeOffset(processedBuffer, offset);
-                }
+                // FIX Bug #5: DO NOT apply offset to exported audio buffer
+                // Offset is only for timeline positioning during preview/playback
+                // Exported audio should be the cropped audio without silence padding
 
-                // 步驟 3：應用時間伸縮（stretchFactor）
+                // 步驟 2：應用時間伸縮（stretchFactor）
+                // NOTE: Stretch is applied to EXPORT but NOT during preview playback
+                // During preview, stretchFactor is handled by playbackRate in scheduleAudioSource()
                 let stretchFactor = trackParams.stretchFactor || 1.0;
 
                 // 驗證並修正伸縮係數（範圍 0.25x ~ 4.0x）

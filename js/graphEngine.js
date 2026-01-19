@@ -59,6 +59,11 @@ class GraphEngine {
             this.handleAudioFileDrop(files, x, y);
         };
 
+        // 視訊檔案拖放
+        this.canvas.onVideoFileDrop = (files, x, y) => {
+            this.handleVideoFileDrop(files, x, y);
+        };
+
         // 連結拖到空白處
         this.canvas.onLinkDropOnCanvas = (data) => {
             this.showLinkDropContextMenu(data);
@@ -79,6 +84,35 @@ class GraphEngine {
             // 載入檔案到節點
             await node.loadFiles(files);
         }
+    }
+
+    /**
+     * 處理視訊檔案拖放到畫布
+     */
+    async handleVideoFileDrop(files, x, y) {
+        if (!files || files.length === 0) return;
+
+        // 建立新的視訊預覽節點
+        const node = this.createNode('video-preview', x, y);
+        if (node) {
+            // 載入檔案到節點（取第一個檔案）
+            await node.loadVideoFile(files[0]);
+        }
+    }
+
+    /**
+     * 正常化節點輸出以適配 VideoPreviewNode
+     */
+    normalizeOutputForVideoPreview(output, sourceNode) {
+        if (output.audio && !(output.audioFiles)) {
+            // 處理節點輸出 {audio: AudioBuffer}
+            return {
+                ...output,
+                audioFiles: [output.audio],
+                filenames: [sourceNode.data?.filename || 'Processed Audio']
+            };
+        }
+        return output;
     }
 
     createNode(type, x, y) {
@@ -401,6 +435,8 @@ class GraphEngine {
         const isCombineNode = node.type === 'combine';
         // 為 Join 和 Mix 節點特別處理：需要分別傳遞兩個輸入的檔名
         const isJoinOrMixNode = node.type === 'join' || node.type === 'mix';
+        // 為 VideoPreviewNode 特別處理：需要正常化處理節點輸出
+        const isVideoPreviewNode = node.type === 'video-preview';
 
         if (isCombineNode) {
             inputs._portFilenames = {};  // 儲存每個端口的檔名
@@ -413,7 +449,14 @@ class GraphEngine {
                 if (sourceNode) {
                     // 遞迴取得來源節點的輸入並處理
                     const sourceInputs = await this.getNodeInputData(link.sourceNodeId);
-                    const sourceOutput = await sourceNode.process(sourceInputs);
+                    let sourceOutput = await sourceNode.process(sourceInputs);
+
+                    // 為 VideoPreviewNode 正常化處理節點輸出格式
+                    if (isVideoPreviewNode) {
+                        console.log('[GraphEngine] Before normalization for VideoPreviewNode:', { sourceOutput, sourceNode: sourceNode.type });
+                        sourceOutput = this.normalizeOutputForVideoPreview(sourceOutput, sourceNode);
+                        console.log('[GraphEngine] After normalization for VideoPreviewNode:', sourceOutput);
+                    }
 
                     // 檢查是否來自預覽輸出端口（單一檔案）
                     if (link.sourcePort.isPreviewOutput) {
@@ -441,6 +484,11 @@ class GraphEngine {
                         }
                     } else {
                         // 傳遞主要端口資料
+                        console.log('[GraphEngine] DIAGNOSTIC getNodeInputData - Setting inputs[port.name]:', port.name);
+                        console.log('[GraphEngine] DIAGNOSTIC getNodeInputData - sourceOutput:', sourceOutput);
+                        console.log('[GraphEngine] DIAGNOSTIC getNodeInputData - link.sourcePort.name:', link.sourcePort.name);
+                        console.log('[GraphEngine] DIAGNOSTIC getNodeInputData - sourceOutput[link.sourcePort.name]:', sourceOutput[link.sourcePort.name]);
+
                         inputs[port.name] = sourceOutput[link.sourcePort.name];
 
                         // 為合併節點儲存每個端口的檔名
@@ -464,11 +512,14 @@ class GraphEngine {
                             }
                         } else {
                             // 同時傳遞多檔案相關資料（如果存在）
+                            console.log('[GraphEngine] DIAGNOSTIC getNodeInputData - Checking sourceOutput.audioFiles:', sourceOutput.audioFiles?.length);
                             if (sourceOutput.audioFiles) {
                                 inputs.audioFiles = sourceOutput.audioFiles;
+                                console.log('[GraphEngine] DIAGNOSTIC getNodeInputData - Set inputs.audioFiles, length:', inputs.audioFiles.length);
                             }
                             if (sourceOutput.filenames) {
                                 inputs.filenames = sourceOutput.filenames;
+                                console.log('[GraphEngine] DIAGNOSTIC getNodeInputData - Set inputs.filenames, length:', inputs.filenames.length);
                             }
                         }
                     }
@@ -514,8 +565,11 @@ class GraphEngine {
         const node = this.canvas.nodes.get(nodeId);
         if (!node) return;
 
+        console.log(`[GraphEngine] executeNode: ${node.type} (${nodeId})`);
+
         // 收集輸入 - 使用遞迴取得完整輸入鏈
         const inputs = await this.getNodeInputData(nodeId);
+        console.log(`[GraphEngine] executeNode inputs for ${node.type}:`, inputs);
 
         // 如果是裁切節點或需要更新輸入音訊的節點
         if (node.updateInputAudio) {
@@ -526,7 +580,11 @@ class GraphEngine {
         // 執行節點
         node.setProcessing(true);
         try {
-            await node.process(inputs);
+            console.log('[GraphEngine] DIAGNOSTIC - Before process(), inputs:', inputs);
+            const outputs = await node.process(inputs);
+            console.log('[GraphEngine] DIAGNOSTIC - After process(), outputs:', outputs);
+            console.log('[GraphEngine] DIAGNOSTIC - Storing outputs in node.lastOutputs');
+            node.lastOutputs = outputs;
 
             // 顯示連線動畫
             this.canvas.links.forEach(link => {

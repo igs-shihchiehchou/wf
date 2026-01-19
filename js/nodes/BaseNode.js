@@ -817,7 +817,7 @@ class BaseNode {
                 barWidth: 2,
                 barGap: 1,
                 responsive: true,
-                normalize: true
+                normalize: false
             });
 
             const wavData = audioBufferToWav(buffer);
@@ -862,14 +862,24 @@ class BaseNode {
     // ========== 預覽功能（處理節點專用，使用統一多檔案系統）==========
 
     renderPreview() {
+        console.log('[BaseNode] === renderPreview DIAGNOSTIC START ===');
+        console.log('[BaseNode] DIAGNOSTIC - node type:', this.type);
+        console.log('[BaseNode] DIAGNOSTIC - node category:', this.getNodeCategory());
+
         // 只有處理節點才顯示預覽區域
-        if (this.getNodeCategory() === 'input') return '';
+        if (this.getNodeCategory() === 'input') {
+            console.log('[BaseNode] DIAGNOSTIC - Input node, returning empty');
+            return '';
+        }
 
         // 同步 previewBuffers 到 files.items（確保資料一致）
         this.syncPreviewToFiles();
+        console.log('[BaseNode] DIAGNOSTIC - previewBuffers:', this.previewBuffers);
+        console.log('[BaseNode] DIAGNOSTIC - files.items after sync:', this.files.items);
 
         // 檢查是否有檔案
         const fileCount = this.getMultiFileCount();
+        console.log('[BaseNode] DIAGNOSTIC - fileCount:', fileCount);
 
         // 統一使用多檔案系統（包括單檔案）
         if (fileCount > 0) {
@@ -896,12 +906,20 @@ class BaseNode {
      * 同步 previewBuffers 到統一的 files 結構
      */
     syncPreviewToFiles() {
-        if (!this.previewBuffers) return;
+        console.log('[BaseNode] DIAGNOSTIC syncPreviewToFiles - previewBuffers:', this.previewBuffers);
+        console.log('[BaseNode] DIAGNOSTIC syncPreviewToFiles - previewBuffers length:', this.previewBuffers?.length);
+
+        if (!this.previewBuffers) {
+            console.log('[BaseNode] DIAGNOSTIC syncPreviewToFiles - No previewBuffers, returning');
+            return;
+        }
 
         this.files.items = this.previewBuffers.map((buffer, index) => ({
             buffer: buffer,
             filename: this.previewFilenames ? this.previewFilenames[index] : `處理結果 ${index + 1}`
         }));
+
+        console.log('[BaseNode] DIAGNOSTIC syncPreviewToFiles - files.items created:', this.files.items.length);
     }
 
     /**
@@ -957,8 +975,14 @@ class BaseNode {
     }
 
     async updatePreview() {
+        console.log('[BaseNode] === updatePreview DIAGNOSTIC START ===');
+        console.log('[BaseNode] DIAGNOSTIC updatePreview - node type:', this.type);
+
         const previewEl = this.element.querySelector('.node-preview, .node-preview-multi, .node-preview-single, .node-preview-empty');
-        if (!previewEl) return;
+        if (!previewEl) {
+            console.log('[BaseNode] DIAGNOSTIC updatePreview - No preview element found');
+            return;
+        }
 
         // 標記預覽已開啟
         this.previewVisible = true;
@@ -967,18 +991,25 @@ class BaseNode {
         try {
             // 取得輸入資料
             const inputs = await this.getInputData();
+            console.log('[BaseNode] DIAGNOSTIC updatePreview - inputs:', inputs);
+            console.log('[BaseNode] DIAGNOSTIC updatePreview - inputs.audioFiles length:', inputs.audioFiles?.length);
+
             const outputs = await this.process(inputs);
+            console.log('[BaseNode] DIAGNOSTIC updatePreview - outputs:', outputs);
+            console.log('[BaseNode] DIAGNOSTIC updatePreview - outputs.audioFiles length:', outputs.audioFiles?.length);
 
             // 處理多檔案輸出
             if (outputs.audioFiles && outputs.audioFiles.length > 0) {
                 this.previewBuffers = outputs.audioFiles.filter(b => b != null);
                 this.previewFilenames = outputs.filenames || this.previewBuffers.map((_, i) => `檔案 ${i + 1}`);
                 this.previewBuffer = this.previewBuffers[0] || null;
+                console.log('[BaseNode] DIAGNOSTIC updatePreview - Set previewBuffers, length:', this.previewBuffers.length);
             } else {
                 // 單檔案處理（向下相容）
                 this.previewBuffer = outputs.audio;
                 this.previewBuffers = outputs.audio ? [outputs.audio] : [];
                 this.previewFilenames = outputs.filenames || ['處理結果'];
+                console.log('[BaseNode] DIAGNOSTIC updatePreview - Single file mode, previewBuffers length:', this.previewBuffers.length);
             }
 
             // 同步到 files 結構
@@ -1037,7 +1068,7 @@ class BaseNode {
                 barWidth: 2,
                 barGap: 1,
                 responsive: true,
-                normalize: true
+                normalize: false
             });
 
             const wavData = audioBufferToWav(this.previewBuffer);

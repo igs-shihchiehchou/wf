@@ -974,3 +974,20 @@ input[type="number"]:focus {
   background-color: var(--border-muted);
   margin: var(--spacing-1) 0;
 }
+
+/* ===========================
+   Version Footer
+   =========================== */
+
+.version-footer {
+    position: fixed;
+    bottom: 8px;
+    right: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: rgba(0,0,0,0.7);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    z-index: 1000;
+}

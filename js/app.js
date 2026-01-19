@@ -2,6 +2,8 @@
  * 主應用程式 - Graph UI 版本
  */
 
+const VERSION = '0.1.0';
+
 // 全域變數
 let graphCanvas = null;
 let graphEngine = null;
@@ -64,6 +66,7 @@ const ThemeManager = {
  * 應用程式初始化
  */
 function initApp() {
+  console.log(`🎵 Audio Web Tool v${VERSION}`);
   console.log('♬ 音效處理工具 (Graph UI) 啟動中...');
 
   // 初始化主題

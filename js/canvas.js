@@ -326,14 +326,28 @@ class GraphCanvas {
         // 轉換為畫布座標
         const canvasPos = this.screenToCanvas(x, y);
 
-        // 檢查是否為音訊檔案拖放
+        // 檢查是否為媒體檔案拖放
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
-            // 過濾出音訊檔案
+            // 過濾出視訊和音訊檔案
+            const videoFiles = Array.from(files).filter(f => f.type.startsWith('video/'));
             const audioFiles = Array.from(files).filter(f => f.type.startsWith('audio/'));
 
-            if (audioFiles.length > 0) {
-                // 檢查是否拖放到現有的 AudioInputNode 上
+            // 優先處理視訊檔案
+            if (videoFiles.length > 0 && audioFiles.length === 0) {
+                // 純視訊檔案：建立 VideoPreviewNode
+                if (this.onVideoFileDrop) {
+                    this.onVideoFileDrop(videoFiles, canvasPos.x, canvasPos.y);
+                }
+                return;
+            } else if (videoFiles.length > 0 && audioFiles.length > 0) {
+                // 混合檔案：優先視訊
+                if (this.onVideoFileDrop) {
+                    this.onVideoFileDrop(videoFiles, canvasPos.x, canvasPos.y);
+                }
+                return;
+            } else if (audioFiles.length > 0) {
+                // 純音訊檔案：檢查是否拖放到現有的 AudioInputNode 上
                 const targetElement = document.elementFromPoint(e.clientX, e.clientY);
                 const nodeElement = targetElement?.closest('.graph-node');
 

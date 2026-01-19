@@ -160,9 +160,76 @@ class AudioProcessor {
     const stretchedBuffer = this.timeStretchOLA(audioBuffer, pitchRatio);
 
     // 步驟 2: 重新採樣 - 壓縮回原始長度（同時提高音高）
-    const finalBuffer = this.resample(stretchedBuffer, pitchRatio);
+    let finalBuffer = this.resample(stretchedBuffer, pitchRatio);
+
+    // 步驟 3: 移除處理過程中產生的靜音填充
+    finalBuffer = this.trimSilence(finalBuffer, 0.005);
 
     return finalBuffer;
+  }
+
+  /**
+   * 移除音訊開頭和結尾的靜音
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @param {number} threshold - 靜音閾值（0-1）
+   */
+  trimSilence(audioBuffer, threshold = 0.01) {
+    const numChannels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+    
+    // 找到第一個非靜音樣本
+    let startSample = 0;
+    for (let i = 0; i < length; i++) {
+      let isSilent = true;
+      for (let channel = 0; channel < numChannels; channel++) {
+        if (Math.abs(audioBuffer.getChannelData(channel)[i]) > threshold) {
+          isSilent = false;
+          break;
+        }
+      }
+      if (!isSilent) {
+        startSample = i;
+        break;
+      }
+    }
+    
+    // 找到最後一個非靜音樣本
+    let endSample = length;
+    for (let i = length - 1; i >= startSample; i--) {
+      let isSilent = true;
+      for (let channel = 0; channel < numChannels; channel++) {
+        if (Math.abs(audioBuffer.getChannelData(channel)[i]) > threshold) {
+          isSilent = false;
+          break;
+        }
+      }
+      if (!isSilent) {
+        endSample = i + 1;
+        break;
+      }
+    }
+    
+    // 如果沒有找到有效音訊，返回原始緩衝區
+    if (startSample >= endSample) {
+      return audioBuffer;
+    }
+    
+    const newLength = endSample - startSample;
+    const newBuffer = this.audioContext.createBuffer(
+      numChannels,
+      newLength,
+      audioBuffer.sampleRate
+    );
+    
+    for (let channel = 0; channel < numChannels; channel++) {
+      const oldData = audioBuffer.getChannelData(channel);
+      const newData = newBuffer.getChannelData(channel);
+      for (let i = 0; i < newLength; i++) {
+        newData[i] = oldData[startSample + i];
+      }
+    }
+    
+    return newBuffer;
   }
 
   /**
@@ -327,6 +394,12 @@ class AudioProcessor {
     // 音高調整
     if (settings.pitch !== undefined && settings.pitch !== 0) {
       processedBuffer = this.changePitch(processedBuffer, settings.pitch);
+    }
+
+    // 如果應用了任何可能引入填充的處理，修剪靜音
+    if ((settings.playbackRate !== undefined && settings.playbackRate !== 1.0) ||
+        (settings.pitch !== undefined && settings.pitch !== 0)) {
+      processedBuffer = this.trimSilence(processedBuffer, 0.005);
     }
 
     return processedBuffer;
