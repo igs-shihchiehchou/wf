@@ -153,6 +153,48 @@ class AudioProcessor {
   }
 
   /**
+   * 正規化音訊（縮放至峰值為 0.99）
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @returns {AudioBuffer} 處理後的音訊
+   */
+  normalizeAudio(audioBuffer) {
+    // Find peak
+    let maxSample = 0;
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const data = audioBuffer.getChannelData(channel);
+      for (let i = 0; i < data.length; i++) {
+        const abs = Math.abs(data[i]);
+        if (abs > maxSample) {
+          maxSample = abs;
+        }
+      }
+    }
+
+    // If no clipping or silent, return original
+    if (maxSample <= 1.0 || maxSample === 0) {
+      return audioBuffer;
+    }
+
+    // Scale down
+    const scale = 0.99 / maxSample;
+    const newBuffer = this.audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const oldData = audioBuffer.getChannelData(channel);
+      const newData = newBuffer.getChannelData(channel);
+      for (let i = 0; i < audioBuffer.length; i++) {
+        newData[i] = oldData[i] * scale;
+      }
+    }
+
+    return newBuffer;
+  }
+
+  /**
    * 應用淡入效果
    * @param {AudioBuffer} audioBuffer - 原始音訊
    * @param {number} duration - 淡入持續時間（秒）
