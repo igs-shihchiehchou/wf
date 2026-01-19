@@ -84,22 +84,53 @@ class VolumeNode extends BaseNode {
     async process(inputs) {
         const audioBuffer = inputs.audio;
         const audioFiles = inputs.audioFiles;
+        const gain = this.data.volume / 100;
+        const clippingMode = this.data.clippingMode || 'none';
+
+        // Helper function to process single buffer
+        const processSingleBuffer = (buffer) => {
+            if (!buffer) return null;
+
+            // Apply volume
+            let processed = audioProcessor.adjustVolume(buffer, gain);
+
+            // Detect clipping
+            const clippingResult = audioProcessor.detectClipping(buffer, gain);
+
+            // Apply clipping protection if needed
+            if (clippingResult.clipped && clippingMode !== 'none') {
+                switch (clippingMode) {
+                    case 'limiter':
+                        processed = audioProcessor.applyLimiter(processed);
+                        break;
+                    case 'softclip':
+                        processed = audioProcessor.applySoftClip(processed);
+                        break;
+                    case 'normalize':
+                        processed = audioProcessor.normalizeAudio(processed);
+                        break;
+                }
+            }
+
+            return { buffer: processed, clipped: clippingResult.clipped && clippingMode === 'none' };
+        };
 
         // 處理多檔案
         if (audioFiles && audioFiles.length > 0) {
             const processedFiles = [];
+            let anyClipped = false;
+
             for (const buffer of audioFiles) {
-                if (buffer) {
-                    const settings = {
-                        volume: this.data.volume / 100,
-                        crop: { enabled: false },
-                        fadeIn: { enabled: false },
-                        fadeOut: { enabled: false },
-                        playbackRate: 1.0
-                    };
-                    processedFiles.push(audioProcessor.processAudio(buffer, settings));
+                const result = processSingleBuffer(buffer);
+                if (result) {
+                    processedFiles.push(result.buffer);
+                    if (result.clipped) anyClipped = true;
                 }
             }
+
+            // Update warning display
+            this.updateClippingWarning(anyClipped);
+
             return {
                 audio: processedFiles[0] || null,
                 audioFiles: processedFiles,
@@ -108,19 +139,25 @@ class VolumeNode extends BaseNode {
         }
 
         // 單檔案處理（向下相容）
-        if (!audioBuffer) return { audio: null };
+        if (!audioBuffer) {
+            this.updateClippingWarning(false);
+            return { audio: null };
+        }
 
-        // 使用 audioProcessor 調整音量
-        const settings = {
-            volume: this.data.volume / 100,
-            crop: { enabled: false },
-            fadeIn: { enabled: false },
-            fadeOut: { enabled: false },
-            playbackRate: 1.0
-        };
+        const result = processSingleBuffer(audioBuffer);
+        this.updateClippingWarning(result.clipped);
 
-        const processed = audioProcessor.processAudio(audioBuffer, settings);
-        return { audio: processed };
+        return { audio: result.buffer };
+    }
+
+    /**
+     * 更新削波警告顯示
+     */
+    updateClippingWarning(show) {
+        const warning = this.element?.querySelector('.clipping-warning');
+        if (warning) {
+            warning.style.display = show ? 'flex' : 'none';
+        }
     }
 }
 
