@@ -74,6 +74,31 @@ class AudioProcessor {
   }
 
   /**
+   * 偵測音訊是否會發生削波
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @param {number} gain - 音量倍數
+   * @returns {Object} { clipped: boolean, peakLevel: number }
+   */
+  detectClipping(audioBuffer, gain) {
+    let maxSample = 0;
+
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const data = audioBuffer.getChannelData(channel);
+      for (let i = 0; i < data.length; i++) {
+        const amplified = Math.abs(data[i] * gain);
+        if (amplified > maxSample) {
+          maxSample = amplified;
+        }
+      }
+    }
+
+    return {
+      clipped: maxSample > 1.0,
+      peakLevel: maxSample
+    };
+  }
+
+  /**
    * 應用淡入效果
    * @param {AudioBuffer} audioBuffer - 原始音訊
    * @param {number} duration - 淡入持續時間（秒）
