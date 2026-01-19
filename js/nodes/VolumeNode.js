@@ -51,6 +51,7 @@ class VolumeNode extends BaseNode {
     bindContentEvents() {
         const slider = this.element.querySelector('.volume-slider');
         const valueDisplay = this.element.querySelector('.node-control-value');
+        const clippingSelect = this.element.querySelector('.clipping-mode-select');
 
         if (slider) {
             slider.addEventListener('input', (e) => {
@@ -62,6 +63,19 @@ class VolumeNode extends BaseNode {
 
                 if (this.onDataChange) {
                     this.onDataChange('volume', this.data.volume);
+                }
+            });
+        }
+
+        if (clippingSelect) {
+            clippingSelect.addEventListener('change', (e) => {
+                this.data.clippingMode = e.target.value;
+
+                // 自動更新預覽
+                this.schedulePreviewUpdate();
+
+                if (this.onDataChange) {
+                    this.onDataChange('clippingMode', this.data.clippingMode);
                 }
             });
         }
