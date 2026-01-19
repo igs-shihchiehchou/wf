@@ -99,6 +99,36 @@ class AudioProcessor {
   }
 
   /**
+   * 應用限制器（硬限幅）
+   * @param {AudioBuffer} audioBuffer - 原始音訊
+   * @param {number} threshold - 限幅閾值（預設 0.99）
+   * @returns {AudioBuffer} 處理後的音訊
+   */
+  applyLimiter(audioBuffer, threshold = 0.99) {
+    const newBuffer = this.audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const oldData = audioBuffer.getChannelData(channel);
+      const newData = newBuffer.getChannelData(channel);
+      for (let i = 0; i < audioBuffer.length; i++) {
+        if (oldData[i] > threshold) {
+          newData[i] = threshold;
+        } else if (oldData[i] < -threshold) {
+          newData[i] = -threshold;
+        } else {
+          newData[i] = oldData[i];
+        }
+      }
+    }
+
+    return newBuffer;
+  }
+
+  /**
    * 應用淡入效果
    * @param {AudioBuffer} audioBuffer - 原始音訊
    * @param {number} duration - 淡入持續時間（秒）
