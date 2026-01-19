@@ -1994,3 +1994,40 @@
     z-index: 9999;
     background-color: transparent;
 }
+
+/* ===========================
+   音量節點削波保護樣式
+   =========================== */
+
+.clipping-mode-select {
+  width: 100%;
+  padding: var(--spacing-2);
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.clipping-mode-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.clipping-warning {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  background-color: hsla(45, 100%, 50%, 0.1);
+  border: 1px solid hsla(45, 100%, 50%, 0.3);
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  color: hsl(45, 100%, 70%);
+}
+
+.clipping-warning-icon {
+  flex-shrink: 0;
+}
