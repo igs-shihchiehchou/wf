@@ -23,6 +23,7 @@ class VolumeNode extends BaseNode {
 
     renderContent() {
         const volume = this.data.volume || 100;
+        const clippingMode = this.data.clippingMode || 'none';
         return `
       <div class="node-control">
         <label class="node-control-label">音量</label>
@@ -30,6 +31,19 @@ class VolumeNode extends BaseNode {
           <input type="range" class="volume-slider" min="0" max="200" value="${volume}" step="1">
           <span class="node-control-value">${volume}%</span>
         </div>
+      </div>
+      <div class="node-control">
+        <label class="node-control-label">削波保護</label>
+        <select class="clipping-mode-select">
+          <option value="none" ${clippingMode === 'none' ? 'selected' : ''}>無 (僅警告)</option>
+          <option value="limiter" ${clippingMode === 'limiter' ? 'selected' : ''}>限制器</option>
+          <option value="softclip" ${clippingMode === 'softclip' ? 'selected' : ''}>軟削波</option>
+          <option value="normalize" ${clippingMode === 'normalize' ? 'selected' : ''}>自動正規化</option>
+        </select>
+      </div>
+      <div class="clipping-warning" style="display: none;">
+        <span class="clipping-warning-icon">⚠️</span>
+        <span>偵測到削波</span>
       </div>
     `;
     }
